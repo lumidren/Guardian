@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Local MQTT Broker for IoT Fleet
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    container_name: guardian-mqtt-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    environment:
+      - MOSQUITTO_ANONYMOUS=true
+
+  # GUARDIAN Gateway Security Daemon
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: guardian-security-gateway
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mqtt-broker
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - MQTT_BROKER_HOST=mqtt-broker
+      - MQTT_BROKER_PORT=1883
