@@ -8,7 +8,7 @@
 - [x] P2-4. Real baselines and ablations (static rules, pooled IF, z-score only, layer ablations)
 - [x] P2-5. Adversarial and sensitivity testing (evasion modes, operating curve, threats to validity)
 - [x] P2-6. Real system measurements (psutil CPU/RAM, 3 distinct latencies, scalability test)
-- [ ] P2-7. Close the Phase 1 gaps (close items from PHASE1_GAP_CHECK.md)
+- [x] P2-7. Close the Phase 1 gaps (close items from PHASE1_GAP_CHECK.md)
 - [ ] P2-8. Honest reporting (reproducible tables/LaTeX, honest README, IEEE paper draft)
 - [ ] P2-9. CI guardrails and final acceptance (no-hardcoded-metrics test, smoke eval in CI)
 
@@ -17,26 +17,26 @@
 ## Phase 1 Milestones (docs/AGENT_PLAN.md)
 - [x] M0 scaffolding and quality gates
 - [x] M1 contracts and DB
-- [ ] M2 simulator (feeds P2-7)
-- [ ] M3 sources and windows (feeds P2-7)
-- [ ] M4 features (feeds P2-7)
-- [ ] M5 profiles and stages (feeds P2-7)
-- [ ] M6 detectors (feeds P2-7)
-- [ ] M7 network identity and fusion (feeds P2-7)
-- [ ] M8 explainability (feeds P2-7)
-- [ ] M9 response (feeds P2-7)
-- [ ] M10 pipeline, drift, feedback (feeds P2-7)
-- [ ] M11 API (feeds P2-7)
-- [ ] M12 dashboard (feeds P2-7)
-- [ ] M13 evaluation and enhancements (superseded by P2-2 to P2-6)
-- [ ] M14 hardening and docs (feeds P2-8)
+- [x] M2 simulator (feeds P2-7)
+- [x] M3 sources and windows (feeds P2-7)
+- [x] M4 features (feeds P2-7)
+- [x] M5 profiles and stages (feeds P2-7)
+- [x] M6 detectors (feeds P2-7)
+- [x] M7 network identity and fusion (feeds P2-7)
+- [x] M8 explainability (feeds P2-7)
+- [x] M9 response (feeds P2-7)
+- [x] M10 pipeline, drift, feedback (feeds P2-7)
+- [x] M11 API (feeds P2-7)
+- [x] M12 dashboard (feeds P2-7)
+- [x] M13 evaluation and enhancements (superseded by P2-2 to P2-6)
+- [x] M14 hardening and docs (feeds P2-8)
 
 ---
 
 ## Current Status
-- **Active Milestone**: P2-7 (Close the Phase 1 gaps)
-- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, M0, M1
-- **Next Milestone**: P2-7 (Close the Phase 1 gaps)
-- **Known Gaps**: See `docs/PHASE1_GAP_CHECK.md` (M2–M14). All audit findings F1–F12 are resolved.
+- **Active Milestone**: P2-8 (Honest reporting)
+- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, P2-7, M0-M14
+- **Next Milestone**: P2-8 (Honest reporting)
+- **Known Gaps**: All Phase 1 gaps (M0-M14) and audit findings (F1-F12) are resolved.
 
 
