@@ -85,3 +85,8 @@ This document records architectural, algorithmic, and engineering decisions made
 - **Decision**: Standardize `requires-python = ">=3.11"` in `pyproject.toml`, make `pyproject.toml` the sole canonical source of runtime and development dependencies, remove standalone `requirements.txt` from repository tracking, and provide `make export-requirements` for headless environments.
 - **Rationale**: Eliminates split-brain dependency specifications and enforces modern Python 3.11 typing and performance optimizations across all quality gates.
 
+### ADR-014: Unified `src/guardian` Package Layout & SQLAlchemy 2.0 Typing Modernization
+- **Problem**: Dual package layouts (`guardian/` in root and `src/guardian/`) created ambiguous imports, broken module resolutions in editable installs, and legacy SQLAlchemy `Column` definitions produced strict mypy type errors.
+- **Decision**: Completely remove legacy root `guardian/` directory. Migrate all submodules (`capture`, `config`, `features`, `ml`, `intelligence`, `enforcement`, `xai`, `storage`, `api`) into `src/guardian/`. Upgrade all SQLAlchemy ORM models (`Device`, `Alert`, `BehavioralBaseline`, `SystemMetric`, `AuditLog`) to `DeclarativeBase` with typed `Mapped[T] = mapped_column(...)`. Add repo root to `tool.pytest.ini_options.pythonpath = ["src", "."]`.
+- **Rationale**: Guarantees standard packaging compliance, prevents import shadowing, provides 100% strict type safety under mypy without untyped escapes, and ensures seamless testing across CI matrices.
+
