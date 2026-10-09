@@ -9,7 +9,8 @@ from enum import StrEnum
 class LayerType(StrEnum):
     LAYER_1_BEHAVIORAL = "LAYER_1_BEHAVIORAL"
     LAYER_2_NETWORK = "LAYER_2_NETWORK"
-    LAYER_3_PHYSICAL = "LAYER_3_PHYSICAL"
+    LAYER_3_HEURISTIC = "LAYER_3_HEURISTIC"
+    LAYER_3_PHYSICAL = "LAYER_3_HEURISTIC"  # Alias for backward compatibility
     TEMPORAL = "TEMPORAL"
 
 
@@ -92,10 +93,10 @@ FEATURE_REGISTRY: dict[str, FeatureMetadata] = {
     "tcp_fin_ratio": FeatureMetadata("tcp_fin_ratio", 53, LayerType.LAYER_1_BEHAVIORAL, "TCP FIN Ratio", "Fraction of FIN packets (connection closures)", "ratio", False),
     "tcp_win_mean": FeatureMetadata("tcp_win_mean", 54, LayerType.LAYER_1_BEHAVIORAL, "Mean TCP Window Size", "Average advertised TCP receive window", "bytes", False),
 
-    # Layer 3: Physical / Heuristic Signatures (56-58)
-    "ip_ttl_variance": FeatureMetadata("ip_ttl_variance", 55, LayerType.LAYER_3_PHYSICAL, "IP TTL Variance", "Variability in IP Time-to-Live indicating routing spoofing", "variance", True),
-    "tcp_clock_skew_est": FeatureMetadata("tcp_clock_skew_est", 56, LayerType.LAYER_3_PHYSICAL, "Clock Skew Est", "Estimated drift in TCP timestamp frequency", "ppm", True),
-    "ip_id_monotonicity": FeatureMetadata("ip_id_monotonicity", 57, LayerType.LAYER_3_PHYSICAL, "IP ID Monotonicity", "Consistency of IP ID incremental sequence", "score", False),
+    # Layer 3: Protocol, Circadian & Heuristic Signatures (56-58)
+    "ip_ttl_variance": FeatureMetadata("ip_ttl_variance", 55, LayerType.LAYER_3_HEURISTIC, "IP TTL Variance", "Variability in IP Time-to-Live indicating routing spoofing", "variance", True),
+    "tcp_clock_skew_est": FeatureMetadata("tcp_clock_skew_est", 56, LayerType.LAYER_3_HEURISTIC, "Clock Skew Est", "Estimated drift in TCP timestamp frequency", "ppm", True),
+    "ip_id_monotonicity": FeatureMetadata("ip_id_monotonicity", 57, LayerType.LAYER_3_HEURISTIC, "IP ID Monotonicity", "Consistency of IP ID incremental sequence", "score", False),
 
     # Circadian & Temporal Consistency (59-60)
     "hour_sin": FeatureMetadata("hour_sin", 58, LayerType.TEMPORAL, "Circadian Sine", "Sinusoidal representation of hour of day", "value", False),

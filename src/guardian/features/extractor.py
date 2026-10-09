@@ -161,7 +161,7 @@ class FeatureExtractor:
             tcp_syn_ratio = tcp_ack_ratio = tcp_psh_ratio = tcp_rst_ratio = tcp_fin_ratio = 0.0
             tcp_win_mean = 0.0
 
-        # Layer 3: Physical & Heuristic Signatures
+        # Layer 3: Protocol & Heuristic Signatures
         ttls = [p.ttl for p in pkts]
         ip_ttl_variance = float(np.var(ttls)) if len(ttls) > 1 else 0.0
 

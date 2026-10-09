@@ -100,7 +100,7 @@ class ThreatScorer:
         layer_contributions = {
             "Layer 1 (Behavioral)": round(w_ml * 100, 1),
             "Layer 2 (Network Destinations)": round((w_heur * 0.7 + w_stat * 0.5) * 100, 1),
-            "Layer 3 (Physical/Heuristic)": round((w_heur * 0.3 + w_stat * 0.5) * 100, 1),
+            "Layer 3 (Protocol/Heuristic)": round((w_heur * 0.3 + w_stat * 0.5) * 100, 1),
         }
 
         return ThreatAssessment(

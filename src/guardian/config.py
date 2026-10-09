@@ -90,7 +90,7 @@ FEATURE_NAMES: list[str] = [
     "tcp_fin_ratio",
     "tcp_win_mean",
 
-    # Layer 3: Physical / Heuristic Signatures (56-58)
+    # Layer 3: Protocol, Circadian & Heuristic Signatures (56-58)
     "ip_ttl_variance",
     "tcp_clock_skew_est",
     "ip_id_monotonicity",
