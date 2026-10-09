@@ -75,3 +75,39 @@ def test_dynamic_guardrail_report_integrity_and_provenance() -> None:
     assert lat["compute_latency_ms"]["mean"] > 0
     assert lat["enforcement_latency_ms"]["mean"] > 0
     assert "time_to_detect_s" in lat
+
+
+def test_readme_and_results_md_tables_match() -> None:
+    """
+    Verifies that the core empirical tables in README.md (Zero-Day Detection, Baselines,
+    Ablations, and Adversarial Evasion) match eval/RESULTS.md exactly without manual manipulation.
+    """
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    results_path = root_dir / "eval" / "RESULTS.md"
+    readme_path = root_dir / "README.md"
+    assert results_path.exists() and readme_path.exists()
+
+    results_content = results_path.read_text(encoding="utf-8")
+    readme_content = readme_path.read_text(encoding="utf-8")
+
+    # Match all rows from tables 1 through 4 in RESULTS.md
+    for line in results_content.splitlines():
+        trimmed = line.strip()
+        if trimmed.startswith("| **") and not any(
+            ignored in trimmed
+            for ignored in [
+                "Latency",
+                "Time-to-Detect",
+                "Offered Packets",
+                "Processed Packets",
+                "Dropped Packets",
+                "Packet Drop Rate",
+                "Peak Queue Depth",
+                "Packet Ingestion Throughput",
+            ]
+        ):
+            assert trimmed in readme_content, (
+                f"Empirical metric mismatch between eval/RESULTS.md and README.md!\n"
+                f"Missing or modified row: {trimmed}"
+            )
+
