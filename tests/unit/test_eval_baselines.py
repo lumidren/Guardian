@@ -145,3 +145,56 @@ def test_robust_zscore_only_baseline() -> None:
     # Highly anomalous features (> 6 sigma)
     anom_score = evaluator.score_features({"pkt_rate_per_sec": 15.0, "byte_rate_per_sec": 2000.0})
     assert anom_score >= 70.0
+
+
+def test_destination_allowlist_only_baseline() -> None:
+    from guardian.eval.baselines import DestinationAllowlistOnlyBaseline
+
+    temp_spec = DEFAULT_FLEET_SPECS[0]
+    allowlist_base = DestinationAllowlistOnlyBaseline.from_device_spec(temp_spec)
+
+    # Approved destination
+    clean_summary = _make_dummy_summary(
+        device_ip=temp_spec.ip_address,
+        dst_ip=temp_spec.normal_destinations[0],
+        dst_port=1883,
+        packet_count=5,
+    )
+    score_clean, viol_clean = allowlist_base.score_summary(clean_summary)
+    assert score_clean == 0.0
+    assert len(viol_clean) == 0
+
+    # Unauthorized destination
+    dirty_summary = _make_dummy_summary(
+        device_ip=temp_spec.ip_address,
+        dst_ip="203.0.113.88",
+        dst_port=1883,
+        packet_count=5,
+    )
+    score_dirty, viol_dirty = allowlist_base.score_summary(dirty_summary)
+    assert score_dirty == 100.0
+    assert len(viol_dirty) > 0
+
+
+def test_local_outlier_factor_baseline() -> None:
+    from guardian.eval.baselines import LocalOutlierFactorBaseline
+
+    # Generate 50 points clustered around (10.0, 10.0)
+    rng = np.random.default_rng(42)
+    normal_data = rng.normal(loc=10.0, scale=1.0, size=(50, 4))
+
+    lof = LocalOutlierFactorBaseline(k_neighbors=5)
+    lof.fit(normal_data)
+    assert lof.is_fitted is True
+
+    # In-distribution point
+    normal_pt = np.array([10.1, 9.9, 10.0, 10.2])
+    score_in = lof.score_sample(normal_pt)
+
+    # Distant outlier point
+    outlier_pt = np.array([50.0, 50.0, 50.0, 50.0])
+    score_out = lof.score_sample(outlier_pt)
+
+    assert score_out > score_in
+    assert score_out >= 60.0
+
