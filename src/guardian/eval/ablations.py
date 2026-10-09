@@ -30,11 +30,50 @@ from .scenario import GroundTruthEpisode, ScenarioBuilder, StreamWindow
 @dataclass(frozen=True)
 class AblationConfig:
     name: str
-    enable_layer1: bool = True
-    enable_layer2: bool = True
+    enable_statistical: bool = True
+    enable_ml: bool = True
+    enable_layer1_volumetric: bool = True
+    enable_layer2_network: bool = True
+    enable_layer3_metadata: bool = True
     enable_hysteresis: bool = True
     enable_calibration: bool = True
     description: str = ""
+
+    def __init__(
+        self,
+        name: str,
+        enable_statistical: bool | None = None,
+        enable_ml: bool | None = None,
+        enable_layer1_volumetric: bool = True,
+        enable_layer2_network: bool = True,
+        enable_layer3_metadata: bool = True,
+        enable_hysteresis: bool = True,
+        enable_calibration: bool = True,
+        description: str = "",
+        enable_layer1: bool | None = None,
+        enable_layer2: bool | None = None,
+    ) -> None:
+        object.__setattr__(self, "name", name)
+        stat = enable_statistical if enable_statistical is not None else (enable_layer1 if enable_layer1 is not None else True)
+        ml = enable_ml if enable_ml is not None else (enable_layer2 if enable_layer2 is not None else True)
+        object.__setattr__(self, "enable_statistical", stat)
+        object.__setattr__(self, "enable_ml", ml)
+        object.__setattr__(self, "enable_layer1_volumetric", enable_layer1_volumetric)
+        object.__setattr__(self, "enable_layer2_network", enable_layer2_network)
+        object.__setattr__(self, "enable_layer3_metadata", enable_layer3_metadata)
+        object.__setattr__(self, "enable_hysteresis", enable_hysteresis)
+        object.__setattr__(self, "enable_calibration", enable_calibration)
+        object.__setattr__(self, "description", description)
+
+    @property
+    def enable_layer1(self) -> bool:
+        """Legacy alias: maps to statistical baseline detector."""
+        return self.enable_statistical
+
+    @property
+    def enable_layer2(self) -> bool:
+        """Legacy alias: maps to Isolation Forest ML detector."""
+        return self.enable_ml
 
 
 @dataclass(frozen=True)
@@ -82,47 +121,97 @@ class AblationResult:
 
 
 def get_standard_ablation_battery() -> list[AblationConfig]:
-    """Returns the standardized 5-configuration ablation battery."""
+    """
+    Returns the standardized ablation battery cleanly separating detectors and layers (G5).
+    """
     return [
         AblationConfig(
             name="Full GUARDIAN",
-            enable_layer1=True,
-            enable_layer2=True,
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
             enable_hysteresis=True,
             enable_calibration=True,
-            description="Complete production pipeline with Layer 1, Layer 2, hysteresis, and calibrated operating point",
+            description="Complete production pipeline with all 3 feature layers, dual detectors, hysteresis, and calibration",
         ),
         AblationConfig(
-            name="Layer 1 Only (Statistical)",
-            enable_layer1=True,
-            enable_layer2=False,
+            name="Statistical Detector Only (No ML)",
+            enable_statistical=True,
+            enable_ml=False,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
             enable_hysteresis=True,
             enable_calibration=True,
-            description="Statistical baseline only without Isolation Forest",
+            description="Statistical baseline only without Isolation Forest ML",
         ),
         AblationConfig(
-            name="Layer 2 Only (Isolation Forest)",
-            enable_layer1=False,
-            enable_layer2=True,
+            name="Isolation Forest Only (No Stat)",
+            enable_statistical=False,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
             enable_hysteresis=True,
             enable_calibration=True,
             description="Isolation Forest ML only without statistical baseline",
         ),
         AblationConfig(
+            name="No Layer 1 (Volumetric Dynamics)",
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=False,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
+            enable_hysteresis=True,
+            enable_calibration=True,
+            description="Ablates Layer 1 volumetric rate and packet length features",
+        ),
+        AblationConfig(
+            name="No Layer 2 (Network Graph)",
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=False,
+            enable_layer3_metadata=True,
+            enable_hysteresis=True,
+            enable_calibration=True,
+            description="Ablates Layer 2 destination graph and novel IP flags",
+        ),
+        AblationConfig(
+            name="No Layer 3 (Temporal/App)",
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=False,
+            enable_hysteresis=True,
+            enable_calibration=True,
+            description="Ablates Layer 3 circadian harmonics, protocol ratios, and payload metadata",
+        ),
+        AblationConfig(
             name="No Hysteresis (Instantaneous)",
-            enable_layer1=True,
-            enable_layer2=True,
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
             enable_hysteresis=False,
             enable_calibration=True,
             description="Instantaneous threat scoring without smoothing/hysteresis",
         ),
         AblationConfig(
             name="Uncalibrated (Fixed Threshold)",
-            enable_layer1=True,
-            enable_layer2=True,
+            enable_statistical=True,
+            enable_ml=True,
+            enable_layer1_volumetric=True,
+            enable_layer2_network=True,
+            enable_layer3_metadata=True,
             enable_hysteresis=True,
             enable_calibration=False,
-            description="Uncalibrated fixed 60.0 threshold without Day 8 calibration",
+            description="Uncalibrated fixed 60.0 threshold without calibration",
         ),
     ]
 
@@ -188,9 +277,9 @@ class AblationRunner:
 
         threat_scorer = ThreatScorer()
         operating_point = (
-            OperatingPoint.default_production()
+            OperatingPoint(alert_threshold=40.0, frozen=True)
             if config.enable_calibration
-            else OperatingPoint(alert_threshold=60.0)
+            else OperatingPoint(alert_threshold=60.0, frozen=True)
         )
 
         windows: list[StreamWindow] = self.scenario_builder.generate_device_stream_windows(
@@ -211,24 +300,41 @@ class AblationRunner:
         in_false_alarm_streak = False
 
         for w in windows:
+            flow_tracker.device_buffers[dev.ip_address].clear()
             for p in w.packets:
                 flow_tracker.ingest_packet(p)
 
-            summary = flow_tracker.get_window_summary(dev.ip_address)
+            summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
             if not summary:
                 continue
 
             features = self.extractor.extract(summary)
             vec = self.extractor.extract_vector(summary)
 
-            # Ablation Layer 2: Isolation Forest
-            if config.enable_layer2:
+            # Feature layer ablations
+            if not config.enable_layer1_volumetric:
+                for f_name in ["pkt_count_10s", "byte_count_10s", "pkt_rate_per_sec", "byte_rate_per_sec", "iat_mean", "iat_std"]:
+                    if f_name in features:
+                        features[f_name] = baseline.means.get(f_name, 0.0)
+
+            if not config.enable_layer2_network:
+                features["new_dst_ip_flag"] = 0.0
+                features["out_degree_centrality"] = 0.0
+                features["unique_dst_ips"] = 1.0
+                features["external_ip_ratio"] = 0.0
+
+            if not config.enable_layer3_metadata:
+                features["hour_sin"] = 0.0
+                features["hour_cos"] = 0.0
+                features["tcp_clock_skew_est"] = 0.0
+
+            # Detector ablations (G5)
+            if config.enable_ml:
                 ml_score, _ = model.score_sample(vec)
             else:
                 ml_score = 0.0
 
-            # Ablation Layer 1: Statistical Baseline
-            if config.enable_layer1:
+            if config.enable_statistical:
                 stat_score, _ = baseline.evaluate(features)
             else:
                 stat_score = 0.0
