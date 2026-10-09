@@ -93,6 +93,18 @@ class StreamWindow:
     attack_packet_count: int = 0
 
 
+def calculate_sub_window_offset(stride_s: float = 2.0, rng: np.random.Generator | None = None) -> float:
+    """
+    Computes a random sub-window offset delta in (0.2, stride_s - 0.2) seconds.
+    Ensures that attack episode start times do not fall precisely on window stride
+    boundaries, making time-to-detect (TTD) strictly non-zero by physical construction.
+    """
+    generator = rng if rng is not None else np.random.default_rng()
+    min_off = min(0.2, stride_s * 0.1)
+    max_off = max(min_off + 0.1, stride_s - min_off)
+    return float(generator.uniform(min_off, max_off))
+
+
 class ScenarioBuilder:
     """
     Constructs deterministic multi-day network streams and ground truth attack schedules.
@@ -168,8 +180,11 @@ class ScenarioBuilder:
             atk, intensity, evasion, dev = planned_runs[idx]
             # Duration between 30s and 90s
             duration = 30.0 + (int(rng.integers(0, 7)) * 10.0)
-            start_t = current_time + float(rng.uniform(10.0, 30.0))
-            end_t = start_t + duration
+            base_start = current_time + float(rng.uniform(10.0, 30.0))
+            # Apply random sub-window offset ensuring TTD cannot be 0.0s by design
+            offset = calculate_sub_window_offset(stride_s=self.stride_s, rng=rng)
+            start_t = round(base_start + offset, 3)
+            end_t = round(start_t + duration, 3)
 
             if end_t >= test_end_time - 60.0:
                 break
@@ -190,6 +205,34 @@ class ScenarioBuilder:
             current_time = end_t + min_gap_seconds + float(rng.uniform(10.0, 50.0))
 
         return episodes
+
+    def create_offset_episode(
+        self,
+        episode_id: str,
+        device_id: str,
+        attack_type: AttackType,
+        base_start_time: float,
+        duration_seconds: float,
+        intensity: AttackIntensity = AttackIntensity.MEDIUM,
+        evasion_mode: EvasionMode = EvasionMode.NONE,
+        tier: DifficultyTier = DifficultyTier.MEDIUM,
+        rng: np.random.Generator | None = None,
+    ) -> GroundTruthEpisode:
+        """Helper to create an episode with a guaranteed sub-window start offset."""
+        offset = calculate_sub_window_offset(stride_s=self.stride_s, rng=rng)
+        start_t = round(base_start_time + offset, 3)
+        end_t = round(start_t + duration_seconds, 3)
+        return GroundTruthEpisode(
+            episode_id=episode_id,
+            device_id=device_id,
+            attack_type=attack_type,
+            start_time=start_t,
+            end_time=end_t,
+            duration_seconds=duration_seconds,
+            intensity=intensity,
+            evasion_mode=evasion_mode,
+            tier=tier,
+        )
 
     def generate_device_stream_windows(
         self,

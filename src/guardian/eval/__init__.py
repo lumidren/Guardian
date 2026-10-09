@@ -69,6 +69,7 @@ from .scenario import (
     ScenarioBuilder,
     SplitType,
     StreamWindow,
+    calculate_sub_window_offset,
 )
 from .sensitivity import (
     OperatingCurvePoint,
@@ -128,4 +129,5 @@ __all__ = [
     "PlausibilityReport",
     "PlausibilityGuard",
     "run_intensity_root_cause",
+    "calculate_sub_window_offset",
 ]
