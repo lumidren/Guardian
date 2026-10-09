@@ -4,8 +4,8 @@ Allows one-click unblock and updates device baseline to prevent repeat false pos
 """
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Callable
 
 
 @dataclass
@@ -18,12 +18,12 @@ class OverrideEvent:
 
 
 class UserOverrideManager:
-    def __init__(self):
-        self.override_history: List[OverrideEvent] = []
-        self.active_overrides: Dict[str, str] = {}
-        self._on_override_callbacks: List[Callable[[str, str], None]] = []
+    def __init__(self) -> None:
+        self.override_history: list[OverrideEvent] = []
+        self.active_overrides: dict[str, str] = {}
+        self._on_override_callbacks: list[Callable[[str, str], None]] = []
 
-    def register_callback(self, cb: Callable[[str, str], None]):
+    def register_callback(self, cb: Callable[[str, str], None]) -> None:
         """Callback triggered when an override occurs to update baseline."""
         self._on_override_callbacks.append(cb)
 
@@ -48,7 +48,7 @@ class UserOverrideManager:
     def is_overridden(self, device_id: str) -> bool:
         return device_id in self.active_overrides
 
-    def get_override_level(self, device_id: str) -> Optional[str]:
+    def get_override_level(self, device_id: str) -> str | None:
         return self.active_overrides.get(device_id)
 
     def clear_override(self, device_id: str):

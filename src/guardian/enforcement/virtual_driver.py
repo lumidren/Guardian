@@ -5,7 +5,7 @@ Maintains stateful network filtering table with sub-millisecond policy execution
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Set
+
 from ..config import ThreatLevel
 
 
@@ -24,7 +24,7 @@ class DeviceFilterState:
 class VirtualFirewallDriver:
     def __init__(self, local_subnet_prefix: str = "192.168.1."):
         self.local_subnet_prefix = local_subnet_prefix
-        self.device_states: Dict[str, DeviceFilterState] = {}
+        self.device_states: dict[str, DeviceFilterState] = {}
 
     def apply_policy(self, ip_address: str, level: ThreatLevel) -> float:
         """

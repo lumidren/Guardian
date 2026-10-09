@@ -5,12 +5,12 @@ Coordinates firewall rules across Linux iptables and virtual testbed tables.
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+
 from ..config import ThreatLevel, config
 from ..ml.threat_scorer import ThreatAssessment
 from .iptables_driver import LinuxIptablesDriver
-from .virtual_driver import VirtualFirewallDriver
 from .overrides import UserOverrideManager
+from .virtual_driver import VirtualFirewallDriver
 
 
 @dataclass
@@ -29,7 +29,7 @@ class EnforcementController:
         self.iptables_driver = LinuxIptablesDriver(interface=interface, local_subnet=local_subnet)
         self.virtual_driver = VirtualFirewallDriver(local_subnet_prefix="192.168.1.")
         self.override_manager = UserOverrideManager()
-        self.states: Dict[str, EnforcementState] = {}
+        self.states: dict[str, EnforcementState] = {}
 
     def enforce(self, device_id: str, ip_address: str, assessment: ThreatAssessment) -> EnforcementState:
         """
@@ -44,8 +44,9 @@ class EnforcementController:
 
         if self.override_manager.is_overridden(device_id):
             override_str = self.override_manager.get_override_level(device_id)
-            target_level = ThreatLevel(override_str)
-            is_overridden = True
+            if override_str:
+                target_level = ThreatLevel(override_str)
+                is_overridden = True
 
         # Apply to virtual driver (always active for packet-level filtering simulation)
         self.virtual_driver.apply_policy(ip_address, target_level)
@@ -67,5 +68,5 @@ class EnforcementController:
         self.states[device_id] = state
         return state
 
-    def get_state(self, device_id: str) -> Optional[EnforcementState]:
+    def get_state(self, device_id: str) -> EnforcementState | None:
         return self.states.get(device_id)

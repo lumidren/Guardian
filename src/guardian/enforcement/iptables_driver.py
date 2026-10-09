@@ -3,10 +3,10 @@ Linux iptables and nftables driver for GUARDIAN Gateway (Raspberry Pi 4).
 Executes graduated packet filtering policies at the Linux kernel level.
 """
 
-import subprocess
 import shutil
+import subprocess
 import time
-from typing import Optional
+
 from ..config import ThreatLevel
 
 
@@ -20,7 +20,7 @@ class LinuxIptablesDriver:
         if not self.has_iptables:
             return False
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(cmd, check=True, capture_output=True)
             return True
         except Exception:
             return False

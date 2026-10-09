@@ -5,8 +5,8 @@ Manages four-tier response levels: MONITOR, RESTRICT, QUARANTINE, and BLOCK.
 
 from .controller import EnforcementController, EnforcementState
 from .iptables_driver import LinuxIptablesDriver
-from .virtual_driver import VirtualFirewallDriver
 from .overrides import UserOverrideManager
+from .virtual_driver import VirtualFirewallDriver
 
 __all__ = [
     "EnforcementController",
