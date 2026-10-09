@@ -1,63 +1,33 @@
 {
-  "timestamp": 1791510525.1462202,
-  "table_8_detection": [
-    {
-      "attack_type": "DDOS_FLOODING",
-      "baseline": "0%",
-      "snort": "25%",
-      "generic": "75%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    },
-    {
-      "attack_type": "CNC_BEACONING",
-      "baseline": "0%",
-      "snort": "15%",
-      "generic": "68%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    },
-    {
-      "attack_type": "NETWORK_SCANNING",
-      "baseline": "0%",
-      "snort": "35%",
-      "generic": "72%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    },
-    {
-      "attack_type": "DATA_EXFILTRATION",
-      "baseline": "0%",
-      "snort": "20%",
-      "generic": "65%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    },
-    {
-      "attack_type": "CRYPTOMINING",
-      "baseline": "0%",
-      "snort": "10%",
-      "generic": "58%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    },
-    {
-      "attack_type": "ZERO_DAY_HYBRID",
-      "baseline": "0%",
-      "snort": "5%",
-      "generic": "62%",
-      "guardian": "100.0%",
-      "detected_raw": 50,
-      "trials_raw": 50
-    }
-  ],
-  "overall_detection_rate": 100.0,
-  "false_positive_rate": 4.0,
-  "avg_detection_latency_ms": 25.03,
-  "avg_enforcement_latency_ms": 0.05
+  "seed": 42,
+  "device_count": 1,
+  "total_windows": 3596,
+  "normal_windows": 3371,
+  "attack_windows": 225,
+  "window_metrics": {
+    "tp": 225,
+    "fn": 0,
+    "fp": 3371,
+    "tn": 0,
+    "tpr": 1.0,
+    "fpr": 1.0,
+    "precision": 0.0626,
+    "recall": 1.0,
+    "f1": 0.1178
+  },
+  "roc_auc": 0.9969,
+  "pr_auc": 0.8717,
+  "total_episodes": 6,
+  "detected_episodes": 6,
+  "episode_detection_rate": 1.0,
+  "false_alert_rate_per_device_day": 12.0,
+  "mean_time_to_detect_s": 1.23,
+  "per_attack_detection_rates": {
+    "DDOS_FLOODING": 1.0,
+    "DATA_EXFILTRATION": 1.0,
+    "CNC_BEACONING": 1.0,
+    "NETWORK_SCANNING": 1.0,
+    "ZERO_DAY_HYBRID": 1.0,
+    "CRYPTOMINING": 1.0
+  }
 }
