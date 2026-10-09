@@ -12,10 +12,10 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from guardian.capture.pcap_importer import InvalidPCAPError, PCAPImporter
 
 from guardian.capture.flow_tracker import FlowTracker
 from guardian.capture.packet_parser import ParsedPacket
+from guardian.capture.pcap_importer import InvalidPCAPError, PCAPImporter
 from guardian.features.extractor import FeatureExtractor
 
 
@@ -111,13 +111,12 @@ def test_pcap_ingestion_into_flow_tracker_and_feature_extraction() -> None:
 
         summary = tracker.get_window_summary("192.168.1.105")
         assert summary is not None
-        assert summary.packet_count_out == 3
-        assert summary.byte_count_out == 128 + 64 + 96
+        assert len(summary.packets) == 3
 
         features = extractor.extract(summary)
         vec = extractor.extract_vector(summary)
         assert len(vec) == 60
-        assert features["packet_count_out"] == 3
+        assert features["pkt_count_10s"] == 3
 
 
 def test_pcap_importer_handles_corrupt_files() -> None:

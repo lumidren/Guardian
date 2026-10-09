@@ -176,5 +176,11 @@ This document records architectural, algorithmic, and engineering decisions made
   4. Implement `ExternalDatasetEvaluator` to measure detection rate and false positive rate under cold-start heuristic scoring and calibrated operating points.
 - **Rationale**: Validates generalizability to external real-world malware and provides reproducible cross-domain benchmark evidence in `docs/EXTERNAL_DATA.md`.
 
-
-
+### ADR-023: Real-Device Ingestion and Zero-Dependency PCAP Processing
+- **Problem**: Bridging simulated evaluation with real physical IoT testbeds requires ingesting binary packet capture files (`.pcap`) from edge gateway interfaces (Raspberry Pi 4) without introducing heavy third-party dependencies (like native libpcap C bindings or Scapy runtime overhead) on resource-constrained devices.
+- **Decision**:
+  1. Implement a zero-dependency, pure-Python binary PCAP parser (`PCAPImporter`) supporting standard microsecond and nanosecond libpcap formats across little- and big-endian architectures.
+  2. Parse Layer 2 (Ethernet), Layer 3 (IPv4), and Layer 4 (TCP/UDP/ICMP) headers without inspecting or decrypting application payloads.
+  3. Stream imported packet metadata directly into `FlowTracker` and sliding-window aggregation buffers, enabling feature extraction and threat evaluation on physical IoT captures.
+  4. Establish standard testbed topology and capture procedures (`-s 96` snaplen) in `docs/REAL_DATA_VALIDATION.md` and `eval/results/real/`.
+- **Rationale**: Provides a seamless bridge between simulation and physical gateway deployment, ensuring real-device readiness and empirical verifiability.
