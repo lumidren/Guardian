@@ -2,6 +2,11 @@
 Evaluation framework package for GUARDIAN.
 """
 
+from .baselines import (
+    PooledIsolationForestBaseline,
+    RobustZScoreOnlyBaseline,
+    StaticThresholdBaseline,
+)
 from .caching import (
     ModelBundle,
     ModelCacheManager,
@@ -62,4 +67,7 @@ __all__ = [
     "ModelSidecarData",
     "ModelCacheManager",
     "TamperedBundleError",
+    "StaticThresholdBaseline",
+    "PooledIsolationForestBaseline",
+    "RobustZScoreOnlyBaseline",
 ]
