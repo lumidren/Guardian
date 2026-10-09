@@ -120,3 +120,18 @@ This document records architectural, algorithmic, and engineering decisions made
   Implement `AblationRunner` and `get_standard_ablation_battery()` supporting systematic ablation of Layer 1, Layer 2, hysteresis damping, and operating point calibration.
 - **Rationale**: Replaces fabricated literature comparisons with rigorous, reproducible, measured empirical baselines and demonstrates the precise marginal utility of each defense layer.
 
+---
+
+## 6. Phase 2 Architecture Decisions (Milestones P2-5 and P2-6)
+
+### ADR-018: Empirical System Measurements, Latency Disaggregation, and Scalability Benchmarking
+- **Problem**: Previous benchmarks presented literal strings for resource utilization (CPU 18.4%, RAM 142 MB), hardcoded scalability results, and reported a single ambiguous "detection latency" number that only measured window calculation without end-to-end time-to-detect.
+- **Decision**: 
+  1. Implement `SystemResourceBenchmark` to measure active process CPU% and memory RSS using OS-level process counters (`psutil`), dynamically computing `PASS`/`FAIL` against configured engineering targets ($CPU < 25\%$, $RAM < 256\text{ MB}$).
+  2. Implement `LatencyBenchmark` reporting three distinct, non-conflated latency metrics:
+     - **Compute Latency**: Time to extract features and evaluate anomaly detectors on a single window ($ms$).
+     - **Time-to-Detect (TTD)**: Wall-clock duration elapsed from the onset of an attack episode to the first detection alert ($s$).
+     - **Enforcement Latency**: Time to apply firewall containment policies via the enforcement controller ($ms$).
+  3. Implement `ScalabilityBenchmark` with `generate_scaled_fleet` evaluating throughput and resource overhead across 8, 12, 16, and 20 devices with fair trial round-robin allocation.
+- **Rationale**: Eliminates fabricated benchmark literals (F2, F3, F4, F12) and provides verifiable, empirical measurements of production runtime characteristics under varying fleet sizes.
+

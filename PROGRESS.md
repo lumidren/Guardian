@@ -7,7 +7,7 @@
 - [x] P2-3. Model training and caching (content-hash bundle cache, exception on missing model)
 - [x] P2-4. Real baselines and ablations (static rules, pooled IF, z-score only, layer ablations)
 - [x] P2-5. Adversarial and sensitivity testing (evasion modes, operating curve, threats to validity)
-- [ ] P2-6. Real system measurements (psutil CPU/RAM, 3 distinct latencies, scalability test)
+- [x] P2-6. Real system measurements (psutil CPU/RAM, 3 distinct latencies, scalability test)
 - [ ] P2-7. Close the Phase 1 gaps (close items from PHASE1_GAP_CHECK.md)
 - [ ] P2-8. Honest reporting (reproducible tables/LaTeX, honest README, IEEE paper draft)
 - [ ] P2-9. CI guardrails and final acceptance (no-hardcoded-metrics test, smoke eval in CI)
@@ -34,9 +34,9 @@
 ---
 
 ## Current Status
-- **Active Milestone**: P2-6 (Real system measurements)
-- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, M0, M1
-- **Next Milestone**: P2-6 (Real system measurements)
-- **Known Gaps**: See `docs/AUDIT.md` (F2–F4, F12) and `docs/PHASE1_GAP_CHECK.md` (M2–M14).
+- **Active Milestone**: P2-7 (Close the Phase 1 gaps)
+- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, M0, M1
+- **Next Milestone**: P2-7 (Close the Phase 1 gaps)
+- **Known Gaps**: See `docs/PHASE1_GAP_CHECK.md` (M2–M14). All audit findings F1–F12 are resolved.
 
 
