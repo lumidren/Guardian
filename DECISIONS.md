@@ -167,7 +167,14 @@ This document records architectural, algorithmic, and engineering decisions made
   2. Implement bounded non-zero time-to-detect where alert timestamps are tied to window completion (`w.end_time`) and episode overlap is strictly bounded (`overlap_start < overlap_end`).
   3. Multi-seed execution ($N_{seeds} \ge 5$) with 1000-iteration 95% bootstrap confidence intervals on detection rate, time-to-detect, and false positive rate.
   4. Concurrently score real empirical baselines (`StaticThresholdBaseline`, `RobustZScoreOnlyBaseline`, `PooledIsolationForestBaseline`) on identical stream windows without mock estimates.
-  5. Add cross-table consistency validation (`check_evaluation_cross_table_consistency`) rejecting identical copied rows across attack classes and enforcing mathematical agreement between tables.
-- **Rationale**: Ensures evaluation outputs withstand adversarial academic peer review, resolving audit findings G2, G3, G6, and G9.
+### ADR-022: External IoT Dataset Validation and Zeek Flow Schema Mapping
+- **Problem**: Evaluating exclusively on synthetic testbeds introduces simulator bias and risks overfitting to artificial packet generation models. Real-world IoT malware (Mirai, Torii, Kenjiro) and consumer appliances (Echo, Hue) operate with distinct timing and protocol signatures.
+- **Decision**:
+  1. Implement `IoT23Adapter` to ingest and parse standard Zeek/Bro connection logs (`conn.log`) from public benchmarks (IoT-23, TON_IoT).
+  2. Map flow-level attributes into GUARDIAN's 60-feature schema across Layer 1 volumetric rates, Layer 2 network destination graph features, and Layer 3 protocol/temporal priors.
+  3. Impute missing physical/kernel features (clock skew, IP ID monotonicity) strictly with neutral baseline values ($0.0$, $1.0$) rather than synthetic artifacts.
+  4. Implement `ExternalDatasetEvaluator` to measure detection rate and false positive rate under cold-start heuristic scoring and calibrated operating points.
+- **Rationale**: Validates generalizability to external real-world malware and provides reproducible cross-domain benchmark evidence in `docs/EXTERNAL_DATA.md`.
+
 
 
