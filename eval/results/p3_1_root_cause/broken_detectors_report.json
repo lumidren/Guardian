@@ -1,0 +1,39 @@
+{
+  "always_alert": {
+    "detection_slice": {
+      "positive_windows": 17,
+      "negative_windows": 9,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "f1": 0.7907,
+      "reproduces_phase2_0_7907": true
+    },
+    "adversarial_slice": {
+      "positive_windows": 14,
+      "negative_windows": 12,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "f1": 0.7,
+      "reproduces_phase2_0_7000": true
+    },
+    "delayed_start_slice": {
+      "positive_windows": 9,
+      "negative_windows": 17,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "f1": 0.5143,
+      "reproduces_phase2_0_5143": true
+    }
+  },
+  "never_alert": {
+    "tpr": 0.0,
+    "fpr": 0.0,
+    "f1": 0.0
+  },
+  "shuffled_labels": {
+    "tpr": 1.0,
+    "fpr": 1.0,
+    "f1": 0.7907
+  },
+  "findings": "Phase 2 detection F1 of 0.7907 and adversarial F1 of 0.7000 were exactly reproduced by an always-alerting classifier on the evaluation slice geometries. Because Phase 2 anomaly thresholds were uncalibrated, every window was marked anomalous."
+}
