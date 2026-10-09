@@ -1,0 +1,111 @@
+"""
+Unit tests for Real Load, Drop Counters, and Firewall Enforcement (Milestone P3-6).
+Resolves Audit Finding G7:
+- Real-time packet stream replay with drop counters and queue saturation under load.
+- Scalability benchmark across 8, 12, 16, 20 devices with non-flat throughput and non-zero CPU.
+- Transparent firewall enforcement benchmarking disaggregating in-memory vs kernel dispatch.
+"""
+
+from guardian.config import ThreatLevel
+from guardian.enforcement.controller import EnforcementController
+from guardian.enforcement.iptables_driver import LinuxIptablesDriver
+from guardian.eval.benchmarks import (
+    RealTimeLoadBenchmark,
+    ScalabilityBenchmark,
+    generate_scaled_fleet,
+)
+from guardian.ml.threat_scorer import ThreatAssessment
+
+
+def test_real_time_load_benchmark_normal_load() -> None:
+    """Under normal traffic load, all packets are processed with zero drops."""
+    fleet = generate_scaled_fleet(4)
+    benchmark = RealTimeLoadBenchmark(
+        queue_capacity=5000,
+        processing_rate_pps=20000.0,
+    )
+
+    report = benchmark.run_load_test(
+        devices=fleet,
+        duration_seconds=5.0,
+        burst_factor=1.0,  # normal traffic
+    )
+
+    assert report.total_packets_offered > 0
+    assert report.total_packets_processed > 0
+    assert report.total_packets_dropped == 0
+    assert report.packet_drop_rate_pct == 0.0
+    assert report.total_packets_offered == report.total_packets_processed
+    assert report.throughput_pps > 0.0
+    assert report.peak_queue_depth <= report.queue_capacity
+
+
+def test_real_time_load_benchmark_burst_drop_counters() -> None:
+    """Under burst/DDoS load exceeding processing capacity, drop counters increment realistically."""
+    fleet = generate_scaled_fleet(4)
+    # Constrained queue and low processing rate to induce buffer saturation
+    benchmark = RealTimeLoadBenchmark(
+        queue_capacity=50,
+        processing_rate_pps=500.0,
+    )
+
+    report = benchmark.run_load_test(
+        devices=fleet,
+        duration_seconds=5.0,
+        burst_factor=50.0,  # heavy burst simulating DDoS
+    )
+
+    assert report.total_packets_offered > 0
+    assert report.total_packets_dropped > 0
+    assert report.packet_drop_rate_pct > 0.0
+    # Accounting invariant: offered == processed + dropped
+    assert report.total_packets_offered == report.total_packets_processed + report.total_packets_dropped
+    assert report.peak_queue_depth == report.queue_capacity
+
+
+def test_scalability_non_flat_and_nonzero_cpu() -> None:
+    """Scalability sweep across fleet sizes must show non-flat throughput and non-zero CPU (fixing G7)."""
+    benchmark = ScalabilityBenchmark(device_counts=[8, 12, 16, 20])
+    report = benchmark.run_scalability_sweep(duration_per_tier_s=5.0)
+
+    assert len(report.points) == 4
+    counts = [p.device_count for p in report.points]
+    assert counts == [8, 12, 16, 20]
+
+    # CPU must be strictly non-zero across all tiers (fixing G7 where 8 devices had 0.0% CPU)
+    for p in report.points:
+        assert p.cpu_percent > 0.0, f"CPU was 0.0% for {p.device_count} devices (G7 violation)"
+        assert p.memory_rss_mb > 10.0, f"Memory RSS implausible: {p.memory_rss_mb} MB"
+        assert p.throughput_windows_per_sec > 0.0
+        assert p.compute_latency_ms > 0.0
+
+    # Throughput across device tiers must not be an identical flat constant
+    throughputs = [p.throughput_windows_per_sec for p in report.points]
+    assert len(set(round(t, 1) for t in throughputs)) > 1, f"Throughput was flat: {throughputs}"
+
+
+def test_firewall_enforcement_latency_transparency() -> None:
+    """Enforcement must distinguish in-memory table lookup from kernel command dispatch."""
+    driver = LinuxIptablesDriver()
+    latencies = driver.measure_enforcement_latency("192.168.1.101", ThreatLevel.QUARANTINE)
+
+    assert "in_memory_ms" in latencies
+    assert "dispatch_ms" in latencies
+    assert "total_ms" in latencies
+
+    # In-memory table lookup is fast (< 1.0 ms)
+    assert latencies["in_memory_ms"] < 1.0
+    # Kernel dispatch overhead is measured realistically (>= 0.5 ms)
+    assert latencies["dispatch_ms"] >= 0.5
+    # Total latency must be greater than in-memory latency alone
+    assert latencies["total_ms"] >= latencies["in_memory_ms"]
+
+    controller = EnforcementController()
+    assessment = ThreatAssessment(
+        threat_score=75,
+        threat_level=ThreatLevel.QUARANTINE,
+        contributing_factors=["high_fan_out"],
+        recommended_action="Isolate from LAN and WAN",
+    )
+    state = controller.enforce("dev_test", "192.168.1.101", assessment)
+    assert state.enforcement_latency_ms > 0.0
