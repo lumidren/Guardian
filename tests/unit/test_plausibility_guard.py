@@ -121,3 +121,62 @@ def test_illustrative_examples_labeled_in_readme() -> None:
         assert "illustrative" in block.lower() or "illustrative" in content.lower(), (
             "JSON examples in README must be explicitly labeled illustrative"
         )
+
+
+def test_plausibility_guard_rejects_always_alert() -> None:
+    """Verifies that PlausibilityGuard rejects an always-alert detector with high FPR."""
+    guard = PlausibilityGuard()
+    always_alert_report = {
+        "detection": {
+            "rows": [
+                {"attack": "DDOS_FLOODING", "guardian_tpr": 100.0, "mean_ttd_s": 2.0, "f1": 0.7907},
+            ]
+        },
+        "baselines": {
+            "methods": [
+                {"name": "GUARDIAN (Multi-Layer Ensemble)", "tpr": 100.0, "fpr": 100.0, "f1": 0.7907},
+            ]
+        },
+    }
+    result = guard.validate(always_alert_report)
+    assert not result.is_plausible
+    assert any("Degenerate always-alert detector" in v for v in result.violations)
+
+
+def test_plausibility_guard_rejects_never_alert() -> None:
+    """Verifies that PlausibilityGuard rejects a never-alert detector with 0% TPR."""
+    guard = PlausibilityGuard()
+    never_alert_report = {
+        "detection": {
+            "rows": [
+                {"attack": "DDOS_FLOODING", "guardian_tpr": 0.0, "mean_ttd_s": 2.0, "f1": 0.0},
+            ],
+            "macro_average_tpr": 0.0,
+        },
+        "baselines": {
+            "methods": [
+                {"name": "GUARDIAN (Multi-Layer Ensemble)", "tpr": 0.0, "fpr": 0.0, "f1": 0.0},
+            ]
+        },
+    }
+    result = guard.validate(never_alert_report)
+    assert not result.is_plausible
+    assert any("Degenerate never-alert detector" in v for v in result.violations)
+
+
+def test_plausibility_guard_rejects_flat_scalability() -> None:
+    """Verifies that PlausibilityGuard rejects flat scalability benchmark curves."""
+    guard = PlausibilityGuard()
+    flat_report = {
+        "scalability": {
+            "points": [
+                {"device_count": 8, "cpu_percent": 25.0, "memory_rss_mb": 140.0},
+                {"device_count": 12, "cpu_percent": 25.0, "memory_rss_mb": 140.0},
+                {"device_count": 16, "cpu_percent": 25.0, "memory_rss_mb": 140.0},
+            ]
+        }
+    }
+    result = guard.validate(flat_report)
+    assert not result.is_plausible
+    assert any("Flat scalability benchmark detected" in v for v in result.violations)
+
