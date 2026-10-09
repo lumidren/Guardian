@@ -107,7 +107,7 @@
     <text x="72" y="70" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#f8fafc" text-anchor="middle">Kernel &amp; XAI</text>
     <rect x="12" y="86" width="121" height="42" rx="4" fill="#0f172a" stroke="#9f1239"/>
     <text x="72" y="104" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="bold" fill="#f43f5e" text-anchor="middle">nftables</text>
-    <text x="72" y="118" font-family="monospace" font-size="9" fill="#94a3b8" text-anchor="middle">&lt; 0.1ms Latency</text>
+    <text x="72" y="118" font-family="monospace" font-size="9" fill="#94a3b8" text-anchor="middle">&lt; 300ms Target</text>
     <rect x="12" y="136" width="121" height="42" rx="4" fill="#0f172a" stroke="#9f1239"/>
     <text x="72" y="154" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="bold" fill="#f43f5e" text-anchor="middle">Plain English XAI</text>
     <text x="72" y="168" font-family="-apple-system, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">Tree Path Attrib</text>
