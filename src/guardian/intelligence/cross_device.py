@@ -5,7 +5,7 @@ Propagates detected Indicators of Compromise (IOCs) across all protected IoT dev
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional
+from typing import Any
 
 
 @dataclass
@@ -20,21 +20,21 @@ class ThreatIndicator:
 
 
 class CrossDeviceThreatIntelligence:
-    def __init__(self):
-        self.known_bad_ips: Set[str] = set()
-        self.known_bad_ports: Set[int] = set()
-        self.active_indicators: List[ThreatIndicator] = []
+    def __init__(self) -> None:
+        self.known_bad_ips: set[str] = set()
+        self.known_bad_ports: set[int] = set()
+        self.active_indicators: list[ThreatIndicator] = []
         # device_id -> set of blocked remote endpoints
-        self.device_firewall_rules: Dict[str, Set[str]] = {}
+        self.device_firewall_rules: dict[str, set[str]] = {}
 
     def broadcast_attack(
         self,
         source_device_id: str,
-        dest_ips: List[str],
-        dest_ports: List[int],
+        dest_ips: list[str],
+        dest_ports: list[int],
         attack_category: str,
         threat_score: int
-    ) -> List[ThreatIndicator]:
+    ) -> list[ThreatIndicator]:
         """
         Ingest an attack from one device and generate fleet-wide indicators.
         """
@@ -71,7 +71,7 @@ class CrossDeviceThreatIntelligence:
         """Check if an endpoint is already blacklisted by cross-device intelligence."""
         return ip in self.known_bad_ips
 
-    def get_fleet_threat_summary(self) -> Dict[str, any]:
+    def get_fleet_threat_summary(self) -> dict[str, Any]:
         return {
             "total_shared_indicators": len(self.active_indicators),
             "blacklisted_ips_count": len(self.known_bad_ips),
