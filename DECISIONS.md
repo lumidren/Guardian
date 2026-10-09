@@ -102,3 +102,21 @@ This document records architectural, algorithmic, and engineering decisions made
   3. `EvaluationRunner`: Exercises the real production pipeline (`FlowTracker`, `FeatureExtractor`, `IsolationForestDetector`, `StatisticalBaseline`, `ThreatScorer`, `EnforcementController`) and fails loudly via `ArtifactMissingError` if any model checkpoint is missing.
 - **Rationale**: Enforces absolute scientific integrity, eliminates synthetic evaluation shortcuts, produces verifiable empirical metrics, and enables deterministic reproducibility across seeds.
 
+---
+
+## 5. Phase 2 Architecture Decisions (Milestones P2-3 and P2-4)
+
+### ADR-016: Content-Hash Bundle Caching and Cryptographic Quality Sidecars
+- **Problem**: Baseline generation retrained models on every execution, causing metric drift across evaluation runs, and missing or corrupted model artifacts could lead to silent evaluation failures.
+- **Decision**: Implement `ModelCacheManager` using SHA-256 content hashes of training data, model configurations, and feature registries. Persist accompanying `ModelSidecarData` recording training sample counts, observed feature ranges, and held-out anomaly score percentiles with a cryptographic signature. Reject tampered or corrupted bundles loudly via `TamperedBundleError`.
+- **Rationale**: Guarantees deterministic, cache-accelerated evaluation across runs, eliminates metric drift, and ensures complete traceability of trained models against their training inputs.
+
+### ADR-017: Empirical Baselines and Layer/Component Ablation Architecture
+- **Problem**: Literature comparison tables previously included unmeasured or hardcoded values for external tools (e.g. Snort), and no empirical baselines existed within the framework to isolate the value of GUARDIAN's individual components.
+- **Decision**: Remove all unverified literature numbers (F1). Implement three real empirical baselines:
+  1. `StaticThresholdBaseline`: Simulates commercial firewall/NIDS static rules with allowlists (known destinations and ports) and volumetric packet/byte rate ceilings.
+  2. `PooledIsolationForestBaseline`: Represents generic fleet-wide machine learning anomaly detection trained on all device classes without per-device separation.
+  3. `RobustZScoreOnlyBaseline`: Evaluates Layer 1 statistical tests without machine learning.
+  Implement `AblationRunner` and `get_standard_ablation_battery()` supporting systematic ablation of Layer 1, Layer 2, hysteresis damping, and operating point calibration.
+- **Rationale**: Replaces fabricated literature comparisons with rigorous, reproducible, measured empirical baselines and demonstrates the precise marginal utility of each defense layer.
+

@@ -4,7 +4,7 @@ This document tracks all audit findings from Section 3 of the Phase 2 specificat
 
 | ID | Location | Problem | Required Fix | Status | Fixed Commit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F1** | `run_evaluation.py`, `literature_baselines` | Snort and Generic columns are hardcoded strings. The average row (18%, 67%) is also hardcoded. No Snort or pooled model was ever run. | Delete. Replace with real baselines (P2-4): static-threshold rules, pooled Isolation Forest, robust z-score only. No Snort numbers unless a real run exists. | open | - |
+| **F1** | `run_evaluation.py`, `literature_baselines` | Snort and Generic columns are hardcoded strings. The average row (18%, 67%) is also hardcoded. No Snort or pooled model was ever run. | Delete. Replace with real baselines (P2-4): static-threshold rules, pooled Isolation Forest, robust z-score only. No Snort numbers unless a real run exists. | resolved | `9961c22`, `f73f5a6` |
 | **F2** | `run_evaluation.py`, Table 9 | CPU '18.4% avg', Memory '142 MB', Network Overhead '+1.2 ms' and every [PASS] are literals. | Measure with psutil and process counters (P2-6). Status is computed from measured values against the configured targets. | open | - |
 | **F3** | `run_evaluation.py`, Table 10 | The whole scalability table is printed constants. No 8/12/16/20 device test exists. | Build a real scalability test (P2-6). | open | - |
 | **F4** | `run_evaluation.py`, trial loop | `DEFAULT_FLEET_SPECS[trials % len(...)]` uses `trials` (always 50), so every non-hybrid attack runs on one device only. | Use the trial index and cover every applicable device type evenly. | open | - |
