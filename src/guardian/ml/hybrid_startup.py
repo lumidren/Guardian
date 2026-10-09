@@ -5,7 +5,7 @@ Ensures IoT devices are never left unprotected during the initial baseline obser
 
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+
 from ..config import SystemPhase, config
 
 
@@ -28,11 +28,11 @@ class HybridStartupManager:
         self.cold_start_hours = cold_start_hours
         self.statistical_hours = statistical_hours
         # device_id -> float (connected_at timestamp)
-        self.device_start_times: Dict[str, float] = {}
+        self.device_start_times: dict[str, float] = {}
         # device_id -> sample count
-        self.sample_counts: Dict[str, int] = {}
+        self.sample_counts: dict[str, int] = {}
 
-    def register_device(self, device_id: str, connected_at: Optional[float] = None):
+    def register_device(self, device_id: str, connected_at: float | None = None):
         """Register a new device joining the IoT network."""
         if device_id not in self.device_start_times:
             self.device_start_times[device_id] = connected_at or time.time()
@@ -42,7 +42,7 @@ class HybridStartupManager:
         """Record newly captured traffic samples."""
         self.sample_counts[device_id] = self.sample_counts.get(device_id, 0) + count
 
-    def get_phase(self, device_id: str, current_time: Optional[float] = None) -> StartupState:
+    def get_phase(self, device_id: str, current_time: float | None = None) -> StartupState:
         """
         Evaluate current phase and protection tier for the given device.
         """

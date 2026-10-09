@@ -6,11 +6,10 @@ Includes optional delegation to scikit-learn when available.
 
 import json
 import math
-import os
 import random
-from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Optional
+
 import numpy as np
 
 from ..config import FEATURE_NAMES
@@ -47,8 +46,8 @@ class IsolationTreeNode:
         self.size = size
         self.is_leaf = is_leaf
 
-    def to_dict(self) -> dict:
-        d = {
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "feature_idx": self.feature_idx,
             "split_val": self.split_val,
             "min_val": self.min_val,
@@ -82,7 +81,7 @@ class IsolationTreeNode:
 class IsolationTree:
     def __init__(self, max_height: int):
         self.max_height = max_height
-        self.root: Optional[IsolationTreeNode] = None
+        self.root: IsolationTreeNode | None = None
 
     def fit(self, X: np.ndarray, current_height: int = 0) -> IsolationTreeNode:
         n_samples, n_features = X.shape
@@ -129,7 +128,7 @@ class IsolationTree:
         )
 
     def path_length_with_attribution(
-        self, x: np.ndarray, node: IsolationTreeNode, current_depth: int = 0, feature_weights: Optional[Dict[int, float]] = None
+        self, x: np.ndarray, node: IsolationTreeNode, current_depth: int = 0, feature_weights: dict[int, float] | None = None
     ) -> float:
         """Computes path length and records feature splits contributing to quick isolation."""
         if feature_weights is None:
@@ -176,11 +175,11 @@ class IsolationForestDetector:
         self.subsample_size = subsample_size
         self.contamination = contamination
         self.random_seed = random_seed
-        self.trees: List[IsolationTree] = []
+        self.trees: list[IsolationTree] = []
         self.c_val = c_factor(subsample_size)
         self.is_trained = False
-        self.baseline_mean: Optional[np.ndarray] = None
-        self.baseline_std: Optional[np.ndarray] = None
+        self.baseline_mean: np.ndarray | None = None
+        self.baseline_std: np.ndarray | None = None
         self.device_id: str = "unknown"
 
     def fit(self, X: np.ndarray, device_id: str = "default_device"):
@@ -210,7 +209,7 @@ class IsolationForestDetector:
         self.baseline_std[self.baseline_std < 1e-6] = 1e-6
         self.is_trained = True
 
-    def score_sample(self, x: np.ndarray) -> Tuple[float, Dict[str, float]]:
+    def score_sample(self, x: np.ndarray) -> tuple[float, dict[str, float]]:
         """
         Compute anomaly score s in [0, 1] and feature contribution attribution.
         Scores above 0.60 indicate potential anomaly; >0.75 indicates high severity attack.
@@ -218,7 +217,7 @@ class IsolationForestDetector:
         if not self.is_trained or not self.trees:
             return 0.0, {}
 
-        feature_weights: Dict[int, float] = {}
+        feature_weights: dict[int, float] = {}
         total_path_length = 0.0
 
         for tree in self.trees:
@@ -245,7 +244,7 @@ class IsolationForestDetector:
 
         # Normalize feature attribution weights to percentages (sum to 1.0)
         total_weight = sum(feature_weights.values())
-        attribution: Dict[str, float] = {}
+        attribution: dict[str, float] = {}
         if total_weight > 0:
             for f_idx, w in feature_weights.items():
                 if f_idx < len(FEATURE_NAMES):
@@ -266,7 +265,7 @@ class IsolationForestDetector:
 
         return anomaly_score, attribution
 
-    def save(self, file_path: Union[str, Path]):
+    def save(self, file_path: str | Path):
         """Serialize model to JSON for persistent per-device profile storage."""
         data = {
             "device_id": self.device_id,
@@ -283,9 +282,9 @@ class IsolationForestDetector:
             json.dump(data, f)
 
     @classmethod
-    def load(cls, file_path: Union[str, Path]) -> 'IsolationForestDetector':
+    def load(cls, file_path: str | Path) -> 'IsolationForestDetector':
         """Load trained model from JSON."""
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         detector = cls(

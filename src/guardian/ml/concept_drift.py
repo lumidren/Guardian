@@ -3,15 +3,15 @@ Adaptive profile updating and Concept Drift handling for GUARDIAN (Section 6.2).
 Prevents false positives caused by firmware updates and legitimate behavioral evolution.
 """
 
-from enum import Enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from enum import StrEnum
+
 import numpy as np
 
 from ..config import FEATURE_NAMES, config
 
 
-class DriftAction(str, Enum):
+class DriftAction(StrEnum):
     NO_DRIFT = "NO_DRIFT"                                 # <5% variation
     MINOR_AUTOMATIC = "MINOR_AUTOMATIC"                   # <10% drift: automatically adjust baseline
     MODERATE_USER_CONFIRM = "MODERATE_USER_CONFIRM"       # 10-30% drift: prompt user for approval
@@ -23,7 +23,7 @@ class DriftReport:
     device_id: str
     overall_drift_ratio: float
     action: DriftAction
-    feature_drifts: Dict[str, float]
+    feature_drifts: dict[str, float]
     recommendation: str
 
 
@@ -38,7 +38,7 @@ class ConceptDriftDetector:
 
     def calculate_drift(
         self,
-        baseline_means: Dict[str, float],
+        baseline_means: dict[str, float],
         recent_samples: np.ndarray,
         device_id: str = "unknown"
     ) -> DriftReport:
@@ -55,7 +55,7 @@ class ConceptDriftDetector:
             )
 
         recent_means = np.mean(recent_samples, axis=0)
-        feature_drifts: Dict[str, float] = {}
+        feature_drifts: dict[str, float] = {}
         drift_ratios = []
 
         for i, name in enumerate(FEATURE_NAMES):
@@ -68,7 +68,10 @@ class ConceptDriftDetector:
 
         overall_drift = float(np.mean(drift_ratios))
 
-        if overall_drift < self.minor_threshold:
+        if overall_drift < 0.05:
+            action = DriftAction.NO_DRIFT
+            rec = "Baseline nominal. No significant concept drift observed."
+        elif overall_drift < self.minor_threshold:
             action = DriftAction.MINOR_AUTOMATIC
             rec = "Automatic minor profile adjustment applied. Safe legitimate evolution."
         elif overall_drift <= self.moderate_threshold:

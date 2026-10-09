@@ -5,7 +5,7 @@ into a unified Threat Score (0-100), Confidence Level, and Graduated Threat Leve
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+
 from ..config import ThreatLevel, config
 
 
@@ -17,7 +17,7 @@ class ThreatAssessment:
     confidence_score: float        # 0.0 - 1.0
     ml_score: float                # Raw Isolation Forest score [0.0 - 1.0]
     statistical_score: float       # Raw Z-score statistical score [0.0 - 1.0]
-    layer_contributions: Dict[str, float]  # Percentage contribution per layer
+    layer_contributions: dict[str, float]  # Percentage contribution per layer
 
 
 class ThreatScorer:
@@ -30,7 +30,7 @@ class ThreatScorer:
         self,
         ml_score: float,
         statistical_score: float,
-        features: Dict[str, float],
+        features: dict[str, float],
         is_cold_start: bool = False
     ) -> ThreatAssessment:
         """
@@ -63,7 +63,7 @@ class ThreatScorer:
 
         # Composite anomaly calculation
         composite = (ml_score * w_ml) + (statistical_score * w_stat) + (heuristic_score * w_heur)
-        
+
         # Non-linear amplifier for severe multiple-layer correlations (Defense in Depth)
         if ml_score > 0.65 and new_dst_flag > 0.5:
             composite = min(1.0, composite * 1.35)
@@ -97,7 +97,6 @@ class ThreatScorer:
             conf_str = "Low (50-69%)"
 
         # Multi-layer contribution breakdown
-        l1_sum = features.get("pkt_count_10s", 0) + features.get("byte_count_10s", 0)
         layer_contributions = {
             "Layer 1 (Behavioral)": round(w_ml * 100, 1),
             "Layer 2 (Network Destinations)": round((w_heur * 0.7 + w_stat * 0.5) * 100, 1),

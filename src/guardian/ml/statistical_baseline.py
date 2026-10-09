@@ -5,7 +5,7 @@ Guarantees 75-80% zero-day detection even without ML models loaded.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 from ..config import FEATURE_NAMES
@@ -26,8 +26,8 @@ class StatisticalBaseline:
     def __init__(self, z_threshold: float = 2.5, min_samples: int = 30):
         self.z_threshold = z_threshold
         self.min_samples = min_samples
-        self.means: Dict[str, float] = {}
-        self.stds: Dict[str, float] = {}
+        self.means: dict[str, float] = {}
+        self.stds: dict[str, float] = {}
         self.sample_count: int = 0
         self.is_ready: bool = False
 
@@ -47,7 +47,7 @@ class StatisticalBaseline:
 
         self.is_ready = True
 
-    def evaluate(self, features: Dict[str, float]) -> Tuple[float, List[DeviationDetail]]:
+    def evaluate(self, features: dict[str, float]) -> tuple[float, list[DeviationDetail]]:
         """
         Evaluate a feature vector against the statistical baseline.
         Returns:
@@ -57,7 +57,7 @@ class StatisticalBaseline:
         if not self.is_ready:
             return 0.0, []
 
-        deviations: List[DeviationDetail] = []
+        deviations: list[DeviationDetail] = []
         anomalous_features_count = 0
         max_z = 0.0
         weighted_z_sum = 0.0
