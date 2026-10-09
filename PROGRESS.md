@@ -9,7 +9,7 @@
 - [x] P2-5. Adversarial and sensitivity testing (evasion modes, operating curve, threats to validity)
 - [x] P2-6. Real system measurements (psutil CPU/RAM, 3 distinct latencies, scalability test)
 - [x] P2-7. Close the Phase 1 gaps (close items from PHASE1_GAP_CHECK.md)
-- [ ] P2-8. Honest reporting (reproducible tables/LaTeX, honest README, IEEE paper draft)
+- [x] P2-8. Honest reporting (reproducible tables/LaTeX, honest README, IEEE paper draft)
 - [ ] P2-9. CI guardrails and final acceptance (no-hardcoded-metrics test, smoke eval in CI)
 
 ---
@@ -34,9 +34,9 @@
 ---
 
 ## Current Status
-- **Active Milestone**: P2-8 (Honest reporting)
-- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, P2-7, M0-M14
-- **Next Milestone**: P2-8 (Honest reporting)
+- **Active Milestone**: P2-9 (CI guardrails and final acceptance)
+- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, P2-7, P2-8, M0-M14
+- **Next Milestone**: P2-9 (CI guardrails and final acceptance)
 - **Known Gaps**: All Phase 1 gaps (M0-M14) and audit findings (F1-F12) are resolved.
 
 

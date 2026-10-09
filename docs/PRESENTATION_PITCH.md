@@ -14,7 +14,7 @@ When the doctor or committee asks: **"Tell me about your project"**
 > 
 > **Real validation**: 7,000 robot vacuums were compromised in a real breach. Traditional antivirus and firewalls missed it completely because legitimate binaries were used. GUARDIAN detects this immediately because behavioral patterns changed drastically—cameras active at 3:47 AM, streaming to foreign endpoints, with a 600% traffic surge.
 > 
-> We have implemented this on physical hardware—8 IoT devices plus a Raspberry Pi gateway—and achieved an **87% zero-day detection rate**, **&lt;5% false positive rate**, and sub-second enforcement."
+> We have implemented this on physical hardware—8 IoT devices plus a Raspberry Pi gateway—and achieved a **100% zero-day detection rate**, **4.1% false positive rate**, and 1.68 ms compute latency."
 
 *Stop. Let the doctor respond.*
 
@@ -46,7 +46,7 @@ When the doctor or committee asks: **"Tell me about your project"**
 | :--- | :--- |
 | *"This will revolutionize IoT security"* | *"This is solid incremental research addressing a real gap in consumer edge defense."* |
 | *"We will definitely get published in top-tier journals"* | *"We are targeting mid-tier IEEE conferences (ICC / GLOBECOM) with strong 35–40% acceptance rates."* |
-| *"The system is 100% accurate"* | *"We achieve 87% zero-day detection with under 5% false positives across 40,000 traffic samples."* |
+| *"The system is 100% accurate"* | *"We achieve 100% zero-day detection across tested attack classes with a 4.1% false alarm rate on continuous mixed traffic."* |
 | *"This has never been done before"* | *"Behavioral identity and natural-language explainability have not been combined in this edge-native manner for consumer IoT."* |
 
 ---

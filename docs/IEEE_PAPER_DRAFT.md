@@ -10,7 +10,7 @@
 
 The proliferation of Internet of Things (IoT) devices in residential and enterprise environments has introduced severe attack vectors, exemplified by recent widespread zero-day compromises of consumer smart cameras and robotic appliances. Traditional intrusion detection systems (IDS) relying on signature matching fail to intercept novel, zero-day attacks (exhibiting detection rates below 30%) and are increasingly blinded by pervasive transport-layer encryption. In this paper, we propose **GUARDIAN** (*Graduated User-friendly Anomaly Response with Device Identity And Natural language*), an edge-native, multi-layer behavioral identity framework deployed on consumer-grade gateway hardware ($250 total budget). 
 
-GUARDIAN continuously tracks 60 transport and network metadata features across three identity layers (Behavioral, Network Destination, and Physical/Heuristic) without decrypting packet payloads. By coupling an unsupervised Isolation Forest model with a statistical Z-score safety fallback, GUARDIAN establishes deterministic behavioral baselines per device type. A four-tier Graduated Response Controller (Monitor, Restrict, Quarantine, Block) enforces sub-second kernel-level firewall mitigation, while an Explainable AI (XAI) Natural Language Generation (NLG) engine translates multidimensional deviations into plain-English diagnostics and recommended remediations. Comprehensive empirical evaluation across an 8-device heterogeneous physical testbed demonstrates an **87–100% zero-day detection rate**, a **4.0% false positive rate**, an average detection latency of **25.03 ms**, and an enforcement latency under **0.1 ms**.
+GUARDIAN continuously tracks 60 transport and network metadata features across three identity layers (Behavioral, Network Destination, and Protocol/Heuristic) without decrypting packet payloads. By coupling an unsupervised Isolation Forest model with a statistical Z-score safety fallback, GUARDIAN establishes deterministic behavioral baselines per device type. A four-tier Graduated Response Controller (Monitor, Restrict, Quarantine, Block) enforces graduated firewall mitigation, while an Explainable AI (XAI) Natural Language Generation (NLG) engine translates multidimensional deviations into plain-English diagnostics and recommended remediations. Comprehensive empirical evaluation across an 8-device heterogeneous testbed demonstrates a **100.0% zero-day detection rate**, a **4.1% false positive rate**, an average compute latency of **1.68 ms**, and an enforcement latency under **0.01 ms** (in-memory simulator backend).
 
 **Keywords:** Internet of Things (IoT), Anomaly Detection, Zero-Day Defense, Explainable AI (XAI), Isolation Forest, Edge Computing.
 
@@ -143,29 +143,31 @@ The physical testbed comprises:
 - 2× Raspberry Pi Zero Compute Nodes
 - 1× ESP32-CAM Smart Camera Node
 
-### B. Detection Performance (Table 8 Reproduction)
+### B. Detection Performance (Table 8 - Zero-Day Attack Vectors)
 
-| Attack Type | Baseline | Snort (Signatures) | Generic ML | GUARDIAN |
-| :--- | :---: | :---: | :---: | :---: |
-| **DDoS Flooding** | 0% | 25% | 75% | **100.0%** |
-| **C&C Beaconing** | 0% | 15% | 68% | **100.0%** |
-| **Network Scanning** | 0% | 35% | 72% | **100.0%** |
-| **Data Exfiltration** | 0% | 20% | 65% | **100.0%** |
-| **Cryptomining** | 0% | 10% | 58% | **100.0%** |
-| **Zero-Day Hybrid** | 0% | 5% | 62% | **100.0%** |
-| **Average** | **0%** | **18%** | **67%** | **100.0%** |
+Evaluated under eval/RESULTS.md across identical 10-second sliding windows with dynamic anomaly scoring:
 
-*False Positive Rate:* **4.0%** across 200 normal test validation windows (target: $<5\%$).
+| Attack Vector | GUARDIAN TPR | Pooled IF | Static Rules | Robust Z-Score | F1 Score | Mean TTD (s) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **DDoS Flooding** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
+| **C&C Beaconing** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
+| **Subnet Scanning** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
+| **Data Exfiltration** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
+| **Cryptomining** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
+| **Zero-Day Hybrid** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
+| **Macro Average** | **100.0%** | **80.0%** | **60.0%** | **85.0%** | - | - |
 
-### C. System Performance (Table 9 Reproduction)
+*Window-Level False Positive Rate (FPR):* **4.1%** on continuous normal background telemetry (FAR: **0.42** alerts/device/day).
 
-| Metric | Target Specification | Achieved Metric | Status |
+### C. System Overhead & Latency Disaggregation (Table 9)
+
+| Metric | Target Specification | Empirical Measurement | Status |
 | :--- | :---: | :---: | :---: |
-| **CPU Usage** | $<40\%$ | 18.4% average | [PASS] |
-| **Gateway RAM** | $<2048\text{ MB}$ | 142 MB | [PASS] |
-| **Detection Latency** | $<1.0\text{ s}$ | 25.03 ms | [PASS] |
-| **Enforcement Latency** | $<0.3\text{ s}$ | 0.05 ms | [PASS] |
-| **Network Overhead** | $<10\text{ ms}$ | +1.2 ms | [PASS] |
+| **Compute Latency ({\\text{window}} \\to S_t$)**| $< 50\text{ ms}$ | 1.68 ms (p95: 2.84 ms) | [PASS] |
+| **Enforcement Latency (Sim Control Plane)** | $< 300\text{ ms}$ | 0.008 ms (p95: 0.010 ms) | [PASS] |
+| **Time-to-Detect ({\\text{attack}} \\to \\text{Alert}$)**| $< 60\text{ s}$ | 0.00 s (instantaneous stride) | [PASS] |
+| **Resident Memory (RAM RSS)** | $< 2048\text{ MB}$ | 48.39 MB | [PASS] |
+| **Processing Throughput** | $> 100\text{ win/s}$ | 511.58 windows/s | [PASS] |
 
 ---
 
