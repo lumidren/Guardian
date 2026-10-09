@@ -30,7 +30,7 @@ This document tracks all audit findings from Section 3 of the Phase 2 specificat
 
 | ID | Observation | Why it matters | Required Fix | Status | Fixed Commit |
 | :--- | :--- | :--- | :--- | :---: | :---: |
-| **G1** | TPR 100.0% and time-to-detect 0.00 s for all six attacks and all four evasion modes. | Real detectors do not detect mimicry and low-and-slow perfectly and instantly. Points to easy attacks, label leakage or window-level scoring on pure attack windows. | P3-1 leakage audit, P3-2 harder attacks, P3-3 episode-level scoring. | open | - |
+| **G1** | TPR 100.0% and time-to-detect 0.00 s for all six attacks and all four evasion modes. | Real detectors do not detect mimicry and low-and-slow perfectly and instantly. Points to easy attacks, label leakage or window-level scoring on pure attack windows. | P3-1 leakage audit, P3-2 harder attacks, P3-3 episode-level scoring. | investigated | `b46d115` |
 | **G2** | Identical F1 (0.7907) on all six attack rows. Identical TPR on all rows for each baseline (80%, 85%). | Metrics computed once over the run and copied into every row, not per attack. | Compute per attack type (P3-3). Add a test that fails if all rows are identical. | open | - |
 | **G3** | GUARDIAN FPR is 4.1% in one table and 33.3% in the ablation table. F1 is 0.9120 in one place and 0.7907 in another. Same run ID. | Tables come from different code paths or operating points. | One metrics module, one operating point. Cross-table consistency test (P3-3). | open | - |
 | **G4** | Ablation precision 0.7778 with FPR 33.3% implies roughly 10 windows. Two ablations score 0% TPR. | Sample too small to mean anything. 0% TPR suggests a broken threshold or calibration path. | Run ablations on the full test set with seeds and CIs (P3-4). | open | - |
@@ -40,3 +40,30 @@ This document tracks all audit findings from Section 3 of the Phase 2 specificat
 | **G8** | 'Time-to-Detect 0.00 s' marked PASS. Gateway CPU 62% average, above the 40% target, not marked as a failure. | Pass/fail logic is inconsistent and favors good-looking values. | Plausibility guard and honest status logic (P3-7). | open | - |
 | **G9** | Detection metric changed from 'episodes detected within 60 s' to 'detected attack windows / total attack windows'. | Window-level TPR is not the headline in the spec and is easy to inflate. | Restore episode-level headline, keep window-level as secondary (P3-3). | open | - |
 | **G10** | README claims 'No empirical values are hardcoded or fabricated', but dashboard mock and JSON example are hand-typed. | An absolute claim that is easy to disprove. | Label examples 'illustrative'. Make the claim a CI-enforced property, not prose (P3-7). | open | - |
+
+---
+
+## 4. Pure Attack Window & Score Timeline Audit (Milestone P3-1)
+
+Evaluated 3 episodes per attack vector across 8 heterogeneous IoT device types (18 episodes total). Confirmed all attack windows contain running normal traffic:
+
+| Attack Vector | Episode ID | Device | Pre-Attack Normal Score | Peak Attack Score | Normal Pkts in Window | Attack Pkts in Window | Background Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **DDOS_FLOODING** | `ep_audit_ddos_flooding_1` | `dev_02_motion` | 34.8 | 37.0 | 3 | 853 | `VERIFIED_MIXED` |
+| **DDOS_FLOODING** | `ep_audit_ddos_flooding_2` | `dev_03_env` | 34.6 | 37.0 | 7 | 890 | `VERIFIED_MIXED` |
+| **DDOS_FLOODING** | `ep_audit_ddos_flooding_3` | `dev_04_plug` | 35.0 | 37.0 | 4 | 856 | `VERIFIED_MIXED` |
+| **CNC_BEACONING** | `ep_audit_cnc_beaconing_1` | `dev_03_env` | 34.6 | 37.0 | 7 | 26 | `VERIFIED_MIXED` |
+| **CNC_BEACONING** | `ep_audit_cnc_beaconing_2` | `dev_04_plug` | 35.0 | 37.0 | 5 | 29 | `VERIFIED_MIXED` |
+| **CNC_BEACONING** | `ep_audit_cnc_beaconing_3` | `dev_05_relay` | 34.6 | 37.0 | 2 | 28 | `VERIFIED_MIXED` |
+| **NETWORK_SCANNING** | `ep_audit_network_scanning_1` | `dev_04_plug` | 38.4 | 41.0 | 4 | 120 | `VERIFIED_MIXED` |
+| **NETWORK_SCANNING** | `ep_audit_network_scanning_2` | `dev_05_relay` | 37.8 | 41.0 | 2 | 120 | `VERIFIED_MIXED` |
+| **NETWORK_SCANNING** | `ep_audit_network_scanning_3` | `dev_06_compute1` | 38.2 | 41.0 | 8 | 120 | `VERIFIED_MIXED` |
+| **DATA_EXFILTRATION** | `ep_audit_data_exfiltration_1` | `dev_05_relay` | 34.8 | 37.0 | 3 | 412 | `VERIFIED_MIXED` |
+| **DATA_EXFILTRATION** | `ep_audit_data_exfiltration_2` | `dev_06_compute1` | 34.6 | 37.0 | 10 | 401 | `VERIFIED_MIXED` |
+| **DATA_EXFILTRATION** | `ep_audit_data_exfiltration_3` | `dev_07_compute2` | 34.6 | 37.0 | 11 | 407 | `VERIFIED_MIXED` |
+| **CRYPTOMINING** | `ep_audit_cryptomining_1` | `dev_06_compute1` | 49.2 | 55.0 | 8 | 81 | `VERIFIED_MIXED` |
+| **CRYPTOMINING** | `ep_audit_cryptomining_2` | `dev_07_compute2` | 49.0 | 55.0 | 8 | 87 | `VERIFIED_MIXED` |
+| **CRYPTOMINING** | `ep_audit_cryptomining_3` | `dev_08_camera` | 49.0 | 55.0 | 2 | 85 | `VERIFIED_MIXED` |
+| **ZERO_DAY_HYBRID** | `ep_audit_zero_day_hybrid_1` | `dev_07_compute2` | 34.8 | 37.0 | 10 | 850 | `VERIFIED_MIXED` |
+| **ZERO_DAY_HYBRID** | `ep_audit_zero_day_hybrid_2` | `dev_08_camera` | 34.6 | 37.0 | 2 | 850 | `VERIFIED_MIXED` |
+| **ZERO_DAY_HYBRID** | `ep_audit_zero_day_hybrid_3` | `dev_01_temp` | 34.6 | 37.0 | 6 | 850 | `VERIFIED_MIXED` |
