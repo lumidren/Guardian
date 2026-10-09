@@ -2,6 +2,12 @@
 Evaluation framework package for GUARDIAN.
 """
 
+from .caching import (
+    ModelBundle,
+    ModelCacheManager,
+    ModelSidecarData,
+    TamperedBundleError,
+)
 from .calibration import (
     Calibrator,
     FrozenOperatingPointError,
@@ -52,4 +58,8 @@ __all__ = [
     "EpisodeEvaluationResult",
     "EvaluationMetricsReport",
     "EvaluationRunner",
+    "ModelBundle",
+    "ModelSidecarData",
+    "ModelCacheManager",
+    "TamperedBundleError",
 ]
