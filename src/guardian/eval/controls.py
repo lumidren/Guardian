@@ -201,3 +201,151 @@ def extract_episode_timeline(
         )
 
     return timeline
+
+
+class SimpleDecisionTreeRegressor:
+    """Fast depth-bounded regression tree for pseudo-residuals in GBDT."""
+
+    def __init__(self, max_depth: int = 3, min_samples_split: int = 6) -> None:
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.tree: dict[str, Any] = {}
+
+    def fit(self, X: np.ndarray, r: np.ndarray, p: np.ndarray) -> None:
+        self.tree = self._build_tree(X, r, p, depth=0)
+
+    def _build_tree(self, X: np.ndarray, r: np.ndarray, p: np.ndarray, depth: int) -> dict[str, Any]:
+        denom = float(np.sum(p * (1.0 - p)))
+        leaf_val = float(np.sum(r) / (denom + 1e-10))
+        if depth >= self.max_depth or len(X) < self.min_samples_split:
+            return {"leaf": True, "val": leaf_val}
+
+        best_gain = -1.0
+        best_split: tuple[int, float, np.ndarray, np.ndarray] | None = None
+        _, m = X.shape
+
+        for feat in range(m):
+            vals = np.unique(X[:, feat])
+            if len(vals) > 8:
+                vals = np.percentile(vals, np.linspace(15, 85, 6))
+            for thr in vals:
+                left = X[:, feat] <= thr
+                right = ~left
+                if np.sum(left) < 3 or np.sum(right) < 3:
+                    continue
+                r_l, r_r = r[left], r[right]
+                gain = float((np.sum(r_l) ** 2 / len(r_l)) + (np.sum(r_r) ** 2 / len(r_r)))
+                if gain > best_gain:
+                    best_gain = gain
+                    best_split = (feat, float(thr), left, right)
+
+        if best_split is None:
+            return {"leaf": True, "val": leaf_val}
+
+        feat, thr, left, right = best_split
+        return {
+            "leaf": False,
+            "feat": feat,
+            "thr": thr,
+            "left": self._build_tree(X[left], r[left], p[left], depth + 1),
+            "right": self._build_tree(X[right], r[right], p[right], depth + 1),
+        }
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return np.asarray([self._predict_one(x, self.tree) for x in X], dtype=float)
+
+    def _predict_one(self, x: np.ndarray, node: dict[str, Any]) -> float:
+        if node["leaf"]:
+            return float(node["val"])
+        if x[node["feat"]] <= node["thr"]:
+            return self._predict_one(x, node["left"])
+        return self._predict_one(x, node["right"])
+
+
+class GradientBoostedTreesClassifier:
+    """Pure NumPy Gradient Boosted Decision Tree classifier for artifact auditing."""
+
+    def __init__(self, n_estimators: int = 15, max_depth: int = 3, learning_rate: int = 1) -> None:
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.lr = 0.1 * learning_rate
+        self.trees: list[SimpleDecisionTreeRegressor] = []
+        self.init_val = 0.0
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+        p_mean = max(1e-5, min(1.0 - 1e-5, float(np.mean(y))))
+        self.init_val = float(np.log(p_mean / (1.0 - p_mean)))
+        F = np.full(len(y), self.init_val)
+        self.trees = []
+        for _ in range(self.n_estimators):
+            p = 1.0 / (1.0 + np.exp(-F))
+            r = y - p
+            tree = SimpleDecisionTreeRegressor(max_depth=self.max_depth)
+            tree.fit(X, r, p)
+            F += self.lr * tree.predict(X)
+            self.trees.append(tree)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        F = np.full(len(X), self.init_val)
+        for tree in self.trees:
+            F += self.lr * tree.predict(X)
+        probs = 1.0 / (1.0 + np.exp(-F))
+        return np.asarray(probs, dtype=float)
+
+
+def extract_non_semantic_packet_features(packet: Any) -> list[float]:
+    """
+    Extracts all non-semantic packet header fields:
+    - TTL
+    - TCP flags: SYN, ACK, PSH, RST, FIN
+    - Length granularity: length % 8, length % 16
+    - IAT regularity: sub-second timestamp fraction, IP ID % 1000, source port band
+    """
+    flags = getattr(packet, "tcp_flags", {}) or {}
+    return [
+        float(getattr(packet, "ttl", 64)),
+        float(1.0 if flags.get("SYN") else 0.0),
+        float(1.0 if flags.get("ACK") else 0.0),
+        float(1.0 if flags.get("PSH") else 0.0),
+        float(1.0 if flags.get("RST") else 0.0),
+        float(1.0 if flags.get("FIN") else 0.0),
+        float(getattr(packet, "length", 64) % 8),
+        float(getattr(packet, "length", 64) % 16),
+        float(getattr(packet, "timestamp", 0.0) % 1.0),
+        float(getattr(packet, "ip_id", 0) % 1000),
+        float(getattr(packet, "src_port", 0) // 10000),
+    ]
+
+
+def audit_non_semantic_leakage_gbdt(
+    normal_packets: Sequence[Any],
+    attack_packets: Sequence[Any],
+    n_splits: int = 5,
+    seed: int = 42,
+) -> float:
+    """
+    Trains a Gradient Boosted Decision Tree ensemble across 5-fold cross-validation
+    exclusively on non-semantic fields (TTL, flags, length granularity, IAT regularity)
+    to compute cross-validated ROC-AUC for artifact leakage auditing.
+    """
+    X_norm = [extract_non_semantic_packet_features(p) for p in normal_packets]
+    X_atk = [extract_non_semantic_packet_features(p) for p in attack_packets]
+    X = np.array(X_norm + X_atk)
+    y = np.array([0] * len(X_norm) + [1] * len(X_atk))
+
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(len(y))
+    folds = np.array_split(indices, n_splits)
+    auc_scores: list[float] = []
+
+    for i in range(n_splits):
+        val_idx = folds[i]
+        train_idx = np.concatenate([folds[j] for j in range(n_splits) if j != i])
+        clf = GradientBoostedTreesClassifier(n_estimators=15, max_depth=3)
+        clf.fit(X[train_idx], y[train_idx])
+        preds = clf.predict_proba(X[val_idx])
+        auc = compute_roc_auc(y[val_idx].tolist(), preds.tolist())
+        auc_scores.append(auc)
+
+    return float(np.mean(auc_scores))
+
