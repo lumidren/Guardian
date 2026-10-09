@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#050811"/>
+    </linearGradient>
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="cyan-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="purple-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="emerald-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="460" rx="16" fill="url(#bg-grad)"/>
+  <rect width="1200" height="460" rx="16" fill="none" stroke="#334155" stroke-width="1.5" stroke-opacity="0.6"/>
+
+  <!-- Subtle Grid Lines -->
+  <path d="M 0,115 L 1200,115 M 0,230 L 1200,230 M 0,345 L 1200,345" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,8"/>
+  <path d="M 300,0 L 300,460 M 600,0 L 600,460 M 900,0 L 900,460" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,8"/>
+
+  <!-- Left Header Section -->
+  <g transform="translate(60, 48)">
+    <!-- Shield Logo Emblem -->
+    <path d="M 40,8 L 74,20 L 74,54 C 74,76 40,94 40,94 C 40,94 6,76 6,54 L 6,20 Z" fill="none" stroke="url(#cyan-glow)" stroke-width="3" filter="url(#glow)"/>
+    <path d="M 40,16 L 68,26 L 68,52 C 68,70 40,84 40,84 C 40,84 12,70 12,52 L 12,26 Z" fill="#0369a1" fill-opacity="0.2"/>
+    <path d="M 28,48 L 36,56 L 54,38" fill="none" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Title and Subtitle -->
+    <text x="96" y="44" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="38" font-weight="900" fill="#f8fafc" letter-spacing="2">GUARDIAN</text>
+    <text x="96" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" fill="#38bdf8" letter-spacing="1">MULTI-LAYER IDENTITY-BASED ZERO-DAY DEFENSE FOR IOT</text>
+    <text x="0" y="126" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#94a3b8" width="500">
+      Edge-native anomaly detection &amp; graduated response architecture for resource-constrained gateways.
+    </text>
+    <text x="0" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#94a3b8">
+      Operates on header metadata alone without payload decryption (TLS 1.3 / DTLS safe).
+    </text>
+  </g>
+
+  <!-- Key Architecture Columns / Cards -->
+  <!-- Card 1: 3-Layer Identity -->
+  <g transform="translate(60, 230)">
+    <rect width="250" height="180" rx="12" fill="url(#card-grad)" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.4"/>
+    <circle cx="32" cy="34" r="14" fill="#0284c7" fill-opacity="0.2"/>
+    <text x="32" y="39" font-family="monospace" font-size="14" font-weight="bold" fill="#38bdf8" text-anchor="middle">L1</text>
+    <text x="56" y="39" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="bold" fill="#f1f5f9">Multi-Layer Identity</text>
+    
+    <path d="M 20,62 L 230,62" stroke="#334155" stroke-width="1"/>
+    <text x="24" y="85" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Layer 1:</tspan> Behavioral Dynamics</text>
+    <text x="24" y="108" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Layer 2:</tspan> Destination Topology</text>
+    <text x="24" y="131" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Layer 3:</tspan> Physical / Priors Stub</text>
+    <text x="24" y="154" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#38bdf8">60 Canonical Header Features</text>
+  </g>
+
+  <!-- Card 2: Dual-Engine Core -->
+  <g transform="translate(340, 230)">
+    <rect width="250" height="180" rx="12" fill="url(#card-grad)" stroke="#a855f7" stroke-width="1.5" stroke-opacity="0.4"/>
+    <circle cx="32" cy="34" r="14" fill="#7e22ce" fill-opacity="0.2"/>
+    <text x="32" y="39" font-family="monospace" font-size="14" font-weight="bold" fill="#c084fc" text-anchor="middle">ML</text>
+    <text x="56" y="39" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="bold" fill="#f1f5f9">Dual Detection Core</text>
+    
+    <path d="M 20,62 L 230,62" stroke="#334155" stroke-width="1"/>
+    <text x="24" y="85" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Isolation Forest:</tspan> 200 iTrees</text>
+    <text x="24" y="108" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Robust Z-Score:</tspan> 50% MAD</text>
+    <text x="24" y="131" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">NetworkX:</tspan> Egress Graph</text>
+    <text x="24" y="154" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#c084fc">Weighted Fusion (ML+Stat+Net)</text>
+  </g>
+
+  <!-- Card 3: Hysteresis & Response -->
+  <g transform="translate(620, 230)">
+    <rect width="250" height="180" rx="12" fill="url(#card-grad)" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.4"/>
+    <circle cx="32" cy="34" r="14" fill="#047857" fill-opacity="0.2"/>
+    <text x="32" y="39" font-family="monospace" font-size="14" font-weight="bold" fill="#34d399" text-anchor="middle">FW</text>
+    <text x="56" y="39" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="bold" fill="#f1f5f9">Graduated Mitigation</text>
+    
+    <path d="M 20,62 L 230,62" stroke="#334155" stroke-width="1"/>
+    <text x="24" y="85" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Hysteresis:</tspan> 2/3 Up, 15 Calm Down</text>
+    <text x="24" y="108" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">4 Tiers:</tspan> Monitor/Restr/Quar/Block</text>
+    <text x="24" y="131" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Backend:</tspan> Atomic nftables / dryrun</text>
+    <text x="24" y="154" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#34d399">Sub-Millisecond Kernel Execution</text>
+  </g>
+
+  <!-- Card 4: Explainable AI & UI -->
+  <g transform="translate(900, 230)">
+    <rect width="240" height="180" rx="12" fill="url(#card-grad)" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.4"/>
+    <circle cx="32" cy="34" r="14" fill="#b45309" fill-opacity="0.2"/>
+    <text x="32" y="39" font-family="monospace" font-size="14" font-weight="bold" fill="#fbbf24" text-anchor="middle">UI</text>
+    <text x="56" y="39" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="bold" fill="#f1f5f9">Explainable SOC</text>
+    
+    <path d="M 20,62 L 220,62" stroke="#334155" stroke-width="1"/>
+    <text x="24" y="85" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Tree-Path:</tspan> Inverse-depth XAI</text>
+    <text x="24" y="108" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">NLG:</tspan> Plain English Explanations</text>
+    <text x="24" y="131" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8">• <tspan fill="#e2e8f0" font-weight="600">Real-Time:</tspan> FastAPI + WebSocket</text>
+    <text x="24" y="154" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#fbbf24">React 18 + Vite SOC Dashboard</text>
+  </g>
+
+  <!-- Top Right Metric Pills -->
+  <g transform="translate(680, 48)">
+    <!-- Pill 1: Budget -->
+    <rect x="0" y="0" width="220" height="60" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="18" y="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" letter-spacing="1">DEPLOYMENT BUDGET</text>
+    <text x="18" y="48" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="800" fill="#10b981">$250 Total</text>
+    <text x="130" y="48" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">8 Nodes + RPi</text>
+
+    <!-- Pill 2: Compute Latency -->
+    <rect x="240" y="0" width="220" height="60" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="258" y="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" letter-spacing="1">COMPUTE LATENCY</text>
+    <text x="258" y="48" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="800" fill="#38bdf8">&lt; 25 ms</text>
+    <text x="375" y="48" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">Per Window</text>
+
+    <!-- Pill 3: Zero-Day Target -->
+    <rect x="0" y="74" width="220" height="60" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="18" y="98" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" letter-spacing="1">DETECTION TARGET</text>
+    <text x="18" y="122" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="800" fill="#a855f7">87.2%</text>
+    <text x="100" y="122" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">Novel Attacks</text>
+
+    <!-- Pill 4: Low False Alarms -->
+    <rect x="240" y="74" width="220" height="60" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="258" y="98" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" letter-spacing="1">TARGET FALSE ALARMS</text>
+    <text x="258" y="122" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="800" fill="#f59e0b">&lt; 5.0%</text>
+    <text x="355" y="122" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">With Hysteresis</text>
+  </g>
+</svg>

@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 280" width="100%" height="100%">
+  <defs>
+    <linearGradient id="p-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="blue-box" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="purple-box" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#581c87"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="emerald-box" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="amber-box" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#78350f"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="rose-box" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#881337"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container -->
+  <rect width="1100" height="280" rx="14" fill="url(#p-bg)" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- Step 1: Ingestion -->
+  <g transform="translate(30, 40)">
+    <rect width="180" height="190" rx="10" fill="url(#blue-box)" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="90" y="32" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle">STAGE 1: INGESTION</text>
+    <path d="M 20,44 L 160,44" stroke="#334155" stroke-width="1"/>
+    <text x="90" y="72" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" text-anchor="middle">Packet Stream</text>
+    <text x="90" y="96" font-family="monospace" font-size="11" fill="#94a3b8" text-anchor="middle">Live / PCAP / Sim</text>
+    <rect x="25" y="120" width="130" height="42" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <text x="90" y="138" font-family="-apple-system, sans-serif" font-size="11" fill="#cbd5e1" text-anchor="middle">Sliding Window</text>
+    <text x="90" y="152" font-family="monospace" font-size="10" fill="#38bdf8" text-anchor="middle">W=10s, Δt=2s</text>
+    <text x="90" y="195" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Zero Payload Decrypt</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 220,135 L 245,135" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="248,135 240,130 240,140" fill="#38bdf8"/>
+
+  <!-- Step 2: Extraction -->
+  <g transform="translate(255, 40)">
+    <rect width="180" height="190" rx="10" fill="url(#purple-box)" stroke="#c084fc" stroke-width="1.5"/>
+    <text x="90" y="32" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#c084fc" text-anchor="middle">STAGE 2: EXTRACTION</text>
+    <path d="M 20,44 L 160,44" stroke="#334155" stroke-width="1"/>
+    <text x="90" y="72" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" text-anchor="middle">60 Canonical Features</text>
+    <text x="90" y="96" font-family="monospace" font-size="11" fill="#94a3b8" text-anchor="middle">x ∈ ℝ⁶⁰</text>
+    <text x="25" y="122" font-family="-apple-system, sans-serif" font-size="11" fill="#cbd5e1">• L1: Volume (12)</text>
+    <text x="25" y="142" font-family="-apple-system, sans-serif" font-size="11" fill="#cbd5e1">• L1: Timing (10) + Proto (12)</text>
+    <text x="25" y="162" font-family="-apple-system, sans-serif" font-size="11" fill="#cbd5e1">• L2: Net Graph (14)</text>
+    <text x="25" y="182" font-family="-apple-system, sans-serif" font-size="11" fill="#cbd5e1">• L3: Metadata + Temp (12)</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M 445,135 L 470,135" stroke="#c084fc" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="473,135 465,130 465,140" fill="#c084fc"/>
+
+  <!-- Step 3: Detection Core -->
+  <g transform="translate(480, 40)">
+    <rect width="180" height="190" rx="10" fill="url(#emerald-box)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="90" y="32" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">STAGE 3: DETECTION</text>
+    <path d="M 20,44 L 160,44" stroke="#334155" stroke-width="1"/>
+    <text x="90" y="70" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" text-anchor="middle">Dual-Engine Anomaly</text>
+    <rect x="18" y="86" width="144" height="34" rx="4" fill="#0f172a" stroke="#047857"/>
+    <text x="90" y="106" font-family="monospace" font-size="10.5" fill="#34d399" text-anchor="middle">Isolation Forest (200)</text>
+    <rect x="18" y="126" width="144" height="34" rx="4" fill="#0f172a" stroke="#047857"/>
+    <text x="90" y="146" font-family="monospace" font-size="10.5" fill="#34d399" text-anchor="middle">Robust Z (MAD stat)</text>
+    <text x="90" y="185" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">Weighted Fusion</text>
+    <text x="90" y="200" font-family="monospace" font-size="9" fill="#cbd5e1" text-anchor="middle">Score: 0 - 100</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 -->
+  <path d="M 670,135 L 695,135" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="698,135 690,130 690,140" fill="#34d399"/>
+
+  <!-- Step 4: Decision & Hysteresis -->
+  <g transform="translate(705, 40)">
+    <rect width="175" height="190" rx="10" fill="url(#amber-box)" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="87" y="32" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">STAGE 4: DECISION</text>
+    <path d="M 20,44 L 155,44" stroke="#334155" stroke-width="1"/>
+    <text x="87" y="70" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" text-anchor="middle">Hysteresis Engine</text>
+    <text x="87" y="92" font-family="monospace" font-size="10.5" fill="#fbbf24" text-anchor="middle">Escalate: k=2 of n=3</text>
+    <text x="87" y="108" font-family="monospace" font-size="10.5" fill="#94a3b8" text-anchor="middle">De-escalate: 15 calm</text>
+    <rect x="18" y="125" width="139" height="50" rx="6" fill="#0f172a" stroke="#78350f"/>
+    <text x="87" y="145" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="bold" fill="#fbbf24" text-anchor="middle">Response Level</text>
+    <text x="87" y="163" font-family="monospace" font-size="9.5" fill="#e2e8f0" text-anchor="middle">MONITOR → BLOCK</text>
+    <text x="87" y="200" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Eliminates Flapping</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 -->
+  <path d="M 890,135 L 915,135" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="918,135 910,130 910,140" fill="#fbbf24"/>
+
+  <!-- Step 5: Mitigation & XAI -->
+  <g transform="translate(925, 40)">
+    <rect width="145" height="190" rx="10" fill="url(#rose-box)" stroke="#f43f5e" stroke-width="1.5"/>
+    <text x="72" y="32" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#f43f5e" text-anchor="middle">STAGE 5: ACTION</text>
+    <path d="M 15,44 L 130,44" stroke="#334155" stroke-width="1"/>
+    <text x="72" y="70" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#f8fafc" text-anchor="middle">Kernel &amp; XAI</text>
+    <rect x="12" y="86" width="121" height="42" rx="4" fill="#0f172a" stroke="#9f1239"/>
+    <text x="72" y="104" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="bold" fill="#f43f5e" text-anchor="middle">nftables</text>
+    <text x="72" y="118" font-family="monospace" font-size="9" fill="#94a3b8" text-anchor="middle">&lt; 0.1ms Latency</text>
+    <rect x="12" y="136" width="121" height="42" rx="4" fill="#0f172a" stroke="#9f1239"/>
+    <text x="72" y="154" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="bold" fill="#f43f5e" text-anchor="middle">Plain English XAI</text>
+    <text x="72" y="168" font-family="-apple-system, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">Tree Path Attrib</text>
+    <text x="72" y="200" font-family="monospace" font-size="9.5" fill="#38bdf8" text-anchor="middle">WebSocket / UI</text>
+  </g>
+</svg>
