@@ -79,7 +79,7 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
