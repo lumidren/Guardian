@@ -3,12 +3,10 @@ Feature registry, metadata specifications, and layer groupings for the 60 GUARDI
 """
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import Dict, List
-from ..config import FEATURE_NAMES
+from enum import StrEnum
 
 
-class LayerType(str, Enum):
+class LayerType(StrEnum):
     LAYER_1_BEHAVIORAL = "LAYER_1_BEHAVIORAL"
     LAYER_2_NETWORK = "LAYER_2_NETWORK"
     LAYER_3_PHYSICAL = "LAYER_3_PHYSICAL"
@@ -26,7 +24,7 @@ class FeatureMetadata:
     is_anomaly_high: bool  # True if abnormal high value is alarming
 
 
-FEATURE_REGISTRY: Dict[str, FeatureMetadata] = {
+FEATURE_REGISTRY: dict[str, FeatureMetadata] = {
     # Layer 1: Traffic Volume & Timing (1-18)
     "pkt_count_10s": FeatureMetadata("pkt_count_10s", 0, LayerType.LAYER_1_BEHAVIORAL, "Packet Count (10s)", "Total packets observed in 10-second window", "packets", True),
     "byte_count_10s": FeatureMetadata("byte_count_10s", 1, LayerType.LAYER_1_BEHAVIORAL, "Byte Volume (10s)", "Total byte volume in 10-second window", "bytes", True),

@@ -6,17 +6,17 @@ Transforms raw packet streams into mathematical multi-layer identity vectors.
 import math
 from collections import Counter
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any
+
 import numpy as np
 
-from ..config import FEATURE_NAMES
 from ..capture.flow_tracker import FlowSummary
-from ..capture.packet_parser import ParsedPacket
+from ..config import FEATURE_NAMES
 
 HIGH_RISK_PORTS = {21, 22, 23, 2323, 3389, 4444, 5555, 6667, 8888, 9999, 1337, 31337}
 
 
-def shannon_entropy(items: List[any]) -> float:
+def shannon_entropy(items: list[Any]) -> float:
     """Calculate Shannon entropy in bits for a sequence of values."""
     if not items:
         return 0.0
@@ -29,7 +29,7 @@ class FeatureExtractor:
     def __init__(self, local_subnet_prefix: str = "192.168.1."):
         self.local_subnet_prefix = local_subnet_prefix
 
-    def extract(self, summary: FlowSummary) -> Dict[str, float]:
+    def extract(self, summary: FlowSummary) -> dict[str, float]:
         """
         Extract all 60 behavioral features from a FlowSummary.
         Returns a dictionary mapping feature_name -> float value.
@@ -98,9 +98,9 @@ class FeatureExtractor:
         pkt_len_median = float(np.median(len_arr))
 
         # Discretize lengths for entropy
-        length_bins = [min(15, int(l // 100)) for l in byte_lengths]
+        length_bins = [min(15, int(b_len // 100)) for b_len in byte_lengths]
         pkt_len_entropy = shannon_entropy(length_bins)
-        small_pkt_ratio = float(sum(1 for l in byte_lengths if l < 100) / n_pkts)
+        small_pkt_ratio = float(sum(1 for b_len in byte_lengths if b_len < 100) / n_pkts)
 
         # Application Protocols
         app_protos = [p.app_protocol for p in pkts]
