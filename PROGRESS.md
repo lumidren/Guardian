@@ -2,7 +2,7 @@
 
 ## Milestone Checklist
 - [x] M0 scaffolding and quality gates
-- [ ] M1 contracts and DB
+- [x] M1 contracts and DB
 - [ ] M2 simulator
 - [ ] M3 sources and windows
 - [ ] M4 features
@@ -20,7 +20,8 @@
 ---
 
 ## Current Status
-- **Active Milestone**: M1 (Contracts, config, clock, database)
-- **Completed Milestones**: M0 (Scaffolding and quality gates)
-- **Next Milestone**: M1 (Contracts, config, clock, database)
+- **Active Milestone**: M2 (Device and attack simulator)
+- **Completed Milestones**: M0 (Scaffolding and quality gates), M1 (Contracts, config, clock, database)
+- **Next Milestone**: M2 (Device and attack simulator - replaces hardware)
 - **Known Gaps**: None
+
