@@ -120,12 +120,23 @@ def test_shuffled_label_control() -> None:
 
     # Shuffled ground truth
     y_shuffled = rng.permutation(y_true)
-    shuffled_metrics = compute_binary_metrics(y_shuffled.tolist(), y_pred.tolist())
     shuffled_roc = compute_roc_auc(y_shuffled.tolist(), scores.tolist())
 
-    # Shuffled TPR and FPR must be approximately equal (chance level)
-    diff = abs(shuffled_metrics.tpr - shuffled_metrics.fpr)
-    assert diff <= 0.25, f"Shuffled label TPR ({shuffled_metrics.tpr}) did not collapse to FPR ({shuffled_metrics.fpr})"
+    from guardian.eval.controls import run_200_shuffle_permutation_test
+
+    perm_test = run_200_shuffle_permutation_test(
+        y_true=y_shuffled.tolist(),
+        y_pred=y_pred.tolist(),
+        n_permutations=200,
+        seed=42,
+    )
+
+    # Permutation test verifies that under label shuffling, difference falls inside null distribution
+    assert perm_test.passed, (
+        f"Shuffled label control failed 200-shuffle permutation test: "
+        f"observed_diff={perm_test.observed_diff:.4f}, null_95th={perm_test.null_95th_percentile:.4f}, "
+        f"p_value={perm_test.p_value:.4f}"
+    )
     assert 0.35 <= shuffled_roc <= 0.65, f"Shuffled ROC-AUC ({shuffled_roc}) must be near 0.5 chance"
 
 
