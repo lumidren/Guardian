@@ -1,0 +1,167 @@
+/* GUARDIAN Cybersecurity Operations Center - Theme Stylesheet */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-dark: #0a0e17;
+  --bg-card: #0f172a;
+  --border-card: #1e293b;
+  --accent-cyan: #06b6d4;
+  --threat-monitor: #10b981;
+  --threat-restrict: #f59e0b;
+  --threat-quarantine: #f97316;
+  --threat-block: #ef4444;
+}
+
+body {
+  background-color: #070b13;
+  color: #f1f5f9;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+.kpi-card {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease-in-out;
+}
+
+.kpi-card:hover {
+  border-color: rgba(6, 182, 212, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.1);
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.kpi-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+  margin: 0.25rem 0;
+}
+
+.kpi-target {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Attack Injection Buttons */
+.btn-attack {
+  border: 1px solid #334155;
+  background: #0f172a;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  text-align: left;
+}
+
+.btn-attack:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-secondary {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.btn-override {
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #ffffff;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: opacity 0.15s;
+}
+
+.btn-override:hover {
+  opacity: 0.9;
+}
+
+/* Device Cards */
+.device-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.device-card.threat-block {
+  border-color: rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+}
+
+.device-card.threat-quarantine {
+  border-color: rgba(249, 115, 22, 0.6);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.1);
+}
+
+.device-card.threat-restrict {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.device-card.threat-monitor {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Threat Score Gauge Bar */
+.threat-bar-container {
+  height: 6px;
+  background: #1e293b;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.threat-bar-fill {
+  height: 100%;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+/* Animations */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

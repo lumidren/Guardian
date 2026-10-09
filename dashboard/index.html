@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GUARDIAN - IoT Zero-Day Security Gateway</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="bg-dark text-slate-100 antialiased font-sans min-h-screen">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center font-mono font-bold text-white text-xl shadow-lg shadow-cyan-500/20">
+        G
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-xl font-bold tracking-tight text-white">GUARDIAN</h1>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">v1.0.0</span>
+          <span id="ws-badge" class="flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span> Live Gateway
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">Multi-Layer Identity-Based Zero-Day Defense Framework for IoT</p>
+      </div>
+    </div>
+
+    <!-- Right Quick Controls -->
+    <div class="flex items-center space-x-4">
+      <div class="hidden md:flex items-center space-x-6 text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-lg">
+        <div>GATEWAY IP: <span class="text-slate-200">192.168.1.1</span></div>
+        <div>PROTECTION: <span class="text-emerald-400">ACTIVE (48h+)</span></div>
+        <div>DEFENSE: <span class="text-cyan-400">ISOLATION FOREST + XAI</span></div>
+      </div>
+      <button onclick="refreshData()" class="btn-secondary text-xs">
+        ↻ Refresh
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+    <!-- Top KPI Telemetry Cards (Table 9 Specs) -->
+    <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div class="kpi-card">
+        <span class="kpi-label">Detection Latency</span>
+        <div class="kpi-value text-emerald-400" id="kpi-det-latency">0.08 s</div>
+        <span class="kpi-target">Target: &lt;1.0s (Table 9)</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Enforcement Speed</span>
+        <div class="kpi-value text-cyan-400" id="kpi-enf-latency">&lt;0.01 s</div>
+        <span class="kpi-target">Target: &lt;0.3s (iptables)</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Gateway CPU Load</span>
+        <div class="kpi-value text-indigo-400" id="kpi-cpu">22.4 %</div>
+        <span class="kpi-target">Target: &lt;40% (RPi 4)</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Gateway RAM</span>
+        <div class="kpi-value text-purple-400" id="kpi-ram">165 MB</div>
+        <span class="kpi-target">Limit: &lt;2048 MB</span>
+      </div>
+      <div class="kpi-card col-span-2 md:col-span-1">
+        <span class="kpi-label">Protected Fleet</span>
+        <div class="kpi-value text-slate-100" id="kpi-devices">8 / 8</div>
+        <span class="kpi-target text-emerald-400">100% Protected</span>
+      </div>
+    </section>
+
+    <!-- Attack Injection Control Panel -->
+    <section class="card bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 p-5 rounded-2xl shadow-xl">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-4">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span class="text-red-400">⚡</span> Live Attack Injection & Verification Suite
+          </h2>
+          <p class="text-xs text-slate-400">Trigger any of the 6 research attack types to evaluate sub-second detection and graduated enforcement.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-xs text-slate-400 font-mono">Target Device:</label>
+          <select id="attack-target-select" class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-1.5 font-mono focus:border-cyan-500 focus:outline-none">
+            <option value="dev_08_camera">ESP32-CAM (Smart Camera - 192.168.1.108)</option>
+            <option value="dev_01_temp">ESP32_Temp_01 (192.168.1.101)</option>
+            <option value="dev_02_motion">ESP32_Motion_02 (192.168.1.102)</option>
+            <option value="dev_04_plug">ESP8266_Plug_01 (192.168.1.104)</option>
+            <option value="dev_06_compute1">RPi_Zero_01 (192.168.1.106)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <button onclick="triggerAttack('ZERO_DAY_HYBRID')" class="btn-attack border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 col-span-2 md:col-span-1 ring-1 ring-rose-500/30">
+          <span class="font-bold block">🚨 Zero-Day Hybrid</span>
+          <span class="text-[10px] opacity-75">Vacuum / Cam 3:47 AM</span>
+        </button>
+        <button onclick="triggerAttack('DDOS_FLOODING')" class="btn-attack border-red-500/30 hover:border-red-400 text-red-300">
+          <span class="font-bold block">DDoS Flood</span>
+          <span class="text-[10px] opacity-75">SYN/UDP Burst</span>
+        </button>
+        <button onclick="triggerAttack('CNC_BEACONING')" class="btn-attack border-amber-500/30 hover:border-amber-400 text-amber-300">
+          <span class="font-bold block">C&C Beaconing</span>
+          <span class="text-[10px] opacity-75">Periodic Remote C2</span>
+        </button>
+        <button onclick="triggerAttack('NETWORK_SCANNING')" class="btn-attack border-yellow-500/30 hover:border-yellow-400 text-yellow-300">
+          <span class="font-bold block">Network Scan</span>
+          <span class="text-[10px] opacity-75">Lateral Reconnaissance</span>
+        </button>
+        <button onclick="triggerAttack('DATA_EXFILTRATION')" class="btn-attack border-orange-500/30 hover:border-orange-400 text-orange-300">
+          <span class="font-bold block">Data Exfil</span>
+          <span class="text-[10px] opacity-75">Large MTU Stream</span>
+        </button>
+        <button onclick="triggerAttack('CRYPTOMINING')" class="btn-attack border-purple-500/30 hover:border-purple-400 text-purple-300">
+          <span class="font-bold block">Cryptomining</span>
+          <span class="text-[10px] opacity-75">Port 4444 Stratum</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Protected Fleet Matrix -->
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <span>🛡️</span> Protected IoT Fleet (8 Devices)
+          </h2>
+          <p class="text-xs text-slate-400">Continuous 10-second sliding window behavioral profiling and graduated response enforcement.</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs font-mono text-slate-400">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> MONITOR
+          <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 ml-2"></span> RESTRICT
+          <span class="inline-block w-2 h-2 rounded-full bg-orange-500 ml-2"></span> QUARANTINE
+          <span class="inline-block w-2 h-2 rounded-full bg-rose-500 ml-2"></span> BLOCK
+        </div>
+      </div>
+
+      <div id="device-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Injected via JavaScript -->
+        <div class="p-8 text-center text-slate-500 col-span-full font-mono">Loading IoT fleet devices...</div>
+      </div>
+    </section>
+
+    <!-- Recent Alerts & Audit Log -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Alert Feed -->
+      <div class="lg:col-span-2 card bg-slate-900/90 border border-slate-800 p-5 rounded-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>⚠️</span> Real-Time Security Incident Stream
+          </h3>
+          <span class="text-xs font-mono text-slate-400" id="alerts-count">0 incidents</span>
+        </div>
+        <div id="alerts-list" class="space-y-3 max-h-96 overflow-y-auto pr-1">
+          <div class="p-6 text-center text-slate-500 text-xs font-mono">No active threats detected. Fleet operating normally.</div>
+        </div>
+      </div>
+
+      <!-- Cross-Device Threat Intelligence & IOCs -->
+      <div class="card bg-slate-900/90 border border-slate-800 p-5 rounded-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>🌐</span> Fleet Threat Intelligence (IOCs)
+          </h3>
+          <span class="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Shared</span>
+        </div>
+        <div class="space-y-3 text-xs" id="intelligence-container">
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+            <div class="text-slate-400 font-mono">Propagated Blacklisted IPs:</div>
+            <div id="intel-ip-list" class="font-mono text-rose-400 space-y-1">None yet</div>
+          </div>
+          <div class="text-[11px] text-slate-400 leading-relaxed">
+            When any device encounters a malicious external destination or C2 beacon, GUARDIAN immediately blocks that destination for all other 7 devices across the gateway.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Explainable AI Modal Dialog (Section 3.3.2) -->
+  <div id="xai-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in duration-200">
+      
+      <!-- Modal Header -->
+      <div id="modal-header-banner" class="bg-rose-950/80 border-b border-rose-800/60 px-6 py-4 flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-white font-mono" id="modal-badge-level">BLOCK</span>
+            <h3 class="text-base font-bold text-white font-mono" id="modal-device-title">SMART CAMERA BLOCKED</h3>
+          </div>
+          <p class="text-xs text-rose-300/80 mt-1 font-mono">THREAT DETECTED: <span id="modal-time">3:47 PM</span> | THREAT SCORE: <span id="modal-score" class="font-bold text-white">96/100</span></p>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg p-2">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-5 text-sm">
+        
+        <div>
+          <h4 class="font-bold text-slate-200 text-xs tracking-wider uppercase font-mono text-cyan-400 mb-3">
+            WHY WAS IT BLOCKED? (Multi-Layer Attribution)
+          </h4>
+          <div id="modal-bullets" class="space-y-3">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- Meta breakdown -->
+        <div class="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs">
+          <div>
+            <span class="text-slate-400 block">LIKELY ATTACK:</span>
+            <span class="text-rose-400 font-bold" id="modal-attack-type">Botnet C&C Communication</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block">CONFIDENCE LEVEL:</span>
+            <span class="text-emerald-400 font-bold" id="modal-confidence">High (90-100%)</span>
+          </div>
+        </div>
+
+        <!-- Remediations -->
+        <div class="bg-indigo-950/30 border border-indigo-900/50 p-4 rounded-xl space-y-2">
+          <h5 class="text-xs font-bold text-indigo-300 font-mono uppercase">RECOMMENDED ACTION:</h5>
+          <ul id="modal-actions" class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <!-- Injected via JS -->
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 flex items-center justify-between">
+        <button onclick="oneClickUnblockCurrent()" class="btn-override text-xs font-mono">
+          🔓 One-Click Unblock & Retrain
+        </button>
+        <button onclick="closeModal()" class="btn-secondary text-xs">
+          Close Report
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
