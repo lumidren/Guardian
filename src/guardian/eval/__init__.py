@@ -2,6 +2,12 @@
 Evaluation framework package for GUARDIAN.
 """
 
+from .ablations import (
+    AblationConfig,
+    AblationResult,
+    AblationRunner,
+    get_standard_ablation_battery,
+)
 from .baselines import (
     PooledIsolationForestBaseline,
     RobustZScoreOnlyBaseline,
@@ -70,4 +76,8 @@ __all__ = [
     "StaticThresholdBaseline",
     "PooledIsolationForestBaseline",
     "RobustZScoreOnlyBaseline",
+    "AblationConfig",
+    "AblationResult",
+    "AblationRunner",
+    "get_standard_ablation_battery",
 ]
