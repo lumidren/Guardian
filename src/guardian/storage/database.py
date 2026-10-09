@@ -3,19 +3,18 @@ Database Manager for GUARDIAN storage.
 Provides robust thread-safe connection pooling, SQLite initialization, and CRUD methods.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
-from sqlalchemy import create_engine, desc
-from sqlalchemy.orm import sessionmaker, Session
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import config
-from .models import Base, Device, Alert, BehavioralBaseline, SystemMetric, AuditLog
+from .models import Alert, Base, Device, SystemMetric
 
 
 class DatabaseManager:
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or config.DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(
@@ -102,14 +101,14 @@ class DatabaseManager:
             session.refresh(alert)
             return alert
 
-    def get_all_devices(self) -> List[dict]:
+    def get_all_devices(self) -> list[dict]:
         with self.get_session() as session:
             devices = session.query(Device).all()
             return [d.to_dict() for d in devices]
 
-    def get_recent_alerts(self, limit: int = 50) -> List[dict]:
+    def get_recent_alerts(self, limit: int = 50) -> list[dict]:
         with self.get_session() as session:
-            alerts = session.query(Alert).order_by(desc(Alert.id)).limit(limit).all()
+            alerts = session.query(Alert).order_by(Alert.id.desc()).limit(limit).all()
             return [a.to_dict() for a in alerts]
 
     def record_system_metric(
@@ -134,7 +133,7 @@ class DatabaseManager:
             session.refresh(metric)
             return metric
 
-    def get_recent_metrics(self, limit: int = 30) -> List[dict]:
+    def get_recent_metrics(self, limit: int = 30) -> list[dict]:
         with self.get_session() as session:
-            metrics = session.query(SystemMetric).order_by(desc(SystemMetric.id)).limit(limit).all()
+            metrics = session.query(SystemMetric).order_by(SystemMetric.id.desc()).limit(limit).all()
             return [m.to_dict() for m in reversed(metrics)]
