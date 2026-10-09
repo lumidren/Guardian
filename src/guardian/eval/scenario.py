@@ -208,26 +208,55 @@ class ScenarioBuilder:
             attack_pkts: list[ParsedPacket] = []
             if active_eps:
                 for ep in active_eps:
+                    # 1. Delayed start check: dormant initial phase
+                    dormant_duration = (
+                        min(30.0, ep.duration_seconds * 0.5)
+                        if ep.evasion_mode == EvasionMode.DELAYED_START
+                        else 0.0
+                    )
+                    active_start = ep.start_time + dormant_duration
+                    if w_end <= active_start:
+                        continue
+
                     raw_attack = self.attack_suite.inject_attack(
                         attack_type=ep.attack_type,
                         victim_device=dev,
                     )
-                    # Scale packets by intensity
+                    # Scale packets by intensity and evasion mode
                     multiplier = (
                         0.5
                         if ep.intensity == AttackIntensity.LOW
                         else (2.0 if ep.intensity == AttackIntensity.HIGH else 1.0)
                     )
-                    target_count = max(5, int(len(raw_attack) * multiplier))
+                    if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
+                        multiplier *= 0.15
+
+                    target_count = max(
+                        2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
+                        int(len(raw_attack) * multiplier),
+                    )
                     sample_attack = raw_attack[:target_count]
 
-                    # Interpolate attack packet timestamps within overlapping portion
-                    overlap_start = max(w_start, ep.start_time)
+                    # Interpolate attack packet timestamps within overlapping active portion
+                    overlap_start = max(w_start, active_start)
                     overlap_end = min(w_end, ep.end_time)
+                    if overlap_end <= overlap_start:
+                        continue
                     overlap_duration = max(0.1, overlap_end - overlap_start)
+
+                    min_b, max_b = dev.normal_byte_range
 
                     for j, p in enumerate(sample_attack):
                         p.timestamp = overlap_start + (j / max(1, len(sample_attack))) * overlap_duration
+
+                        # Evasion Mode: Mimicry (match legitimate packet size distribution)
+                        if ep.evasion_mode == EvasionMode.MIMICRY:
+                            p.length = int(min_b + (j % (max(1, max_b - min_b + 1))))
+
+                        # Evasion Mode: No New Destination (exploit legitimate approved endpoints)
+                        if ep.evasion_mode == EvasionMode.NO_NEW_DESTINATION:
+                            p.dst_ip = dev.normal_destinations[j % len(dev.normal_destinations)]
+
                         attack_pkts.append(p)
 
             # 3. Merge normal and attack packets and sort chronologically
