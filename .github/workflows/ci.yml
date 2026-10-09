@@ -36,6 +36,8 @@ jobs:
         mypy src/guardian
 
     - name: Run Tests with Coverage
+      env:
+        PYTHONPATH: src:.
       run: |
         pytest --cov=src/guardian --cov-report=xml tests/
 
