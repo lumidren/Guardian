@@ -2,6 +2,11 @@
 Evaluation framework package for GUARDIAN.
 """
 
+from .calibration import (
+    Calibrator,
+    FrozenOperatingPointError,
+    OperatingPoint,
+)
 from .metrics import (
     BinaryMetrics,
     BootstrapCI,
@@ -34,4 +39,7 @@ __all__ = [
     "GroundTruthEpisode",
     "StreamWindow",
     "ScenarioBuilder",
+    "Calibrator",
+    "FrozenOperatingPointError",
+    "OperatingPoint",
 ]
