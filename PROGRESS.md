@@ -3,7 +3,7 @@
 ## Phase 2: Evaluation Integrity, Hardening and Completion
 - [x] P2-0. Freeze and audit (tag `phase1-final`, snapshot baseline, AUDIT.md, PHASE1_GAP_CHECK.md)
 - [x] P2-1. Repository hygiene (unified `src/guardian` layout, pinned dependencies, Python 3.11)
-- [ ] P2-2. Evaluation framework core (new package: `eval/`, seeded 14-day stream, real pipeline)
+- [x] P2-2. Evaluation framework core (new package: `eval/`, seeded 14-day stream, real pipeline)
 - [ ] P2-3. Model training and caching (content-hash bundle cache, exception on missing model)
 - [ ] P2-4. Real baselines and ablations (static rules, pooled IF, z-score only, layer ablations)
 - [ ] P2-5. Adversarial and sensitivity testing (evasion modes, operating curve, threats to validity)
@@ -34,9 +34,9 @@
 ---
 
 ## Current Status
-- **Active Milestone**: P2-2 (Evaluation framework core)
-- **Completed Milestones**: P2-0 (Freeze and audit), P2-1 (Repository hygiene), M0, M1
-- **Next Milestone**: P2-2 (Evaluation framework core)
-- **Known Gaps**: See `docs/AUDIT.md` (F1–F9, F12) and `docs/PHASE1_GAP_CHECK.md` (M2–M14).
+- **Active Milestone**: P2-3 (Model training and caching)
+- **Completed Milestones**: P2-0 (Freeze and audit), P2-1 (Repository hygiene), P2-2 (Evaluation framework core), M0, M1
+- **Next Milestone**: P2-3 (Model training and caching)
+- **Known Gaps**: See `docs/AUDIT.md` (F1–F4, F9, F12) and `docs/PHASE1_GAP_CHECK.md` (M2–M14).
 
 

@@ -90,3 +90,15 @@ This document records architectural, algorithmic, and engineering decisions made
 - **Decision**: Completely remove legacy root `guardian/` directory. Migrate all submodules (`capture`, `config`, `features`, `ml`, `intelligence`, `enforcement`, `xai`, `storage`, `api`) into `src/guardian/`. Upgrade all SQLAlchemy ORM models (`Device`, `Alert`, `BehavioralBaseline`, `SystemMetric`, `AuditLog`) to `DeclarativeBase` with typed `Mapped[T] = mapped_column(...)`. Add repo root to `tool.pytest.ini_options.pythonpath = ["src", "."]`.
 - **Rationale**: Guarantees standard packaging compliance, prevents import shadowing, provides 100% strict type safety under mypy without untyped escapes, and ensures seamless testing across CI matrices.
 
+---
+
+## 4. Phase 2 Architecture Decisions (Milestone P2-2)
+
+### ADR-015: Dedicated `eval/` Evaluation Framework Architecture & Ground Truth Methodology
+- **Problem**: Phase 1 evaluation relied on isolated 50-trial loops feeding pure attack packets into a feature tracker without background normal traffic, hardcoded baseline strings, differing operating points between detection and false alarms, and silent fallbacks to 0.0 when model files were missing.
+- **Decision**: Implement a dedicated evaluation package (`guardian.eval` and root `eval/`) with:
+  1. `ScenarioBuilder`: 14-day stream generation with strictly time-ordered splits (Days 1-7 Train, Day 8 Calibration, Days 9-14 Test). Attack episodes are injected directly into ongoing background normal traffic, guaranteeing all attack windows contain realistic background noise.
+  2. `Calibrator` & `OperatingPoint`: Operating point selected on clean Day 8 calibration split and frozen, enforcing that the exact same threshold determines both detection and false alarm metrics.
+  3. `EvaluationRunner`: Exercises the real production pipeline (`FlowTracker`, `FeatureExtractor`, `IsolationForestDetector`, `StatisticalBaseline`, `ThreatScorer`, `EnforcementController`) and fails loudly via `ArtifactMissingError` if any model checkpoint is missing.
+- **Rationale**: Enforces absolute scientific integrity, eliminates synthetic evaluation shortcuts, produces verifiable empirical metrics, and enables deterministic reproducibility across seeds.
+
