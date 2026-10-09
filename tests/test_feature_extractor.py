@@ -3,17 +3,17 @@ Unit tests for GUARDIAN 60-feature extraction pipeline.
 """
 
 import time
+
 import numpy as np
-import pytest
-from guardian.config import FEATURE_NAMES
-from guardian.capture.packet_parser import ParsedPacket
+
 from guardian.capture.flow_tracker import FlowSummary
+from guardian.capture.packet_parser import ParsedPacket
 from guardian.features.extractor import FeatureExtractor
 
 
 def test_60_features_extracted():
     extractor = FeatureExtractor(local_subnet_prefix="192.168.1.")
-    
+
     # Create sample packets for a 10s window
     now = time.time()
     packets = [

@@ -4,6 +4,7 @@ Integration tests for FastAPI REST routes.
 
 import pytest
 from fastapi.testclient import TestClient
+
 from guardian.api.app import create_app
 
 

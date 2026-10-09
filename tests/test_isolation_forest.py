@@ -4,8 +4,9 @@ Unit tests for GUARDIAN Isolation Forest anomaly detector.
 
 import tempfile
 from pathlib import Path
+
 import numpy as np
-import pytest
+
 from guardian.ml.isolation_forest import IsolationForestDetector
 
 

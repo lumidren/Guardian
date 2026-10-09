@@ -2,11 +2,10 @@
 Unit tests for Graduated Response controller, virtual firewall, and user overrides.
 """
 
-import pytest
 from guardian.config import ThreatLevel
-from guardian.ml.threat_scorer import ThreatAssessment
 from guardian.enforcement.controller import EnforcementController
 from guardian.enforcement.virtual_driver import VirtualFirewallDriver
+from guardian.ml.threat_scorer import ThreatAssessment
 
 
 def test_virtual_firewall_graduated_response():

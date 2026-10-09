@@ -2,12 +2,10 @@
 Unit tests for Explainable AI (XAI) and Natural Language Generation (NLG).
 """
 
-import pytest
 from guardian.config import ThreatLevel
-from guardian.ml.threat_scorer import ThreatAssessment
 from guardian.ml.statistical_baseline import DeviationDetail
+from guardian.ml.threat_scorer import ThreatAssessment
 from guardian.xai.nlg_engine import NLGEngine
-from guardian.xai.templates import AttackClassification
 
 
 def test_nlg_report_structure():
