@@ -6,7 +6,6 @@ Tests Zeek conn.log parser, IoT-23 feature mapping to GUARDIAN schema, and exter
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from guardian.eval.external import (
     ExternalDatasetEvaluator,
