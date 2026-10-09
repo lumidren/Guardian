@@ -216,3 +216,62 @@ def test_pure_attack_window_check_and_background_mixing() -> None:
             f"Pure attack window detected at start_time={w.start_time}! "
             "Attack must be mixed with running background traffic."
         )
+
+
+def test_evaluation_control_battery_execution() -> None:
+    """
+    Test EvaluationControlBattery runs all broken-detector controls.
+    """
+    from guardian.eval.controls import EvaluationControlBattery
+
+    battery = EvaluationControlBattery(seed=42)
+    y_true = [1, 0, 1, 0, 1, 0, 1, 0] * 10
+    scores = [0.9 if y == 1 else 0.1 for y in y_true]
+
+    res = battery.run_all_controls(y_true, scores)
+    assert res.always_alert_tpr == 1.0
+    assert res.always_alert_fpr == 1.0
+    assert res.never_alert_tpr == 0.0
+    assert res.never_alert_fpr == 0.0
+    assert 0.40 <= res.random_score_roc_auc <= 0.60
+    assert res.controls_passed is True
+
+    d = res.to_dict()
+    assert d["always_alert"]["status"] == "PASS"
+    assert d["never_alert"]["status"] == "PASS"
+    assert d["random_score_detector"]["status"] == "PASS"
+    assert d["shuffled_labels"]["status"] == "PASS"
+
+
+def test_extract_episode_timeline_points() -> None:
+    """
+    Test extraction of window timeline across an episode for audit verification.
+    """
+    from guardian.eval.controls import extract_episode_timeline
+
+    sb = ScenarioBuilder(seed=42, total_days=1)
+    dev = DEFAULT_FLEET_SPECS[0]
+    ep = GroundTruthEpisode(
+        episode_id="ep_timeline_test",
+        device_id=dev.id,
+        attack_type=AttackType.CNC_BEACONING,
+        start_time=20.0,
+        end_time=40.0,
+        duration_seconds=20.0,
+        intensity=AttackIntensity.HIGH,
+        evasion_mode=EvasionMode.NONE,
+    )
+
+    timeline = extract_episode_timeline(
+        device_id=dev.id,
+        episode=ep,
+        scenario_builder=sb,
+        lead_time_s=10.0,
+        lag_time_s=10.0,
+    )
+
+    assert len(timeline) > 0
+    # Must have points before, during, and after
+    offsets = [p.time_offset_s for p in timeline]
+    assert min(offsets) <= 0.0
+    assert max(offsets) >= 20.0
