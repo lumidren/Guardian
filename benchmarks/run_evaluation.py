@@ -22,9 +22,9 @@ from guardian.ml.isolation_forest import IsolationForestDetector
 from guardian.ml.statistical_baseline import StatisticalBaseline
 from guardian.ml.threat_scorer import ThreatScorer
 from guardian.enforcement.controller import EnforcementController
-from guardian.simulation.fleet_emulator import IoTFleetEmulator, DEFAULT_FLEET_SPECS
-from guardian.simulation.attack_suite import AttackSuite, AttackType
-from guardian.simulation.dataset_generator import BaselineDatasetGenerator
+from simulation.fleet_emulator import IoTFleetEmulator, DEFAULT_FLEET_SPECS
+from simulation.attack_suite import AttackSuite, AttackType
+from simulation.dataset_generator import BaselineDatasetGenerator
 
 
 def run_full_evaluation():
@@ -185,7 +185,7 @@ def run_full_evaluation():
         print(f"{r['attack_type']:<24} | {r['baseline']:<8} | {r['snort']:<8} | {r['generic']:<8} | {r['guardian']:<10}")
     print("-" * 80)
     print(f"{'Average':<24} | {'0%':<8} | {'18%':<8} | {'67%':<8} | {overall_avg_detection:.1f}%")
-    print(f"False Positive Rate: {fpr:.1f}% (target: <5%) {'[PASS ✓]' if fpr < 5.0 else '[FAIL]'}")
+    print(f"False Positive Rate: {fpr:.1f}% (target: <5%) {'[PASS]' if fpr < 5.0 else '[FAIL]'}")
 
     # Print Table 9
     avg_det_lat_s = np.mean(detection_latencies) / 1000.0
@@ -196,11 +196,11 @@ def run_full_evaluation():
     print("=" * 80)
     print(f"{'Metric':<24} | {'Target':<10} | {'Achieved':<12} | {'Status'}")
     print("-" * 80)
-    print(f"{'CPU Usage':<24} | {'<40%':<10} | {'18.4% avg':<12} | {'✓ Pass'}")
-    print(f"{'Memory':<24} | {'<2GB':<10} | {'142 MB':<12} | {'✓ Pass'}")
-    print(f"{'Detection Latency':<24} | {'<1s':<10} | {f'{avg_det_lat_s*1000:.2f} ms':<12} | {'✓ Pass'}")
-    print(f"{'Enforcement Latency':<24} | {'<1s':<10} | {f'{avg_enf_lat_s*1000:.2f} ms':<12} | {'✓ Pass'}")
-    print(f"{'Network Overhead':<24} | {'<10ms':<10} | {'+1.2 ms':<12} | {'✓ Pass'}")
+    print(f"{'CPU Usage':<24} | {'<40%':<10} | {'18.4% avg':<12} | {'[PASS]'}")
+    print(f"{'Memory':<24} | {'<2GB':<10} | {'142 MB':<12} | {'[PASS]'}")
+    print(f"{'Detection Latency':<24} | {'<1s':<10} | {f'{avg_det_lat_s*1000:.2f} ms':<12} | {'[PASS]'}")
+    print(f"{'Enforcement Latency':<24} | {'<1s':<10} | {f'{avg_enf_lat_s*1000:.2f} ms':<12} | {'[PASS]'}")
+    print(f"{'Network Overhead':<24} | {'<10ms':<10} | {'+1.2 ms':<12} | {'[PASS]'}")
 
     # Print Table 10
     print("\n" + "=" * 80)
@@ -208,10 +208,10 @@ def run_full_evaluation():
     print("=" * 80)
     print(f"{'Devices':<10} | {'CPU':<10} | {'Latency':<12} | {'Status'}")
     print("-" * 80)
-    print(f"{'8':<10} | {'22%':<10} | {'0.08s':<12} | {'✓ Optimal'}")
-    print(f"{'12':<10} | {'38%':<10} | {'0.14s':<12} | {'✓ Good'}")
-    print(f"{'16':<10} | {'59%':<10} | {'0.25s':<12} | {'~ Acceptable'}")
-    print(f"{'20':<10} | {'84%':<10} | {'0.48s':<12} | {'x Degraded'}")
+    print(f"{'8':<10} | {'22%':<10} | {'0.08s':<12} | {'Optimal'}")
+    print(f"{'12':<10} | {'38%':<10} | {'0.14s':<12} | {'Good'}")
+    print(f"{'16':<10} | {'59%':<10} | {'0.25s':<12} | {'Acceptable'}")
+    print(f"{'20':<10} | {'84%':<10} | {'0.48s':<12} | {'Degraded'}")
     print("=" * 80)
 
     # Save JSON report
@@ -228,7 +228,7 @@ def run_full_evaluation():
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
 
-    print(f"\n[✓] Evaluation completed. Full results saved to: {out_file}\n")
+    print(f"\n[DONE] Evaluation completed. Full results saved to: {out_file}\n")
 
 
 if __name__ == "__main__":

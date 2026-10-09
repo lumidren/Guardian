@@ -107,7 +107,7 @@ class BaselineDatasetGenerator:
                 "train_time_sec": round(duration, 2),
                 "model_file": str(model_path.name)
             }
-            print(f"  ✓ {dev.name}: {total_packets_collected:,} pkts, {len(feature_vectors)} windows ({duration:.2f}s)")
+            print(f"  [OK] {dev.name}: {total_packets_collected:,} pkts, {len(feature_vectors)} windows ({duration:.2f}s)")
 
         total_time = time.time() - t_start
         print(f"[Dataset Generator] Completed training all 8 models in {total_time:.2f} seconds.")
