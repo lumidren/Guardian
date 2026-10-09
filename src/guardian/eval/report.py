@@ -25,6 +25,7 @@ from simulation.attack_suite import AttackType
 from .ablations import AblationRunner
 from .benchmarks import (
     LatencyBenchmark,
+    RealTimeLoadBenchmark,
     ScalabilityBenchmark,
     SystemResourceBenchmark,
     generate_scaled_fleet,
@@ -277,6 +278,11 @@ def generate_full_evaluation_report(
     scale_report = scale_bench.run_scalability_sweep(duration_per_tier_s=20.0)
     scalability_data = scale_report.to_dict()
 
+    # 8. Real-Time Packet Stream & Buffer Drop Counters (Milestone P3-6)
+    load_bench = RealTimeLoadBenchmark(queue_capacity=5000, processing_rate_pps=20000.0)
+    load_report = load_bench.run_load_test(devices=fleet[:4], duration_seconds=10.0, burst_factor=1.0)
+    load_data = load_report.to_dict()
+
     return {
         "run_id": run_id,
         "git_sha": git_sha,
@@ -291,6 +297,7 @@ def generate_full_evaluation_report(
         "resources": resources_data,
         "latencies": latencies_data,
         "scalability": scalability_data,
+        "load_benchmark": load_data,
     }
 
 
@@ -453,6 +460,24 @@ def generate_results_markdown(report: dict[str, Any]) -> str:
         lines.append(
             f"| **{pt['device_count']} Devices** | {pt['throughput_windows_per_sec']:.2f} | {pt['compute_latency_ms']:.3f} ms | {pt['cpu_percent']:.1f}% | {pt['memory_rss_mb']:.1f} MB |"
         )
+
+    if "load_benchmark" in report:
+        lb = report["load_benchmark"]
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 7. Real-Time Packet Stream & Buffer Drop Counters (Milestone P3-6)",
+            "",
+            "| Ingestion Metric | Measured Value | Operational Gate |",
+            "| :--- | :---: | :---: |",
+            f"| **Offered Packets** | {lb['total_packets_offered']} pkts | Line ingestion rate |",
+            f"| **Processed Packets** | {lb['total_packets_processed']} pkts | Pipeline throughput |",
+            f"| **Dropped Packets** | {lb['total_packets_dropped']} pkts | $< 0.1\\%$ under normal load |",
+            f"| **Packet Drop Rate** | {lb['packet_drop_rate_pct']:.2f}% | $0.00\\%$ |",
+            f"| **Peak Queue Depth** | {lb['peak_queue_depth']} / {lb['queue_capacity']} pkts | Buffer headroom |",
+            f"| **Packet Ingestion Throughput** | {lb['throughput_pps']:.1f} pps | Real-time line rate |",
+        ])
 
     lines.append("")
     return "\n".join(lines)

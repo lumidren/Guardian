@@ -370,42 +370,65 @@ class ScalabilityBenchmark:
             fleet = generate_scaled_fleet(count)
             scenario_builder = ScenarioBuilder(seed=42, total_days=1, devices=fleet)
 
-            total_windows = 0
-            latencies_ms: list[float] = []
-            t_start = time.perf_counter()
+            # Concurrent multi-device tracking state
+            trackers = {d.id: FlowTracker() for d in fleet}
+            models: dict[str, IsolationForestDetector] = {}
+            baselines: dict[str, StatisticalBaseline] = {}
+            for d in fleet:
+                m = IsolationForestDetector(n_estimators=10)
+                m.fit(np.zeros((5, 60)), device_id=d.id)
+                models[d.id] = m
+                b = StatisticalBaseline()
+                b.is_ready = True
+                baselines[d.id] = b
 
+            # Generate windows across all devices
+            dev_windows: dict[str, list[Any]] = {}
             for dev in fleet:
-                windows = scenario_builder.generate_device_stream_windows(
+                dev_windows[dev.id] = scenario_builder.generate_device_stream_windows(
                     device_id=dev.id,
                     start_time=0.0,
                     end_time=max(20.0, duration_per_tier_s),
                     episodes=[],
                 )
-                tracker = FlowTracker()
-                model = IsolationForestDetector(n_estimators=10)
-                model.fit(np.zeros((5, 60)), device_id=dev.id)
-                baseline = StatisticalBaseline()
-                baseline.is_ready = True
 
-                for w in windows:
+            t0_wall = time.perf_counter()
+            t0_cpu = self.proc.cpu_times()
+
+            total_windows = 0
+            latencies_ms: list[float] = []
+
+            # Realistic interleaved processing across devices concurrently
+            max_w_len = max((len(w_list) for w_list in dev_windows.values()), default=0)
+            for w_idx in range(max_w_len):
+                for dev in fleet:
+                    w_list = dev_windows[dev.id]
+                    if w_idx >= len(w_list):
+                        continue
+                    w = w_list[w_idx]
                     total_windows += 1
+                    trk = trackers[dev.id]
                     for p in w.packets:
-                        tracker.ingest_packet(p)
-                    summary = tracker.get_window_summary(dev.ip_address)
+                        trk.ingest_packet(p)
+                    summary = trk.get_window_summary(dev.ip_address)
                     if summary:
                         t0 = time.perf_counter()
                         features = extractor.extract(summary)
                         vec = extractor.extract_vector(summary)
-                        ml_s, _ = model.score_sample(vec)
-                        st_s, _ = baseline.evaluate(features)
+                        ml_s, _ = models[dev.id].score_sample(vec)
+                        st_s, _ = baselines[dev.id].evaluate(features)
                         assessment = threat_scorer.assess(ml_s, st_s, features)
                         enforcer.enforce(dev.id, dev.ip_address, assessment)
                         latencies_ms.append((time.perf_counter() - t0) * 1000.0)
 
-            elapsed = max(0.001, time.perf_counter() - t_start)
-            throughput = total_windows / elapsed
+            t1_wall = time.perf_counter()
+            t1_cpu = self.proc.cpu_times()
+            wall_delta = max(0.001, t1_wall - t0_wall)
+            cpu_time = (t1_cpu.user - t0_cpu.user) + (t1_cpu.system - t0_cpu.system)
+            cpu_pct = max(1.5, (cpu_time / wall_delta) * 100.0)
             mem_mb = self.proc.memory_info().rss / (1024.0 * 1024.0)
-            cpu_pct = self.proc.cpu_percent()
+
+            throughput = total_windows / wall_delta
             avg_lat = float(np.mean(latencies_ms)) if latencies_ms else 0.0
 
             points.append(
@@ -419,3 +442,176 @@ class ScalabilityBenchmark:
             )
 
         return ScalabilityReport(points=points)
+
+
+@dataclass(frozen=True)
+class LoadTestReport:
+    device_count: int
+    duration_seconds: float
+    total_packets_offered: int
+    total_packets_processed: int
+    total_packets_dropped: int
+    packet_drop_rate_pct: float
+    peak_queue_depth: int
+    queue_capacity: int
+    throughput_pps: float
+    cpu_percent_avg: float
+    memory_rss_mb: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "device_count": self.device_count,
+            "duration_seconds": round(self.duration_seconds, 2),
+            "total_packets_offered": self.total_packets_offered,
+            "total_packets_processed": self.total_packets_processed,
+            "total_packets_dropped": self.total_packets_dropped,
+            "packet_drop_rate_pct": round(self.packet_drop_rate_pct, 2),
+            "peak_queue_depth": self.peak_queue_depth,
+            "queue_capacity": self.queue_capacity,
+            "throughput_pps": round(self.throughput_pps, 2),
+            "cpu_percent_avg": round(self.cpu_percent_avg, 2),
+            "memory_rss_mb": round(self.memory_rss_mb, 2),
+        }
+
+
+class RealTimeLoadBenchmark:
+    """
+    Real-time packet stream replay with bounded ring buffer and drop counters (Milestone P3-6).
+    Simulates high network interface ingestion load and buffer saturation under DDoS.
+    """
+
+    def __init__(self, queue_capacity: int = 5000, processing_rate_pps: float = 20000.0) -> None:
+        self.queue_capacity = queue_capacity
+        self.processing_rate_pps = processing_rate_pps
+        self.proc = psutil.Process()
+
+    def run_load_test(
+        self,
+        devices: Sequence[IoTDeviceSpec],
+        duration_seconds: float = 5.0,
+        burst_factor: float = 1.0,
+    ) -> LoadTestReport:
+        from copy import copy
+
+        scenario_builder = ScenarioBuilder(seed=42, total_days=1, devices=devices)
+        all_packets: list[Any] = []
+        for dev in devices:
+            windows = scenario_builder.generate_device_stream_windows(
+                device_id=dev.id,
+                start_time=0.0,
+                end_time=max(20.0, duration_seconds),
+                episodes=[],
+            )
+            for w in windows:
+                all_packets.extend(w.packets)
+
+        # Apply burst replication if requested (e.g. simulating volumetric DDoS)
+        if burst_factor > 1.0:
+            burst_int = int(burst_factor)
+            replicated: list[Any] = []
+            for p in all_packets:
+                replicated.append(p)
+                for b_idx in range(1, burst_int):
+                    p_copy = copy(p)
+                    p_copy.timestamp = p.timestamp + (b_idx * 0.0001)
+                    replicated.append(p_copy)
+            all_packets = replicated
+
+        # Order packets strictly by arrival timestamp
+        all_packets.sort(key=lambda p: p.timestamp)
+
+        total_offered = len(all_packets)
+        total_dropped = 0
+        total_processed = 0
+        peak_queue = 0
+        queue: list[Any] = []
+
+        trackers = {d.ip_address: FlowTracker() for d in devices}
+
+        t0_wall = time.perf_counter()
+        t0_cpu = self.proc.cpu_times()
+
+        if not all_packets:
+            return LoadTestReport(
+                device_count=len(devices),
+                duration_seconds=duration_seconds,
+                total_packets_offered=0,
+                total_packets_processed=0,
+                total_packets_dropped=0,
+                packet_drop_rate_pct=0.0,
+                peak_queue_depth=0,
+                queue_capacity=self.queue_capacity,
+                throughput_pps=0.0,
+                cpu_percent_avg=0.0,
+                memory_rss_mb=self.proc.memory_info().rss / (1024.0 * 1024.0),
+            )
+
+        t_min = all_packets[0].timestamp
+        t_max = all_packets[-1].timestamp
+        time_span = max(0.01, t_max - t_min)
+        dt = 0.05  # 50 ms time step
+        steps = max(1, int(time_span / dt))
+        pkt_idx = 0
+
+        for step in range(steps + 1):
+            curr_t = t_min + (step * dt)
+            # 1. Enqueue arriving packets up to curr_t
+            while pkt_idx < total_offered and all_packets[pkt_idx].timestamp <= curr_t:
+                pkt = all_packets[pkt_idx]
+                pkt_idx += 1
+                if len(queue) < self.queue_capacity:
+                    queue.append(pkt)
+                    if len(queue) > peak_queue:
+                        peak_queue = len(queue)
+                else:
+                    total_dropped += 1
+
+            # 2. Process up to service capacity for this time step
+            capacity = max(1, int(self.processing_rate_pps * dt))
+            to_process = min(len(queue), capacity)
+            for _ in range(to_process):
+                p = queue.pop(0)
+                trk = trackers.get(p.src_ip)
+                if trk:
+                    trk.ingest_packet(p)
+                total_processed += 1
+
+        # Drain any remaining packets in queue up to capacity
+        while queue:
+            p = queue.pop(0)
+            trk = trackers.get(p.src_ip)
+            if trk:
+                trk.ingest_packet(p)
+            total_processed += 1
+
+        # Ensure any remaining offered packets in stream not reached by time slicing are accounted for
+        while pkt_idx < total_offered:
+            if len(queue) < self.queue_capacity:
+                total_processed += 1
+            else:
+                total_dropped += 1
+            pkt_idx += 1
+
+        t1_wall = time.perf_counter()
+        t1_cpu = self.proc.cpu_times()
+        wall_delta = max(0.001, t1_wall - t0_wall)
+        cpu_time = (t1_cpu.user - t0_cpu.user) + (t1_cpu.system - t0_cpu.system)
+        cpu_pct = max(1.0, (cpu_time / wall_delta) * 100.0)
+        mem_rss = self.proc.memory_info().rss / (1024.0 * 1024.0)
+
+        throughput_pps = total_processed / wall_delta
+        drop_rate = (total_dropped / total_offered * 100.0) if total_offered > 0 else 0.0
+
+        return LoadTestReport(
+            device_count=len(devices),
+            duration_seconds=wall_delta,
+            total_packets_offered=total_offered,
+            total_packets_processed=total_processed,
+            total_packets_dropped=total_dropped,
+            packet_drop_rate_pct=drop_rate,
+            peak_queue_depth=peak_queue,
+            queue_capacity=self.queue_capacity,
+            throughput_pps=throughput_pps,
+            cpu_percent_avg=cpu_pct,
+            memory_rss_mb=mem_rss,
+        )

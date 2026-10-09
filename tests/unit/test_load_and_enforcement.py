@@ -104,8 +104,11 @@ def test_firewall_enforcement_latency_transparency() -> None:
     assessment = ThreatAssessment(
         threat_score=75,
         threat_level=ThreatLevel.QUARANTINE,
-        contributing_factors=["high_fan_out"],
-        recommended_action="Isolate from LAN and WAN",
+        confidence_level="High (90-100%)",
+        confidence_score=0.95,
+        ml_score=0.85,
+        statistical_score=0.70,
+        layer_contributions={"layer_1": 40.0, "layer_2": 60.0},
     )
     state = controller.enforce("dev_test", "192.168.1.101", assessment)
     assert state.enforcement_latency_ms > 0.0

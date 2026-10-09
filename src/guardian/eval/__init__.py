@@ -16,6 +16,8 @@ from .baselines import (
 from .benchmarks import (
     LatencyBenchmark,
     LatencyReport,
+    LoadTestReport,
+    RealTimeLoadBenchmark,
     ScalabilityBenchmark,
     ScalabilityPoint,
     ScalabilityReport,
@@ -114,4 +116,6 @@ __all__ = [
     "ScalabilityPoint",
     "ScalabilityReport",
     "ScalabilityBenchmark",
+    "LoadTestReport",
+    "RealTimeLoadBenchmark",
 ]
