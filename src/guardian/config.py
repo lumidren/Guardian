@@ -105,10 +105,10 @@ assert len(FEATURE_NAMES) == 60, f"Expected 60 features, got {len(FEATURE_NAMES)
 
 class GuardianConfig(BaseModel):
     # Base paths
-    BASE_DIR: Path = Path(__file__).resolve().parent.parent
-    DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
-    MODELS_DIR: Path = Path(__file__).resolve().parent.parent / "models"
-    DB_PATH: Path = Path(__file__).resolve().parent.parent / "guardian.db"
+    BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
+    DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data"
+    MODELS_DIR: Path = Path(__file__).resolve().parent.parent.parent / "models"
+    DB_PATH: Path = Path(__file__).resolve().parent.parent.parent / "guardian.db"
 
     # Gateway Networking
     GATEWAY_INTERFACE: str = "eth0"
