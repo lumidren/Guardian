@@ -2,27 +2,27 @@
 Global configuration and feature definitions for GUARDIAN IoT Security Framework.
 """
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import Dict, List, Set
+
+from pydantic import BaseModel
 
 
-class ThreatLevel(str, Enum):
+class ThreatLevel(StrEnum):
     MONITOR = "MONITOR"       # 0 - 30: Enhanced logging only (minimal impact)
     RESTRICT = "RESTRICT"     # 31 - 60: Rate limit bandwidth 50%, block external IPs
     QUARANTINE = "QUARANTINE" # 61 - 85: Isolated local subnet, disable WAN
     BLOCK = "BLOCK"           # 86 - 100: Complete isolation, device offline
 
 
-class SystemPhase(str, Enum):
+class SystemPhase(StrEnum):
     COLD_START_OBSERVATION = "COLD_START_OBSERVATION"  # Hour 0-24: Whitelist + rate limiting
     STATISTICAL_BASELINE = "STATISTICAL_BASELINE"      # Hour 24-48: Z-Score statistical thresholds
     ACTIVE_PROTECTION = "ACTIVE_PROTECTION"            # Hour 48+: Isolation Forest ML + XAI
 
 
 # Canonical 60-feature specification
-FEATURE_NAMES: List[str] = [
+FEATURE_NAMES: list[str] = [
     # Layer 1: Traffic Volume & Timing (1-18)
     "pkt_count_10s",
     "byte_count_10s",
