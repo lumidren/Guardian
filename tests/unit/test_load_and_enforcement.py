@@ -79,9 +79,12 @@ def test_scalability_non_flat_and_nonzero_cpu() -> None:
         assert p.throughput_windows_per_sec > 0.0
         assert p.compute_latency_ms > 0.0
 
-    # Throughput across device tiers must not be an identical flat constant
+    # Throughput, CPU, or memory across device tiers must not be identical flat constants
     throughputs = [p.throughput_windows_per_sec for p in report.points]
     assert len(set(round(t, 1) for t in throughputs)) > 1, f"Throughput was flat: {throughputs}"
+    cpus = [p.cpu_percent for p in report.points]
+    mems = [p.memory_rss_mb for p in report.points]
+    assert max(cpus) - min(cpus) > 1e-4 or max(mems) - min(mems) > 1e-4, "CPU and memory were completely flat"
 
 
 def test_firewall_enforcement_latency_transparency() -> None:
