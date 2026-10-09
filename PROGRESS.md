@@ -3,7 +3,7 @@
 ## Phase 3: Evaluation Validity, Realism, External Validation and Release
 - [x] P3-0. Freeze and reproduce (tag phase2-final, snapshot baseline, AUDIT.md G1-G10, ADR-019)
 - [x] P3-1. Leakage and label audit (tests first, artifact audit, shuffled labels, controls, LEAKAGE_AUDIT.md)
-- [ ] P3-2. Simulator realism v2 (tiers, true mimicry, low-and-slow, hard negatives, SIMULATOR_REALISM.md)
+- [x] P3-2. Simulator realism v2 (tiers, true mimicry, low-and-slow, hard negatives, SIMULATOR_REALISM.md)
 - [ ] P3-3. Evaluation v2: correct metrics and sample sizes (one metrics module, episode-level, 5 seeds, CIs)
 - [ ] P3-4. Fair baselines and rigorous ablations (equal budget, one-class SVM/LOF, full test set ablations)
 - [ ] P3-5. External dataset validation (public IoT dataset, feature mapping, EXTERNAL_DATA.md)
@@ -30,7 +30,7 @@
 ---
 
 ## Current Status
-- **Active Milestone**: P3-2 (Simulator realism v2)
-- **Completed Milestones**: P3-0, P3-1, P2-0 to P2-9, M0-M14
-- **Phase 3 Findings**: G1 investigated (leakage ruled out, hardness required); G2 to G10 open
-- **Quality Gates**: Ruff clean, Mypy strict clean, 109 unit tests passing, controls battery active.
+- **Active Milestone**: P3-3 (Evaluation v2: correct metrics and sample sizes)
+- **Completed Milestones**: P3-0, P3-1, P3-2, P2-0 to P2-9, M0-M14
+- **Phase 3 Findings**: G1 resolved (difficulty tiers, true mimicry, 10 hard negatives integrated); G2 to G10 open
+- **Quality Gates**: Ruff clean, Mypy strict clean, 117 unit tests passing, controls battery active.

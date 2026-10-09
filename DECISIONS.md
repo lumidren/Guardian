@@ -150,3 +150,13 @@ This document records architectural, algorithmic, and engineering decisions made
   3. Enforce sample-size policy (at least 5 seeds, at least 50 episodes per attack type per tier per seed, at least 6 normal test days per device per seed).
   4. Restore episode-level detection within 60s as headline metric.
 - **Rationale**: Ensures the evaluation is scientifically trustworthy, able to fail, and reflects true detection limits rather than inflated metrics on synthetic tests.
+
+### ADR-020: Simulator Realism v2: Multi-Tier Injections, Statistical Mimicry, and Operational Hard Negatives
+- **Problem**: In Phase 2, attack injections generated high volumetric rates (850–1400 packets in 10s against devices producing 4–12 packets), rendering attacks trivially separable and producing unrealistic 100% TPR / 0.00s TTD results. Evasion mimicry lacked statistical matching of byte distributions, and no benign operational transients were evaluated.
+- **Decision**:
+  1. Implement difficulty tiers (`EASY`, `MEDIUM`, `HARD`) across all 6 threat vectors with calibrated packet count and size dispersion scaling.
+  2. Implement true statistical mimicry matching legitimate first- and second-order packet length statistics ($\mu, \sigma$ within $25\text{ B}$), supporting destination-reuse and novel-destination sub-modes.
+  3. Implement low-and-slow exfiltration with tight hourly byte limits ($120 - 1000\text{ B/hr}$), delayed-start dormancy ($50\%$ initial quiet window), and closed-loop adaptive attacker backoff (quiescence above $45.0$ threat score).
+  4. Implement 10 benign operational hard negatives (firmware updates, user toggles, reboot storms, DNS retry storms, NTP bursts, MQTT reconnect floods, camera motion bursts, router reboots, new cloud endpoints, DST shifts).
+- **Rationale**: Elevates synthetic simulation realism to peer-review scientific standards, preventing trivial separability and uncovering genuine detection boundaries.
+
