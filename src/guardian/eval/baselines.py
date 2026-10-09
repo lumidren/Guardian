@@ -171,3 +171,114 @@ class RobustZScoreOnlyBaseline:
             z_mapped = float(min(100.0, 100.0 / (1.0 + np.exp(-0.8 * (max_abs_z - 3.0)))))
             return max(base_score * 100.0, z_mapped)
         return float(base_score * 100.0)
+
+
+@dataclass
+class DestinationAllowlistOnlyBaseline:
+    """
+    Destination Allowlist Baseline (Layer 2 ablation).
+    Flags any packet directed to an unauthorized non-local external IP destination.
+    Simulates simple perimeter allowlisting without ML or volumetric baselines.
+    """
+
+    device_id: str
+    allowed_destinations: set[str] = field(default_factory=set)
+
+    @classmethod
+    def from_device_spec(cls, spec: IoTDeviceSpec) -> "DestinationAllowlistOnlyBaseline":
+        return cls(
+            device_id=spec.id,
+            allowed_destinations=set(spec.normal_destinations),
+        )
+
+    def score_summary(self, summary: FlowSummary) -> tuple[float, list[str]]:
+        violations: list[str] = []
+        for p in summary.packets:
+            if not p.dst_ip.startswith("192.168.1.") and p.dst_ip not in self.allowed_destinations:
+                violations.append(f"Unauthorized external destination: {p.dst_ip}")
+        score = 100.0 if violations else 0.0
+        return score, violations
+
+
+class PerDeviceIsolationForestBaseline:
+    """
+    Per-device Isolation Forest Baseline (ML-only detector).
+    Evaluates observed feature vector using device-specific Isolation Forest without statistical Layer 1.
+    """
+
+    def __init__(self, model: IsolationForestDetector) -> None:
+        self.model = model
+
+    def score_sample(self, vec: np.ndarray) -> tuple[float, dict[str, float]]:
+        return self.model.score_sample(vec)
+
+
+class LocalOutlierFactorBaseline:
+    """
+    Local Outlier Factor (LOF) Baseline.
+    Pure NumPy implementation of density-based local outlier factor.
+    Computes k-distance, reachability distance, and local reachability density.
+    Scores mapped to [0.0, 100.0] threat scale.
+    """
+
+    def __init__(self, k_neighbors: int = 5) -> None:
+        self.k_neighbors = k_neighbors
+        self.X_train: np.ndarray | None = None
+        self.is_fitted: bool = False
+        self._lrd_train: np.ndarray | None = None
+
+    def fit(self, X: np.ndarray | Sequence[Sequence[float]]) -> None:
+        self.X_train = np.asarray(X, dtype=float)
+        n_samples = len(self.X_train)
+        if n_samples < 2:
+            raise ValueError("LOF requires at least 2 training samples.")
+        self.k = min(self.k_neighbors, n_samples - 1)
+        self.is_fitted = True
+
+        # Precompute pairwise Euclidean distances
+        dists = np.linalg.norm(self.X_train[:, None, :] - self.X_train[None, :, :], axis=-1)
+        np.fill_diagonal(dists, np.inf)
+
+        # k-distance for each train sample
+        sorted_dists = np.sort(dists, axis=1)
+        self.k_dists = sorted_dists[:, self.k - 1]
+
+        # local reachability density for train samples
+        lrds = []
+        for i in range(n_samples):
+            neighbor_indices = np.argsort(dists[i])[: self.k]
+            reach_dists = np.maximum(self.k_dists[neighbor_indices], dists[i, neighbor_indices])
+            avg_reach = float(np.mean(reach_dists))
+            lrd = 1.0 / max(1e-6, avg_reach)
+            lrds.append(lrd)
+        self._lrd_train = np.array(lrds)
+
+    def score_sample(self, x: np.ndarray) -> float:
+        """
+        Compute LOF anomaly score mapped to [0.0, 100.0].
+        LOF ~ 1 indicates in-distribution; LOF > 1.5 indicates an outlier.
+        """
+        if not self.is_fitted or self.X_train is None or self._lrd_train is None:
+            return 0.0
+
+        x_vec = np.asarray(x, dtype=float).reshape(1, -1)
+        dists_to_train = np.linalg.norm(self.X_train - x_vec, axis=1)
+        neighbor_indices = np.argsort(dists_to_train)[: self.k]
+        neighbor_dists = dists_to_train[neighbor_indices]
+
+        # reachability distance from x to neighbors
+        reach_dists = np.maximum(self.k_dists[neighbor_indices], neighbor_dists)
+        avg_reach = float(np.mean(reach_dists))
+        lrd_x = 1.0 / max(1e-6, avg_reach)
+
+        # LOF(x) = mean(lrd(neighbors)) / lrd(x)
+        neighbor_lrds = self._lrd_train[neighbor_indices]
+        lof_ratio = float(np.mean(neighbor_lrds) / max(1e-6, lrd_x))
+
+        # Map LOF ratio: 1.0 -> 20.0, 1.5 -> 60.0, >= 2.0 -> 90.0+
+        if lof_ratio <= 1.0:
+            return float(max(0.0, lof_ratio * 20.0))
+        # Sigmoid curve above 1.0
+        score = 20.0 + 80.0 * (1.0 - np.exp(-1.8 * (lof_ratio - 1.0)))
+        return float(min(100.0, max(0.0, score)))
+
