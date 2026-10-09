@@ -10,11 +10,13 @@ Tests that:
 6. Attack windows contain realistic ongoing normal background traffic.
 """
 
+import inspect
 import re
 from pathlib import Path
 
 import numpy as np
 
+from guardian.capture.flow_tracker import FlowTracker
 from guardian.capture.packet_parser import ParsedPacket
 from guardian.eval.metrics import compute_binary_metrics, compute_roc_auc
 from guardian.eval.scenario import (
@@ -23,6 +25,9 @@ from guardian.eval.scenario import (
     GroundTruthEpisode,
     ScenarioBuilder,
 )
+from guardian.features.extractor import FeatureExtractor
+from guardian.ml.isolation_forest import IsolationForestDetector
+from guardian.ml.threat_scorer import ThreatScorer
 from simulation.attack_suite import AttackSuite, AttackType
 from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
 
@@ -30,8 +35,10 @@ from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
 def test_label_isolation() -> None:
     """
     Label isolation test:
-    Scans production detection, feature, ML, and enforcement modules to verify
-    zero references to ground truth classes, episode tables, or attack markers.
+    1. Scans production detection, feature, ML, and enforcement modules to verify
+       zero references to ground truth classes, episode tables, or attack markers.
+    2. Inspects signatures of core feature and scoring functions to guarantee
+       no label, ground truth, or target parameters can be passed into detection code.
     """
     src_dir = Path(__file__).resolve().parent.parent.parent / "src" / "guardian"
     production_subdirs = ["features", "ml", "capture", "enforcement", "storage", "xai"]
@@ -42,6 +49,9 @@ def test_label_isolation() -> None:
         "attack_suite",
         "AttackIntensity",
         "EvasionMode",
+        "ground_truth",
+        "is_attack",
+        "is_attack_window",
     ]
 
     for subdir in production_subdirs:
@@ -57,6 +67,23 @@ def test_label_isolation() -> None:
                 assert match is None, (
                     f"Label isolation violation in {py_file.relative_to(src_dir)}: "
                     f"found reference to ground-truth identifier '{ident}' at position {match.start() if match else 0}."
+                )
+
+    # Inspect signatures of core production interfaces
+    inspected_functions = [
+        FeatureExtractor.extract,
+        FeatureExtractor.extract_vector,
+        IsolationForestDetector.score_sample,
+        ThreatScorer.assess,
+        FlowTracker.get_window_summary,
+    ]
+    for fn in inspected_functions:
+        sig = inspect.signature(fn)
+        for param in sig.parameters:
+            for forbidden_term in ["label", "attack", "truth", "target"]:
+                assert forbidden_term not in param.lower(), (
+                    f"Label isolation violation in function {fn.__qualname__}: "
+                    f"parameter '{param}' contains forbidden identifier '{forbidden_term}'."
                 )
 
 
