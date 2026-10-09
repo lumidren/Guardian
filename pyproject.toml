@@ -7,7 +7,7 @@ name = "guardian"
 version = "1.0.0"
 description = "Multi-Layer Identity-Based Zero-Day Defense Framework for IoT"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 authors = [
     {name = "Mustafa (lumidren)", email = "163734075+lumidren@users.noreply.github.com"}
@@ -22,9 +22,16 @@ dependencies = [
     "alembic>=1.13.0",
     "aiosqlite>=0.20.0",
     "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
+    "pandas>=2.2.0",
     "networkx>=3.2.1",
     "structlog>=24.1.0",
     "psutil>=5.9.8",
+    "scapy>=2.5.0",
+    "paho-mqtt>=2.0.0",
+    "websockets>=12.0",
+    "requests>=2.31.0",
+    "rich>=13.7.1",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +43,7 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.9.0",
     "httpx>=0.27.0",
+    "pip-tools>=7.4.0",
 ]
 
 [tool.setuptools.packages.find]

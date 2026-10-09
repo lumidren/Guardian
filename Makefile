@@ -6,10 +6,13 @@ PYTEST ?= pytest
 RUFF ?= ruff
 MYPY ?= mypy
 
-.PHONY: setup lint type test cov run-sim eval api ui paper-assets check-commits clean
+.PHONY: setup lint type test cov run-sim eval api ui paper-assets check-commits clean export-requirements
 
 setup:
 	$(PIP) install -e ".[dev]"
+
+export-requirements:
+	$(PYTHON) -c "import tomllib; data=tomllib.load(open('pyproject.toml', 'rb')); print('\n'.join(data['project']['dependencies']))" > requirements.txt
 
 lint:
 	$(RUFF) check src tests config
