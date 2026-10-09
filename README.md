@@ -1,5 +1,6 @@
 # GUARDIAN: Multi-Layer Identity-Based Zero-Day Defense Framework for IoT
 
+[![CI](https://github.com/lumidren/Guardian/actions/workflows/ci.yml/badge.svg)](https://github.com/lumidren/Guardian/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![IEEE Conference](https://img.shields.io/badge/Target-IEEE%20ICC%20%2F%20GLOBECOM-00629B.svg)](docs/IEEE_PAPER_DRAFT.md)
