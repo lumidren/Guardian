@@ -18,18 +18,25 @@ def test_standard_ablation_battery_configs() -> None:
     battery = get_standard_ablation_battery()
     names = [c.name for c in battery]
     assert "Full GUARDIAN" in names
-    assert "Layer 1 Only (Statistical)" in names
-    assert "Layer 2 Only (Isolation Forest)" in names
+    # Detectors cleanly ablated (resolving G5)
+    assert any("Statistical" in n and "Detector" in n or "Statistical" in n for n in names)
+    assert any("Isolation Forest" in n for n in names)
+    # Feature layers cleanly ablated (resolving G5)
+    assert any("Layer 1" in n and "Volumetric" in n for n in names)
+    assert any("Layer 2" in n and "Network" in n for n in names)
+    assert any("Layer 3" in n for n in names)
     assert "No Hysteresis (Instantaneous)" in names
     assert "Uncalibrated (Fixed Threshold)" in names
 
-    l1_only = next(c for c in battery if c.name == "Layer 1 Only (Statistical)")
-    assert l1_only.enable_layer1 is True
-    assert l1_only.enable_layer2 is False
+    full = next(c for c in battery if c.name == "Full GUARDIAN")
+    assert full.enable_statistical is True
+    assert full.enable_ml is True
+    assert full.enable_layer1_volumetric is True
+    assert full.enable_layer2_network is True
+    assert full.enable_layer3_metadata is True
 
-    l2_only = next(c for c in battery if c.name == "Layer 2 Only (Isolation Forest)")
-    assert l2_only.enable_layer1 is False
-    assert l2_only.enable_layer2 is True
+    no_l2 = next(c for c in battery if "Layer 2" in c.name and "Network" in c.name)
+    assert no_l2.enable_layer2_network is False
 
     no_hyst = next(c for c in battery if c.name == "No Hysteresis (Instantaneous)")
     assert no_hyst.enable_hysteresis is False
