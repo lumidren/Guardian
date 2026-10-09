@@ -6,20 +6,20 @@ Generates 40,000+ normal behavioral samples across the 8 IoT devices and trains 
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+
 import numpy as np
 
-from guardian.config import config, FEATURE_NAMES
-from guardian.capture.packet_parser import ParsedPacket
 from guardian.capture.flow_tracker import FlowTracker
+from guardian.config import config
 from guardian.features.extractor import FeatureExtractor
 from guardian.ml.isolation_forest import IsolationForestDetector
 from guardian.ml.statistical_baseline import StatisticalBaseline
-from .fleet_emulator import IoTFleetEmulator, DEFAULT_FLEET_SPECS, IoTDeviceSpec
+
+from .fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
 
 
 class BaselineDatasetGenerator:
-    def __init__(self, output_dir: Optional[Path] = None):
+    def __init__(self, output_dir: Path | None = None):
         self.output_dir = output_dir or config.DATA_DIR
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.models_dir = config.MODELS_DIR
@@ -27,7 +27,7 @@ class BaselineDatasetGenerator:
         self.emulator = IoTFleetEmulator()
         self.extractor = FeatureExtractor()
 
-    def generate_and_train_all(self, total_target_samples: int = 40000) -> Dict[str, dict]:
+    def generate_and_train_all(self, total_target_samples: int = 40000) -> dict[str, dict]:
         """
         Generate 40,000+ baseline samples and train per-device Isolation Forest and Statistical baselines.
         Returns training summary metrics per device.
@@ -52,7 +52,7 @@ class BaselineDatasetGenerator:
             current_sim_time = time.time() - (n_windows * 10.0)
 
             total_packets_collected = 0
-            for w in range(n_windows):
+            for _w in range(n_windows):
                 current_sim_time += 10.0
                 hour = int((current_sim_time / 3600.0) % 24)
 

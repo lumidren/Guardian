@@ -5,8 +5,9 @@ Emulates 8 protected IoT devices generating realistic, continuous network teleme
 
 import random
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
+
 from guardian.capture.packet_parser import ParsedPacket
 
 
@@ -19,13 +20,13 @@ class IoTDeviceSpec:
     mac_address: str
     hardware: str
     primary_protocol: str
-    normal_destinations: List[str]
+    normal_destinations: list[str]
     normal_packet_rate: float       # pkts per 10s
     normal_byte_range: tuple        # (min_bytes, max_bytes)
     active_hours_range: tuple       # (start_hour, end_hour) 0-24
 
 
-DEFAULT_FLEET_SPECS: List[IoTDeviceSpec] = [
+DEFAULT_FLEET_SPECS: list[IoTDeviceSpec] = [
     IoTDeviceSpec(
         id="dev_01_temp",
         name="Temperature Sensor 01",
@@ -134,7 +135,7 @@ DEFAULT_FLEET_SPECS: List[IoTDeviceSpec] = [
 
 
 class IoTFleetEmulator:
-    def __init__(self, specs: Optional[List[IoTDeviceSpec]] = None):
+    def __init__(self, specs: list[IoTDeviceSpec] | None = None):
         self.specs = specs or DEFAULT_FLEET_SPECS
         self.specs_by_ip = {s.ip_address: s for s in self.specs}
         self.specs_by_id = {s.id: s for s in self.specs}
@@ -143,15 +144,15 @@ class IoTFleetEmulator:
         self,
         device: IoTDeviceSpec,
         window_duration: float = 10.0,
-        current_time: Optional[float] = None,
-        hour_override: Optional[int] = None
-    ) -> List[ParsedPacket]:
+        current_time: float | None = None,
+        hour_override: int | None = None
+    ) -> list[ParsedPacket]:
         """
         Generate a batch of normal benign packets for a single device over a 10s window.
         """
         now = current_time or time.time()
         start_time = now - window_duration
-        packets: List[ParsedPacket] = []
+        packets: list[ParsedPacket] = []
 
         # Check circadian schedule (e.g. camera quiet at night)
         hr = hour_override if hour_override is not None else time.localtime(now).tm_hour
@@ -205,3 +206,266 @@ class IoTFleetEmulator:
             packets.append(pkt)
 
         return packets
+
+    def generate_hard_negative_packets(
+        self,
+        device: IoTDeviceSpec,
+        negative_type: Any,
+        window_duration: float = 10.0,
+        current_time: float | None = None,
+    ) -> list[ParsedPacket]:
+        """
+        Generate packets for 10 benign hard negative scenarios (normal operational bursts).
+        """
+        from guardian.eval.scenario import HardNegativeType
+
+        now = current_time or time.time()
+        start_time = now - window_duration
+        packets: list[ParsedPacket] = []
+
+        if negative_type == HardNegativeType.FIRMWARE_UPDATE:
+            # High-throughput OTA download from authorized vendor CDN
+            pkt_count = 25
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="54.210.10.45",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=443,
+                        protocol="TCP",
+                        app_protocol="HTTPS",
+                        length=1460,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=64240,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=True,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.REBOOT_STORM:
+            # Fleet reboot storm: broadcast DHCP / ARP / NTP sync
+            pkt_count = 15
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="255.255.255.255",
+                        src_mac=device.mac_address,
+                        dst_mac="FF:FF:FF:FF:FF:FF",
+                        src_port=68,
+                        dst_port=67,
+                        protocol="UDP",
+                        app_protocol="OTHER",
+                        length=342,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": False, "PSH": False, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=0,
+                        tcp_timestamp=0,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.USER_TOGGLING:
+            # Rapid app toggling: burst of MQTT publish packets to local broker
+            pkt_count = 18
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="192.168.1.1",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=1883,
+                        protocol="TCP",
+                        app_protocol="MQTT",
+                        length=85,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=64240,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.DNS_RETRY_STORM:
+            # DNS upstream timeout causing retransmissions
+            pkt_count = 25
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="192.168.1.1",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=53,
+                        protocol="UDP",
+                        app_protocol="DNS",
+                        length=68,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": False, "PSH": False, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=0,
+                        tcp_timestamp=0,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.NTP_BURSTS:
+            # NTP clock synchronization burst
+            pkt_count = 6
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="129.6.15.28",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=123,
+                        dst_port=123,
+                        protocol="UDP",
+                        app_protocol="NTP",
+                        length=76,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": False, "PSH": False, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=0,
+                        tcp_timestamp=0,
+                        is_outbound=True,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.MQTT_RECONNECT_FLOOD:
+            # Local broker reconnection burst
+            pkt_count = 45
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="192.168.1.1",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=1883,
+                        protocol="TCP",
+                        app_protocol="MQTT",
+                        length=74,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=64240,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.CAMERA_MOTION_BURST:
+            # Camera streaming frame burst
+            pkt_count = 60
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="192.168.1.50",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=1883,
+                        protocol="TCP",
+                        app_protocol="MQTT",
+                        length=1200,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=64240,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.ROUTER_REBOOT:
+            # Transient router disconnect/reconnect ARP
+            pkt_count = 12
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="192.168.1.1",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=1883,
+                        protocol="TCP",
+                        app_protocol="MQTT",
+                        length=60,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": True, "ACK": False, "PSH": False, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=1024,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=False,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.NEW_CLOUD_ENDPOINT:
+            # Authorized vendor cloud migration
+            pkt_count = 15
+            for _ in range(pkt_count):
+                ts = random.uniform(start_time, now)
+                packets.append(
+                    ParsedPacket(
+                        timestamp=ts,
+                        src_ip=device.ip_address,
+                        dst_ip="52.84.12.34",
+                        src_mac=device.mac_address,
+                        dst_mac="B8:27:EB:AA:BB:CC",
+                        src_port=random.randint(49152, 65535),
+                        dst_port=443,
+                        protocol="TCP",
+                        app_protocol="HTTPS",
+                        length=450,
+                        ttl=64,
+                        ip_id=random.randint(1000, 60000),
+                        tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                        tcp_window=64240,
+                        tcp_timestamp=int(ts * 1000) % 4294967295,
+                        is_outbound=True,
+                    )
+                )
+
+        elif negative_type == HardNegativeType.DST_CHANGE:
+            # Daylight saving time shift: normal window packets with hour override
+            packets = self.generate_normal_window_packets(
+                device=device,
+                window_duration=window_duration,
+                current_time=now,
+                hour_override=12,
+            )
+
+        packets.sort(key=lambda p: p.timestamp)
+        return packets
+

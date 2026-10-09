@@ -17,9 +17,6 @@ from enum import StrEnum
 
 import numpy as np
 
-from simulation.attack_suite import AttackSuite, AttackType
-from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTDeviceSpec, IoTFleetEmulator
-
 from ..capture.packet_parser import ParsedPacket
 
 
@@ -35,12 +32,40 @@ class AttackIntensity(StrEnum):
     HIGH = "HIGH"
 
 
+class DifficultyTier(StrEnum):
+    EASY = "EASY"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
+
+
 class EvasionMode(StrEnum):
     NONE = "NONE"
     MIMICRY = "MIMICRY"
     LOW_AND_SLOW = "LOW_AND_SLOW"
     DELAYED_START = "DELAYED_START"
     NO_NEW_DESTINATION = "NO_NEW_DESTINATION"
+    ADAPTIVE = "ADAPTIVE"
+
+
+class HardNegativeType(StrEnum):
+    FIRMWARE_UPDATE = "FIRMWARE_UPDATE"
+    USER_TOGGLING = "USER_TOGGLING"
+    REBOOT_STORM = "REBOOT_STORM"
+    DNS_RETRY_STORM = "DNS_RETRY_STORM"
+    NTP_BURSTS = "NTP_BURSTS"
+    MQTT_RECONNECT_FLOOD = "MQTT_RECONNECT_FLOOD"
+    CAMERA_MOTION_BURST = "CAMERA_MOTION_BURST"
+    ROUTER_REBOOT = "ROUTER_REBOOT"
+    NEW_CLOUD_ENDPOINT = "NEW_CLOUD_ENDPOINT"
+    DST_CHANGE = "DST_CHANGE"
+
+
+from simulation.attack_suite import AttackSuite, AttackType  # noqa: E402
+from simulation.fleet_emulator import (  # noqa: E402
+    DEFAULT_FLEET_SPECS,
+    IoTDeviceSpec,
+    IoTFleetEmulator,
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +78,7 @@ class GroundTruthEpisode:
     duration_seconds: float
     intensity: AttackIntensity
     evasion_mode: EvasionMode
+    tier: DifficultyTier = DifficultyTier.MEDIUM
 
 
 @dataclass
@@ -221,6 +247,7 @@ class ScenarioBuilder:
                     raw_attack = self.attack_suite.inject_attack(
                         attack_type=ep.attack_type,
                         victim_device=dev,
+                        tier=ep.tier,
                     )
                     # Scale packets by intensity and evasion mode
                     multiplier = (
