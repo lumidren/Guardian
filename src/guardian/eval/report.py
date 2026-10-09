@@ -31,6 +31,7 @@ from .benchmarks import (
     generate_scaled_fleet,
 )
 from .calibration import OperatingPoint
+from .guard import PlausibilityGuard
 from .metrics import (
     aggregate_multi_seed_results,
     check_evaluation_cross_table_consistency,
@@ -283,7 +284,7 @@ def generate_full_evaluation_report(
     load_report = load_bench.run_load_test(devices=fleet[:4], duration_seconds=10.0, burst_factor=1.0)
     load_data = load_report.to_dict()
 
-    return {
+    report_data = {
         "run_id": run_id,
         "git_sha": git_sha,
         "seed": seed,
@@ -299,6 +300,15 @@ def generate_full_evaluation_report(
         "scalability": scalability_data,
         "load_benchmark": load_data,
     }
+
+    # 9. Plausibility Guard Verification (Milestone P3-7)
+    guard = PlausibilityGuard()
+    plausibility_res = guard.validate(report_data)
+    report_data["plausibility"] = plausibility_res.to_dict()
+    if not plausibility_res.is_plausible:
+        raise ValueError(f"Plausibility guard failed: {plausibility_res.violations}")
+
+    return report_data
 
 
 def generate_multi_seed_evaluation_report(

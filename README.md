@@ -305,10 +305,11 @@ flowchart LR
 
 ## Explainable AI & Human-Readable Alert Diagnostics
 
-When an alert triggers, GUARDIAN generates structured diagnostics and plain-English natural language explanations using tree-path attribution:
+When an alert triggers, GUARDIAN generates structured diagnostics and plain-English natural language explanations using tree-path attribution (*Illustrative JSON Schema Example*):
 
 ```json
 {
+  "_comment": "Illustrative Alert Schema Example",
   "alert_id": "alt_84b1ef92c011",
   "device_id": "esp32_sensor_01",
   "device_name": "Living Room DHT22 Environmental Sensor",
@@ -337,7 +338,7 @@ When an alert triggers, GUARDIAN generates structured diagnostics and plain-Engl
 
 ## Interactive SOC Dashboard
 
-The web interface is built with **React 18**, **TypeScript**, **Tailwind CSS**, and **Vite**, connecting to the GUARDIAN daemon via high-throughput WebSockets.
+The web interface is built with **React 18**, **TypeScript**, **Tailwind CSS**, and **Vite**, connecting to the GUARDIAN daemon via high-throughput WebSockets (*Illustrative Terminal SOC Mockup*):
 
 ```
 +---------------------------------------------------------------------------------------------------------+

@@ -36,6 +36,10 @@ from .calibration import (
     FrozenOperatingPointError,
     OperatingPoint,
 )
+from .guard import (
+    PlausibilityGuard,
+    PlausibilityReport,
+)
 from .metrics import (
     BinaryMetrics,
     BootstrapCI,
@@ -118,4 +122,6 @@ __all__ = [
     "ScalabilityBenchmark",
     "LoadTestReport",
     "RealTimeLoadBenchmark",
+    "PlausibilityReport",
+    "PlausibilityGuard",
 ]

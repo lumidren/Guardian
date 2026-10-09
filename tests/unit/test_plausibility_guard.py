@@ -9,7 +9,6 @@ import re
 from pathlib import Path
 
 from guardian.eval.guard import PlausibilityGuard
-
 from guardian.eval.report import generate_full_evaluation_report
 
 
