@@ -221,14 +221,15 @@ class ScenarioBuilder:
             w_end = cur_t + self.window_size_s
 
             # 1. Generate normal background traffic for this window
-            normal_pkts = self.emulator.generate_normal_window_packets(device=dev, current_time=w_start)
-            # Ensure normal packet timestamps fall inside [w_start, w_end]
-            for i, p in enumerate(normal_pkts):
-                p.timestamp = w_start + (i / max(1, len(normal_pkts))) * self.window_size_s
+            normal_pkts = self.emulator.generate_normal_window_packets(
+                device=dev,
+                window_duration=self.window_size_s,
+                current_time=w_end,
+            )
 
             # 2. Check for active attack episodes overlapping with this window
             active_eps = [
-                ep for ep in dev_episodes if not (ep.end_time < w_start or ep.start_time > w_end)
+                ep for ep in dev_episodes if not (ep.end_time <= w_start or ep.start_time >= w_end)
             ]
 
             attack_pkts: list[ParsedPacket] = []
@@ -275,6 +276,8 @@ class ScenarioBuilder:
 
                     for j, p in enumerate(sample_attack):
                         p.timestamp = overlap_start + (j / max(1, len(sample_attack))) * overlap_duration
+                        if p.tcp_timestamp is not None:
+                            p.tcp_timestamp = int(p.timestamp * 1000) % 4294967295
 
                         # Evasion Mode: Mimicry (match legitimate packet size distribution)
                         if ep.evasion_mode == EvasionMode.MIMICRY:
@@ -298,7 +301,7 @@ class ScenarioBuilder:
                     end_time=w_end,
                     packets=all_pkts,
                     has_attack=has_attack,
-                    active_episode_ids=[ep.episode_id for ep in active_eps],
+                    active_episode_ids=[ep.episode_id for ep in active_eps if has_attack],
                     normal_packet_count=len(normal_pkts),
                     attack_packet_count=len(attack_pkts),
                 )

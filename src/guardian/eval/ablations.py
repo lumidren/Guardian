@@ -254,11 +254,12 @@ class AblationRunner:
                     ep_obj = next((e for e in episodes if e.episode_id == ep_id), None)
                     if not ep_obj:
                         continue
-                    time_into_episode = w.start_time - ep_obj.start_time
+                    alert_time = w.end_time
+                    time_into_episode = alert_time - ep_obj.start_time
                     if is_alert and (0.0 <= time_into_episode <= self.deadline_seconds):
                         if not ep_detected[ep_id]:
                             ep_detected[ep_id] = True
-                            ep_first_alert[ep_id] = w.start_time
+                            ep_first_alert[ep_id] = alert_time
             else:
                 # Normal window: evaluate false alerts
                 if is_alert:

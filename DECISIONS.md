@@ -160,3 +160,14 @@ This document records architectural, algorithmic, and engineering decisions made
   4. Implement 10 benign operational hard negatives (firmware updates, user toggles, reboot storms, DNS retry storms, NTP bursts, MQTT reconnect floods, camera motion bursts, router reboots, new cloud endpoints, DST shifts).
 - **Rationale**: Elevates synthetic simulation realism to peer-review scientific standards, preventing trivial separability and uncovering genuine detection boundaries.
 
+### ADR-021: Evaluation Integrity v2: Sample Sizes, Non-Zero Time-to-Detect, and Cross-Table Consistency
+- **Problem**: In Phase 2, evaluation tables exhibited identical rows across different attack vectors (G2), cross-table FPR discrepancies between main and ablation tables (G3), unverified baseline numbers without multi-seed sampling (G6), and instantaneous 0.00s time-to-detect due to window boundary overlap (G9).
+- **Decision**:
+  1. Restore episode-level detection within 60s deadline as headline evaluation metric, retaining window-level detection as secondary.
+  2. Implement bounded non-zero time-to-detect where alert timestamps are tied to window completion (`w.end_time`) and episode overlap is strictly bounded (`overlap_start < overlap_end`).
+  3. Multi-seed execution ($N_{seeds} \ge 5$) with 1000-iteration 95% bootstrap confidence intervals on detection rate, time-to-detect, and false positive rate.
+  4. Concurrently score real empirical baselines (`StaticThresholdBaseline`, `RobustZScoreOnlyBaseline`, `PooledIsolationForestBaseline`) on identical stream windows without mock estimates.
+  5. Add cross-table consistency validation (`check_evaluation_cross_table_consistency`) rejecting identical copied rows across attack classes and enforcing mathematical agreement between tables.
+- **Rationale**: Ensures evaluation outputs withstand adversarial academic peer review, resolving audit findings G2, G3, G6, and G9.
+
+

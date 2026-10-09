@@ -47,20 +47,20 @@ class BaselineDatasetGenerator:
             for dest in dev.normal_destinations:
                 tracker.register_known_destination(dev.ip_address, dest)
 
-            # Simulate 150 windows (each window contains multiple packets, producing 40,000+ total raw packets across fleet)
-            n_windows = max(80, samples_per_device // int(dev.normal_packet_rate))
-            current_sim_time = time.time() - (n_windows * 10.0)
+            # Simulate windows distributed across a complete 24-hour circadian cycle
+            n_windows = max(96, samples_per_device // int(dev.normal_packet_rate))
+            sim_time_step = 86400.0 / n_windows
 
             total_packets_collected = 0
-            for _w in range(n_windows):
-                current_sim_time += 10.0
+            for w_idx in range(n_windows):
+                current_sim_time = (w_idx + 1) * sim_time_step
                 hour = int((current_sim_time / 3600.0) % 24)
 
                 pkts = self.emulator.generate_normal_window_packets(
                     device=dev,
                     window_duration=10.0,
                     current_time=current_sim_time,
-                    hour_override=hour
+                    hour_override=hour,
                 )
                 total_packets_collected += len(pkts)
 

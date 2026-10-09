@@ -6,10 +6,13 @@ Enforces loud failures on missing artifacts (fixing F8) and produces reproducibl
 """
 
 import json
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTDeviceSpec
 
@@ -20,6 +23,7 @@ from ..features.extractor import FeatureExtractor
 from ..ml.isolation_forest import IsolationForestDetector
 from ..ml.statistical_baseline import StatisticalBaseline
 from ..ml.threat_scorer import ThreatScorer
+from .baselines import RobustZScoreOnlyBaseline, StaticThresholdBaseline
 from .calibration import OperatingPoint
 from .metrics import (
     BinaryMetrics,
@@ -63,6 +67,8 @@ class EvaluationMetricsReport:
     false_alert_rate_per_device_day: float
     mean_time_to_detect_s: float
     per_attack_detection_rates: dict[str, float] = field(default_factory=dict)
+    baseline_tprs: dict[str, float] = field(default_factory=dict)
+    baseline_metrics: dict[str, BinaryMetrics] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -92,6 +98,7 @@ class EvaluationMetricsReport:
             "per_attack_detection_rates": {
                 k: round(v, 4) for k, v in self.per_attack_detection_rates.items()
             },
+            "baseline_tprs": {k: round(v, 2) for k, v in self.baseline_tprs.items()},
         }
 
 
@@ -198,6 +205,9 @@ class EvaluationRunner:
         """
         Execute the full production pipeline over a time slice for a single device.
         """
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+
         dev = next((d for d in self.devices if d.id == device_id or d.ip_address == device_id), None)
         if not dev:
             raise ValueError(f"Unknown device ID: {device_id}")
@@ -218,9 +228,16 @@ class EvaluationRunner:
             episodes=episodes,
         )
 
+        static_baseline = StaticThresholdBaseline.from_device_spec(dev)
+        zscore_baseline = RobustZScoreOnlyBaseline(baseline)
+
         y_true_windows: list[int] = []
         y_pred_windows: list[int] = []
         scores_windows: list[float] = []
+
+        y_pred_static: list[int] = []
+        y_pred_zscore: list[int] = []
+        y_pred_pooled: list[int] = []
 
         # Episode detection tracking
         ep_detected: dict[str, bool] = {ep.episode_id: False for ep in episodes}
@@ -231,11 +248,12 @@ class EvaluationRunner:
         in_false_alarm_streak = False
 
         for w in windows:
-            # Ingest all packets for this window through FlowTracker
+            # Clear device buffer to ensure window contains precisely the packets in this stream window
+            flow_tracker.device_buffers[dev.ip_address].clear()
             for p in w.packets:
                 flow_tracker.ingest_packet(p)
 
-            summary = flow_tracker.get_window_summary(dev.ip_address)
+            summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
             if not summary:
                 continue
 
@@ -272,6 +290,13 @@ class EvaluationRunner:
             y_pred_windows.append(1 if is_alert else 0)
             scores_windows.append(score / 100.0)
 
+            # Record baseline predictions
+            static_score, _ = static_baseline.score_summary(summary)
+            z_score = zscore_baseline.score_features(features)
+            y_pred_static.append(1 if static_score >= 60.0 else 0)
+            y_pred_zscore.append(1 if z_score >= 60.0 else 0)
+            y_pred_pooled.append(1 if ml_score >= 60.0 else 0)
+
             # Track episode detection within deadline
             if w.active_episode_ids:
                 for ep_id in w.active_episode_ids:
@@ -282,11 +307,12 @@ class EvaluationRunner:
                         ep_max_score[ep_id] = score
 
                     # Check if alert opens at RESTRICT or higher within deadline
-                    time_into_episode = w.start_time - ep_obj.start_time
+                    alert_time = w.end_time
+                    time_into_episode = alert_time - ep_obj.start_time
                     if is_alert and (0.0 <= time_into_episode <= self.deadline_seconds):
                         if not ep_detected[ep_id]:
                             ep_detected[ep_id] = True
-                            ep_first_alert[ep_id] = w.start_time
+                            ep_first_alert[ep_id] = alert_time
             else:
                 # Normal window: track false alert with hysteresis
                 if is_alert:
@@ -339,6 +365,10 @@ class EvaluationRunner:
             days_observed=days_observed,
         )
 
+        static_bin = compute_binary_metrics(y_true_windows, y_pred_static)
+        zscore_bin = compute_binary_metrics(y_true_windows, y_pred_zscore)
+        pooled_bin = compute_binary_metrics(y_true_windows, y_pred_pooled)
+
         return EvaluationMetricsReport(
             seed=self.seed,
             device_count=1,
@@ -354,4 +384,14 @@ class EvaluationRunner:
             false_alert_rate_per_device_day=false_alert_rate,
             mean_time_to_detect_s=mean_ttd,
             per_attack_detection_rates=per_attack_rates,
+            baseline_tprs={
+                "static": static_bin.tpr * 100.0,
+                "zscore": zscore_bin.tpr * 100.0,
+                "pooled": pooled_bin.tpr * 100.0,
+            },
+            baseline_metrics={
+                "static": static_bin,
+                "zscore": zscore_bin,
+                "pooled": pooled_bin,
+            },
         )

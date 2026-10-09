@@ -303,7 +303,9 @@ def check_evaluation_cross_table_consistency(
         first = main_table_rows[0]
         all_identical = True
         for row in main_table_rows[1:]:
-            tpr_match = abs(row.get("tpr", 0.0) - first.get("tpr", 0.0)) < 1e-4
+            tpr_val = float(row.get("guardian_tpr", row.get("tpr", 0.0)))
+            first_tpr = float(first.get("guardian_tpr", first.get("tpr", 0.0)))
+            tpr_match = abs(tpr_val - first_tpr) < 1e-4
             f1_match = abs(row.get("f1", 0.0) - first.get("f1", 0.0)) < 1e-4
             ttd_match = abs(row.get("mean_ttd_s", 0.0) - first.get("mean_ttd_s", 0.0)) < 1e-4
             if not (tpr_match and f1_match and ttd_match):
