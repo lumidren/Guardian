@@ -135,3 +135,18 @@ This document records architectural, algorithmic, and engineering decisions made
   3. Implement `ScalabilityBenchmark` with `generate_scaled_fleet` evaluating throughput and resource overhead across 8, 12, 16, and 20 devices with fair trial round-robin allocation.
 - **Rationale**: Eliminates fabricated benchmark literals (F2, F3, F4, F12) and provides verifiable, empirical measurements of production runtime characteristics under varying fleet sizes.
 
+---
+
+## 7. Phase 3 Architecture Decisions (Milestone P3-0)
+
+### ADR-019: Evaluation Validity, Simulator Realism, and Plausibility Controls Strategy
+- **Problem**: Phase 2 generated verifiable numbers with run IDs and seeds, but results were implausible in a different way: 100% detection and 0.00s time-to-detect across all attacks and evasion modes, identical F1 scores across rows, and mismatched FPR between tables. An evaluation that cannot fail proves nothing.
+- **Decision**: 
+  1. Freeze Phase 2 final state (phase2-final tag) in eval/results/phase2_snapshot/ as read-only evidence.
+  2. Adopt Phase 3 Prime Directive: Every evaluation result must survive:
+     - Leakage audit (test that labels, injected markers, or ground truth do not leak into feature extraction or detection models).
+     - Broken-detector controls (shuffled labels, random score detector with ROC-AUC ~ 0.5, always-alert and never-alert bounds).
+     - Plausibility guard (flags 100% TPR on hard tier, 0.00s time-to-detect, identical metrics across rows, or flat scaling curves as WARN/FAIL).
+  3. Enforce sample-size policy (at least 5 seeds, at least 50 episodes per attack type per tier per seed, at least 6 normal test days per device per seed).
+  4. Restore episode-level detection within 60s as headline metric.
+- **Rationale**: Ensures the evaluation is scientifically trustworthy, able to fail, and reflects true detection limits rather than inflated metrics on synthetic tests.

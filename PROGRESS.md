@@ -1,9 +1,24 @@
 # GUARDIAN Project Progress Tracker
 
-## Phase 2: Evaluation Integrity, Hardening and Completion
-- [x] P2-0. Freeze and audit (tag `phase1-final`, snapshot baseline, AUDIT.md, PHASE1_GAP_CHECK.md)
-- [x] P2-1. Repository hygiene (unified `src/guardian` layout, pinned dependencies, Python 3.11)
-- [x] P2-2. Evaluation framework core (new package: `eval/`, seeded 14-day stream, real pipeline)
+## Phase 3: Evaluation Validity, Realism, External Validation and Release
+- [x] P3-0. Freeze and reproduce (tag phase2-final, snapshot baseline, AUDIT.md G1-G10, ADR-019)
+- [ ] P3-1. Leakage and label audit (tests first, artifact audit, shuffled labels, controls, LEAKAGE_AUDIT.md)
+- [ ] P3-2. Simulator realism v2 (tiers, true mimicry, low-and-slow, hard negatives, SIMULATOR_REALISM.md)
+- [ ] P3-3. Evaluation v2: correct metrics and sample sizes (one metrics module, episode-level, 5 seeds, CIs)
+- [ ] P3-4. Fair baselines and rigorous ablations (equal budget, one-class SVM/LOF, full test set ablations)
+- [ ] P3-5. External dataset validation (public IoT dataset, feature mapping, EXTERNAL_DATA.md)
+- [ ] P3-6. Real load, performance and enforcement tests (real-time replay load test, drop counters, real nftables)
+- [ ] P3-7. Plausibility guard and CI enforcement (eval/guard.py, CI smoke with guards and controls)
+- [ ] P3-8. Real-device readiness (results/real/, REAL_DATA_VALIDATION.md, capture and import tools)
+- [ ] P3-9. Security and robustness of GUARDIAN itself (THREAT_MODEL.md, fuzz tests, baseline poisoning)
+- [ ] P3-10. Paper, documentation and release (IEEE_PAPER_DRAFT.md, README rewrite, v1.0 tag, demo)
+
+---
+
+## Phase 2: Evaluation Integrity, Hardening and Completion (COMPLETED)
+- [x] P2-0. Freeze and audit (tag phase1-final, snapshot baseline, AUDIT.md, PHASE1_GAP_CHECK.md)
+- [x] P2-1. Repository hygiene (unified src/guardian layout, pinned dependencies, Python 3.11)
+- [x] P2-2. Evaluation framework core (new package: eval/, seeded 14-day stream, real pipeline)
 - [x] P2-3. Model training and caching (content-hash bundle cache, exception on missing model)
 - [x] P2-4. Real baselines and ablations (static rules, pooled IF, z-score only, layer ablations)
 - [x] P2-5. Adversarial and sensitivity testing (evasion modes, operating curve, threats to validity)
@@ -14,29 +29,8 @@
 
 ---
 
-## Phase 1 Milestones (docs/AGENT_PLAN.md)
-- [x] M0 scaffolding and quality gates
-- [x] M1 contracts and DB
-- [x] M2 simulator (feeds P2-7)
-- [x] M3 sources and windows (feeds P2-7)
-- [x] M4 features (feeds P2-7)
-- [x] M5 profiles and stages (feeds P2-7)
-- [x] M6 detectors (feeds P2-7)
-- [x] M7 network identity and fusion (feeds P2-7)
-- [x] M8 explainability (feeds P2-7)
-- [x] M9 response (feeds P2-7)
-- [x] M10 pipeline, drift, feedback (feeds P2-7)
-- [x] M11 API (feeds P2-7)
-- [x] M12 dashboard (feeds P2-7)
-- [x] M13 evaluation and enhancements (superseded by P2-2 to P2-6)
-- [x] M14 hardening and docs (feeds P2-8)
-
----
-
 ## Current Status
-- **Phase 2 Status**: 100% COMPLETE (All milestones P2-0 through P2-9 verified and closed)
-- **Completed Milestones**: P2-0, P2-1, P2-2, P2-3, P2-4, P2-5, P2-6, P2-7, P2-8, P2-9, M0-M14
-- **Audit Findings**: All 12 findings (F1 through F12) fully resolved and audited in `docs/AUDIT.md`.
-- **Quality Gates**: Ruff clean, Mypy strict clean, 100+ unit & integration tests passing, CI evaluation smoke test green.
-
-
+- **Active Milestone**: P3-1 (Leakage and label audit)
+- **Completed Milestones**: P3-0, P2-0 to P2-9, M0-M14
+- **Phase 3 Findings**: G1 to G10 tracked in docs/AUDIT.md (all open)
+- **Quality Gates**: Ruff clean, Mypy strict clean, 100+ tests passing, CI evaluation smoke test green.

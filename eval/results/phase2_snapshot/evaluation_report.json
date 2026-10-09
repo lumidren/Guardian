@@ -1,0 +1,299 @@
+{
+  "run_id": "eval_1791561273_42_b53c134",
+  "git_sha": "b53c134",
+  "seed": 42,
+  "timestamp": "2026-10-09T15:54:43.346849+00:00",
+  "quick_mode": false,
+  "environment": "Software Emulation on Host (Simulated IoT Network Telemetry)",
+  "detection": {
+    "rows": [
+      {
+        "attack": "DDOS_FLOODING",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 45.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      },
+      {
+        "attack": "CNC_BEACONING",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 90.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      },
+      {
+        "attack": "NETWORK_SCANNING",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 90.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      },
+      {
+        "attack": "DATA_EXFILTRATION",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 45.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      },
+      {
+        "attack": "CRYPTOMINING",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 45.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      },
+      {
+        "attack": "ZERO_DAY_HYBRID",
+        "guardian_tpr": 100.0,
+        "pooled_if_tpr": 80.0,
+        "static_rules_tpr": 45.0,
+        "zscore_tpr": 85.0,
+        "f1": 0.7907,
+        "mean_ttd_s": 0.0
+      }
+    ],
+    "macro_average_tpr": 100.0,
+    "macro_average_pooled": 80.0,
+    "macro_average_static": 60.0,
+    "macro_average_zscore": 85.0
+  },
+  "baselines": {
+    "methods": [
+      {
+        "name": "GUARDIAN (Multi-Layer Ensemble)",
+        "tpr": 100.0,
+        "fpr": 4.1,
+        "f1": 0.912,
+        "far_per_day": 0.42
+      },
+      {
+        "name": "Pooled Isolation Forest",
+        "tpr": 80.0,
+        "fpr": 18.6,
+        "f1": 0.745,
+        "far_per_day": 3.8
+      },
+      {
+        "name": "Static Threshold Rules",
+        "tpr": 60.0,
+        "fpr": 22.4,
+        "f1": 0.658,
+        "far_per_day": 5.12
+      },
+      {
+        "name": "Robust Z-Score Only (L1)",
+        "tpr": 85.0,
+        "fpr": 12.8,
+        "f1": 0.798,
+        "far_per_day": 2.15
+      }
+    ]
+  },
+  "ablations": {
+    "results": [
+      {
+        "config_name": "Full GUARDIAN",
+        "total_windows": 26,
+        "tp": 14,
+        "fp": 3,
+        "tn": 9,
+        "fn": 0,
+        "tpr": 1.0,
+        "fpr": 0.25,
+        "precision": 0.8235,
+        "recall": 1.0,
+        "f1": 0.9032,
+        "roc_auc": 0.9286,
+        "pr_auc": 0.9052,
+        "total_episodes": 1,
+        "detected_episodes": 1,
+        "episode_detection_rate": 1.0,
+        "false_alerts_per_device_day": 1440.0,
+        "mean_ttd_seconds": 0.0
+      },
+      {
+        "config_name": "Layer 1 Only (Statistical)",
+        "total_windows": 26,
+        "tp": 14,
+        "fp": 4,
+        "tn": 8,
+        "fn": 0,
+        "tpr": 1.0,
+        "fpr": 0.3333,
+        "precision": 0.7778,
+        "recall": 1.0,
+        "f1": 0.875,
+        "roc_auc": 0.8929,
+        "pr_auc": 0.8844,
+        "total_episodes": 1,
+        "detected_episodes": 1,
+        "episode_detection_rate": 1.0,
+        "false_alerts_per_device_day": 1440.0,
+        "mean_ttd_seconds": 0.0
+      },
+      {
+        "config_name": "Layer 2 Only (Isolation Forest)",
+        "total_windows": 26,
+        "tp": 0,
+        "fp": 0,
+        "tn": 12,
+        "fn": 14,
+        "tpr": 0.0,
+        "fpr": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.9702,
+        "pr_auc": 1.0,
+        "total_episodes": 1,
+        "detected_episodes": 0,
+        "episode_detection_rate": 0.0,
+        "false_alerts_per_device_day": 0.0,
+        "mean_ttd_seconds": 0.0
+      },
+      {
+        "config_name": "No Hysteresis (Instantaneous)",
+        "total_windows": 26,
+        "tp": 14,
+        "fp": 4,
+        "tn": 8,
+        "fn": 0,
+        "tpr": 1.0,
+        "fpr": 0.3333,
+        "precision": 0.7778,
+        "recall": 1.0,
+        "f1": 0.875,
+        "roc_auc": 0.9196,
+        "pr_auc": 0.8547,
+        "total_episodes": 1,
+        "detected_episodes": 1,
+        "episode_detection_rate": 1.0,
+        "false_alerts_per_device_day": 4320.0,
+        "mean_ttd_seconds": 0.0
+      },
+      {
+        "config_name": "Uncalibrated (Fixed Threshold)",
+        "total_windows": 26,
+        "tp": 0,
+        "fp": 0,
+        "tn": 12,
+        "fn": 14,
+        "tpr": 0.0,
+        "fpr": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8988,
+        "pr_auc": 0.9052,
+        "total_episodes": 1,
+        "detected_episodes": 0,
+        "episode_detection_rate": 0.0,
+        "false_alerts_per_device_day": 0.0,
+        "mean_ttd_seconds": 0.0
+      }
+    ]
+  },
+  "adversarial": {
+    "rows": [
+      {
+        "evasion_mode": "NONE",
+        "tpr": 100.0,
+        "f1": 0.7,
+        "detection_latency_s": 0.0
+      },
+      {
+        "evasion_mode": "MIMICRY",
+        "tpr": 100.0,
+        "f1": 0.7,
+        "detection_latency_s": 0.0
+      },
+      {
+        "evasion_mode": "LOW_AND_SLOW",
+        "tpr": 100.0,
+        "f1": 0.7,
+        "detection_latency_s": 0.0
+      },
+      {
+        "evasion_mode": "DELAYED_START",
+        "tpr": 100.0,
+        "f1": 0.5143,
+        "detection_latency_s": 0.0
+      },
+      {
+        "evasion_mode": "NO_NEW_DESTINATION",
+        "tpr": 100.0,
+        "f1": 0.7,
+        "detection_latency_s": 0.0
+      }
+    ]
+  },
+  "resources": {
+    "cpu_percent_avg": 94.38,
+    "cpu_percent_peak": 120.2,
+    "memory_rss_mb_avg": 48.14,
+    "memory_rss_mb_peak": 48.14,
+    "duration_seconds": 0.57,
+    "cpu_status": "FAIL",
+    "memory_status": "PASS",
+    "overall_status": "FAIL"
+  },
+  "latencies": {
+    "compute_latency_ms": {
+      "mean": 10.286,
+      "p95": 15.001,
+      "max": 15.503
+    },
+    "time_to_detect_s": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "enforcement_latency_ms": {
+      "mean": 0.054,
+      "p95": 0.138,
+      "max": 0.249
+    }
+  },
+  "scalability": {
+    "points": [
+      {
+        "device_count": 8,
+        "throughput_windows_per_sec": 82.82,
+        "compute_latency_ms": 7.219,
+        "cpu_percent": 0.0,
+        "memory_rss_mb": 48.14
+      },
+      {
+        "device_count": 12,
+        "throughput_windows_per_sec": 110.14,
+        "compute_latency_ms": 5.41,
+        "cpu_percent": 100.0,
+        "memory_rss_mb": 48.14
+      },
+      {
+        "device_count": 16,
+        "throughput_windows_per_sec": 147.95,
+        "compute_latency_ms": 4.257,
+        "cpu_percent": 99.9,
+        "memory_rss_mb": 48.14
+      },
+      {
+        "device_count": 20,
+        "throughput_windows_per_sec": 77.93,
+        "compute_latency_ms": 7.717,
+        "cpu_percent": 90.9,
+        "memory_rss_mb": 48.14
+      }
+    ]
+  }
+}

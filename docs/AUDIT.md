@@ -16,3 +16,27 @@ This document tracks all audit findings from Section 3 of the Phase 2 specificat
 | **F10** | `README.md` | Section 7 calls these 'Realistic Benchmark Results' and 'GUARDIAN Measured' on a Raspberry Pi 4. Badges show 87% and 4.2% as achieved. Enforcement latency of 0.05 ms is not a real firewall rule. | Rewrite from generated results only (P2-8). Remove or relabel badges. Say 'simulated data' and name the environment. | resolved | `207de94` |
 | **F11** | Repo layout | Both `guardian/` and `src/guardian/` exist. Both `requirements.txt` and `pyproject.toml`. Python 3.10+ while the plan says 3.11. No repo description or topics. | Resolve in P2-1. | resolved | `3aa560e` |
 | **F12** | `run_evaluation.py` | 'Detection latency' only times the compute step on one window. Time-to-detect from attack start is not measured. | Report three numbers: compute latency, time-to-detect, enforcement latency (P2-6). | resolved | `da5e216` |
+
+---
+
+## Phase 2 Reproducibility Verification (Milestone P3-0)
+- **Snapshot Location**: `eval/results/phase2_snapshot/` (containing `RESULTS.md` and `evaluation_report.json`)
+- **Git Tag**: `phase2-final`
+- **Reproducibility Test**: Rerun evaluation twice with identical seed (`seed=42`). Confirmed identical algorithmic metrics across consecutive runs (deterministic hash match).
+
+---
+
+## Phase 3 Audit Findings Log (G1 to G10)
+
+| ID | Observation | Why it matters | Required Fix | Status | Fixed Commit |
+| :--- | :--- | :--- | :--- | :---: | :---: |
+| **G1** | TPR 100.0% and time-to-detect 0.00 s for all six attacks and all four evasion modes. | Real detectors do not detect mimicry and low-and-slow perfectly and instantly. Points to easy attacks, label leakage or window-level scoring on pure attack windows. | P3-1 leakage audit, P3-2 harder attacks, P3-3 episode-level scoring. | open | - |
+| **G2** | Identical F1 (0.7907) on all six attack rows. Identical TPR on all rows for each baseline (80%, 85%). | Metrics computed once over the run and copied into every row, not per attack. | Compute per attack type (P3-3). Add a test that fails if all rows are identical. | open | - |
+| **G3** | GUARDIAN FPR is 4.1% in one table and 33.3% in the ablation table. F1 is 0.9120 in one place and 0.7907 in another. Same run ID. | Tables come from different code paths or operating points. | One metrics module, one operating point. Cross-table consistency test (P3-3). | open | - |
+| **G4** | Ablation precision 0.7778 with FPR 33.3% implies roughly 10 windows. Two ablations score 0% TPR. | Sample too small to mean anything. 0% TPR suggests a broken threshold or calibration path. | Run ablations on the full test set with seeds and CIs (P3-4). | open | - |
+| **G5** | 'Layer 2 Only (Isolation Forest)' and 'Layer 1 Only (Statistical)'. | Layers are mislabelled: Layer 2 is the network destination graph, not the Isolation Forest. | Rename. Ablate detectors and layers separately (P3-4). | open | - |
+| **G6** | Baseline TPRs are multiples of 5 (80, 85, 45, 90). Single seed (42). No confidence intervals. | Suggests about 20 episodes per attack. Spec asked for at least 5 seeds and at least 50 episodes per attack per seed. | Enforce sample-size policy, report n and CIs (P3-3). | open | - |
+| **G7** | Scalability: throughput flat near 500 windows/s at 8 to 20 devices, CPU 0.0% at 8 devices, memory flat at 48.4 MB. | The test measures the benchmark loop, not the pipeline under real-time load. | Real-time load test with drop counters (P3-6). | open | - |
+| **G8** | 'Time-to-Detect 0.00 s' marked PASS. Gateway CPU 62% average, above the 40% target, not marked as a failure. | Pass/fail logic is inconsistent and favors good-looking values. | Plausibility guard and honest status logic (P3-7). | open | - |
+| **G9** | Detection metric changed from 'episodes detected within 60 s' to 'detected attack windows / total attack windows'. | Window-level TPR is not the headline in the spec and is easy to inflate. | Restore episode-level headline, keep window-level as secondary (P3-3). | open | - |
+| **G10** | README claims 'No empirical values are hardcoded or fabricated', but dashboard mock and JSON example are hand-typed. | An absolute claim that is easy to disprove. | Label examples 'illustrative'. Make the claim a CI-enforced property, not prose (P3-7). | open | - |
