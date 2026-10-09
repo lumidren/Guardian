@@ -1,51 +1,142 @@
-# GUARDIAN Attack Configuration & Parameters (Section 8.2 & Table 8)
+# GUARDIAN Attack Configuration & Parameters (Milestone P3-2: Simulator Realism v2)
 
+# Difficulty Tiers for Every Attack Vector
+difficulty_tiers:
+  easy:
+    description: "Obvious anomaly: massive volumetric disparity, alien protocol, rapid scanning"
+    rate_multiplier: 5.0
+    packet_size_dispersion: 2.0
+    destination_stealth: false
+    timing_jitter_pct: 0.50
+  medium:
+    description: "Partial overlap: moderate rate elevation (1.5x-2.5x), intermittent bursts"
+    rate_multiplier: 1.8
+    packet_size_dispersion: 1.2
+    destination_stealth: false
+    timing_jitter_pct: 0.25
+  hard:
+    description: "Stealthy anomaly: stays close to normal distribution (1.05x-1.2x rate, matched sizes)"
+    rate_multiplier: 1.15
+    packet_size_dispersion: 0.95
+    destination_stealth: true
+    timing_jitter_pct: 0.10
+
+# Attack Vectors with Tier-Aware Parametrizations
 attacks:
   ddos_flooding:
-    description: "High-rate outbound UDP or HTTP SYN flood targeting external victim"
-    default_intensity: 10.0
+    description: "Outbound UDP or HTTP SYN flood targeting external victim"
     protocols: ["udp", "tcp"]
     target_ports: [80, 443, 53]
-    packet_rate_multiplier: 50.0
+    citation: "[REF-MIRAI-2017]"
+    tiers:
+      easy: { packets_per_10s: 1200, length_range: [54, 80] }
+      medium: { packets_per_10s: 350, length_range: [60, 120] }
+      hard: { packets_per_10s: 40, length_range: [64, 128] }
 
   cnc_beaconing:
     description: "Periodic outbound command-and-control beaconing to external IP"
-    default_intensity: 1.0
     protocols: ["tcp", "tls"]
-    beacon_interval_s: 1.5
-    jitter_pct: 0.15
     destination_ip: "91.240.118.52"
+    citation: "[REF-BOTNET-C2-2022]"
+    tiers:
+      easy: { beacon_interval_s: 1.0, jitter_pct: 0.05, packets_per_10s: 30 }
+      medium: { beacon_interval_s: 5.0, jitter_pct: 0.20, packets_per_10s: 10 }
+      hard: { beacon_interval_s: 15.0, jitter_pct: 0.45, packets_per_10s: 3 }
 
   network_scanning:
     description: "Internal subnet port and host reconnaissance (SYN with RST responses)"
-    default_intensity: 2.0
     protocols: ["tcp"]
     target_subnet: "192.168.1.0/24"
     ports_to_probe: [21, 22, 23, 80, 443, 445, 8080, 5555]
+    citation: "[REF-RECON-SURVEY-2023]"
+    tiers:
+      easy: { probes_per_10s: 120, fan_out_ratio: 15.0 }
+      medium: { probes_per_10s: 35, fan_out_ratio: 6.0 }
+      hard: { probes_per_10s: 8, fan_out_ratio: 2.0 }
 
   data_exfiltration:
-    description: "Sustained high-volume outbound transfer of captured video/telemetry"
-    default_intensity: 5.0
+    description: "Outbound transfer of captured video/telemetry to cloud drop"
     protocols: ["tcp", "tls"]
-    payload_size_bytes: 1460
     destination_ip: "198.51.100.89"
+    citation: "[REF-EXFIL-IOT-2024]"
+    tiers:
+      easy: { packets_per_10s: 500, payload_bytes: 1460 }
+      medium: { packets_per_10s: 120, payload_bytes: 512 }
+      hard: { packets_per_10s: 15, payload_bytes: 128 }
 
   cryptomining:
-    description: "Persistent connection to Stratum mining pool with steady small packets"
-    default_intensity: 1.0
+    description: "Persistent connection to Stratum mining pool with small packets"
     protocols: ["tcp"]
     target_ports: [3333, 4444]
     destination_ip: "144.76.12.18"
+    citation: "[REF-COINHIVE-IOT-2021]"
+    tiers:
+      easy: { packets_per_10s: 100, packet_len: 450 }
+      medium: { packets_per_10s: 30, packet_len: 250 }
+      hard: { packets_per_10s: 8, packet_len: 120 }
 
   zero_day_hybrid:
-    description: "The 7,000 Robot Vacuums incident (chain of off-hours activation, foreign endpoint, protocol shift)"
-    default_intensity: 3.0
-    off_hours_target: 3.78  # 3:47 AM
-    destination_ip: "185.220.101.47"  # Moscow, Russia
-    protocol_shift: "http"
+    description: "Multi-stage compromise: off-hours activation, foreign endpoint, protocol shift"
+    destination_ip: "185.220.101.47"
+    citation: "[REF-ROBOT-VACUUM-2026]"
+    tiers:
+      easy: { off_hours_hour: 3.78, packets_per_10s: 850, protocol_shift: "http" }
+      medium: { off_hours_hour: 5.50, packets_per_10s: 200, protocol_shift: "http" }
+      hard: { off_hours_hour: 6.25, packets_per_10s: 25, protocol_shift: "mqtt" }
 
+# Advanced Evasion Modes
 evasion_modes:
-  - none
-  - volume_matched   # Mimicry: caps packet rate to normal baseline
-  - low_and_slow     # Spreads events across hours to evade burst thresholds
-  - delayed          # Begins activity only after prolonged quiet observation
+  none:
+    description: "Standard direct attack injection without stealth"
+  mimicry:
+    sub_modes:
+      reuse_destinations: "Covert exfiltration over pre-approved legitimate destinations"
+      novel_destinations: "Exfiltration to novel endpoint matching rate, size, and active hours"
+  low_and_slow:
+    description: "Spreads transmission across hours to evade sliding window thresholds"
+    tunable_bytes_per_hour: [120, 360, 1000]
+  delayed_start:
+    description: "Extended dormant observation period (10m to 2h) before exploit onset"
+    dormant_range_seconds: [600, 7200]
+  adaptive_attacker:
+    description: "Black-box feedback observer that backs off when score exceeds threshold"
+    backoff_threat_score: 45.0
+    cooldown_window_strides: 5
+
+# Hard Negatives: Benign Anomalies (Must Not Cause Alert)
+hard_negatives:
+  firmware_update:
+    description: "Legitimate high-throughput OTA binary download from authorized vendor CDN"
+    volume_bytes: 8500000
+    duration_seconds: 120.0
+    destination: "ota.vendor-update.internal"
+  user_toggling:
+    description: "User rapidly switching smart plug or thermostat controls in app"
+    burst_count: 18
+    duration_seconds: 15.0
+  reboot_storm:
+    description: "Simultaneous DHCP, ARP, and NTP sync across entire fleet following power surge"
+    affected_devices: "all"
+    duration_seconds: 30.0
+  dns_retry_storm:
+    description: "Temporary DNS upstream timeout causing exponential backoff retransmissions"
+    query_count: 25
+  ntp_bursts:
+    description: "Periodic high-precision clock synchronization burst"
+    packet_count: 6
+  mqtt_reconnect_flood:
+    description: "Local broker reconnection with QoS 1/2 retained message replay"
+    message_count: 45
+  camera_motion_burst:
+    description: "Legitimate smart camera streaming high-res frames upon PIR motion detection"
+    rate_multiplier: 8.0
+    duration_seconds: 40.0
+  router_reboot:
+    description: "Gateway router restart causing transient interface disconnect and ARP refreshes"
+    duration_seconds: 25.0
+  new_cloud_endpoint:
+    description: "Authorized cloud migration adding new benign vendor endpoint to whitelist"
+    endpoint_type: "vendor_cloud"
+  dst_change:
+    description: "Daylight saving time transition altering local circadian hour alignment by 1h"
+    offset_hours: 1.0
