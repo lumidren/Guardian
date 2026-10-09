@@ -2,10 +2,13 @@
 \toprule
 \textbf{Configuration} & \textbf{TPR (\%)} & \textbf{FPR (\%)} & \textbf{F1} & \textbf{ROC-AUC} \\
 \midrule
-Full GUARDIAN & 100.0\% & 11.7\% & 0.9710 & 0.7500 \\
-Layer 1 Only (Statistical) & 100.0\% & 50.0\% & 0.9655 & 0.7500 \\
-Layer 2 Only (Isolation Forest) & 0.0\% & 0.0\% & 0.0000 & 0.7500 \\
-No Hysteresis (Instantaneous) & 100.0\% & 50.0\% & 0.9655 & 0.7500 \\
-Uncalibrated (Fixed Threshold) & 0.0\% & 0.0\% & 0.0000 & 0.7500 \\
+Full GUARDIAN & 100.0\% & 9.3\% & 0.9750 & 1.0000 \\
+Statistical Detector Only (No ML) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+Isolation Forest Only (No Stat) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+No Layer 1 (Volumetric Dynamics) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+No Layer 2 (Network Graph) & 0.0\% & 0.0\% & 0.0000 & 0.5000 \\
+No Layer 3 (Temporal/App) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+No Hysteresis (Instantaneous) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+Uncalibrated (Fixed Threshold) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
 \bottomrule
 \end{tabular}

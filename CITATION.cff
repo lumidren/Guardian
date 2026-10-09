@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use GUARDIAN in your research, please cite it as below."
+title: "GUARDIAN: Multi-Layer Identity-Based Zero-Day Defense Framework for Consumer IoT Networks"
+abstract: "An edge-native, zero-trust IoT defense framework engineered for consumer gateway hardware ($250 hardware budget). GUARDIAN continuously tracks 60 transport and network metadata features across three identity layers without decrypting packet payloads, using unsupervised Isolation Forest and non-parametric robust statistics with a 4-tier graduated firewall response and explainable AI root-cause diagnostics."
+authors:
+  - family-names: "Mustafa"
+    given-names: "L."
+    alias: "lumidren"
+version: 1.0.0
+date-released: 2026-10-10
+license: MIT
+repository-code: "https://github.com/lumidren/Guardian"
+keywords:
+  - "internet-of-things"
+  - "iot-security"
+  - "anomaly-detection"
+  - "zero-day-defense"
+  - "explainable-ai"
+  - "isolation-forest"
+  - "edge-computing"
+  - "nftables"

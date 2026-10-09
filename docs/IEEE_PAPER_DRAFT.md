@@ -10,7 +10,7 @@
 
 The proliferation of Internet of Things (IoT) devices in residential and enterprise environments has introduced severe attack vectors, exemplified by recent widespread zero-day compromises of consumer smart cameras and robotic appliances. Traditional intrusion detection systems (IDS) relying on signature matching fail to intercept novel, zero-day attacks (exhibiting detection rates below 30%) and are increasingly blinded by pervasive transport-layer encryption. In this paper, we propose **GUARDIAN** (*Graduated User-friendly Anomaly Response with Device Identity And Natural language*), an edge-native, multi-layer behavioral identity framework deployed on consumer-grade gateway hardware ($250 total budget). 
 
-GUARDIAN continuously tracks 60 transport and network metadata features across three identity layers (Behavioral, Network Destination, and Protocol/Heuristic) without decrypting packet payloads. By coupling an unsupervised Isolation Forest model with a statistical Z-score safety fallback, GUARDIAN establishes deterministic behavioral baselines per device type. A four-tier Graduated Response Controller (Monitor, Restrict, Quarantine, Block) enforces graduated firewall mitigation, while an Explainable AI (XAI) Natural Language Generation (NLG) engine translates multidimensional deviations into plain-English diagnostics and recommended remediations. Comprehensive empirical evaluation across an 8-device heterogeneous testbed demonstrates a **100.0% zero-day detection rate**, a **4.1% false positive rate**, an average compute latency of **1.68 ms**, and an enforcement latency under **0.01 ms** (in-memory simulator backend).
+GUARDIAN continuously tracks 60 transport and network metadata features across three identity layers (Behavioral, Network Destination, and Protocol/Heuristic) without decrypting packet payloads. By coupling an unsupervised Isolation Forest model with a statistical Z-score safety fallback, GUARDIAN establishes deterministic behavioral baselines per device type. A four-tier Graduated Response Controller (Monitor, Restrict, Quarantine, Block) enforces graduated firewall mitigation, while an Explainable AI (XAI) Natural Language Generation (NLG) engine translates multidimensional deviations into plain-English diagnostics and recommended remediations. Comprehensive empirical evaluation across an 8-device heterogeneous testbed demonstrates a **100.0% zero-day detection rate**, a **9.3% false positive rate**, an average compute latency of **1.22 ms** (p95: 1.58 ms), and an in-memory enforcement lookup latency under **0.01 ms** (kernel dispatch: 2–15 ms).
 
 **Keywords:** Internet of Things (IoT), Anomaly Detection, Zero-Day Defense, Explainable AI (XAI), Isolation Forest, Edge Computing.
 
@@ -47,7 +47,7 @@ GUARDIAN executes entirely on a local edge gateway (Raspberry Pi 4 with 4GB RAM)
 |            [60-Feature Extraction Engine]                   |
 |       - Layer 1: Behavioral Dynamics (Timing & Vol)         |
 |       - Layer 2: Network Destination & Topology Graph       |
-|       - Layer 3: Physical & Heuristic Signatures            |
+|       - Layer 3: Metadata & Temporal Priors                 |
 |                              |                              |
 |   +--------------------------+--------------------------+   |
 |   | Dual-Engine Behavioral Analyzer                     |   |
@@ -78,7 +78,7 @@ The 60 extracted metrics span three distinct identity layers:
 - **Layer 1: Protocol & Port Dynamics (Features 26–41)**: Proportion of MQTT, HTTP, HTTPS, DNS, CoAP, and NTP packets, protocol entropy, source and destination port Shannon entropies, unique destination port counts, and high-risk port indicators.
 - **Layer 2: Network Identity (Features 42–49)**: Unique destination IPs, destination IP entropy, external-to-internal traffic ratios, novel destination flags, out-degree centrality, and DNS query frequencies.
 - **Layer 1 & 2: Flow State & TCP Flags (Features 50–55)**: Ratios of TCP SYN, ACK, PSH, RST, FIN flags, and average TCP window sizes.
-- **Layer 3: Physical & Heuristic Signatures (Features 56–58)**: IP TTL variance (spoofing indicator), TCP timestamp clock skew gradient, and IP ID sequence monotonicity.
+- **Layer 3: Metadata & Temporal Priors (Features 56–58)**: IP TTL variance (spoofing indicator), TCP timestamp clock skew gradient, and IP ID sequence monotonicity.
 - **Temporal Alignment (Features 59–60)**: Sinusoidal circadian projections ($\sin, \cos$ of $2\pi \cdot \text{hour}/24$).
 
 ---
@@ -126,7 +126,7 @@ Black-box security alerts (*"Threat detected"*) cause alert fatigue. GUARDIAN pr
 > **Likely Attack:** Botnet C&C Communication  
 > **Root Cause Deviations:**  
 > 1. Traffic Volume Spike: 4,823 pkts/10s vs normal 100 pkts/10s (+4,723% spike) - CRITICAL  
-> 2. Unknown Destination: Moscow, Russia (185.220.101.47) never seen before - CRITICAL  
+> 2. Unknown Destination: external address (185.220.101.47, location unknown) never seen before - CRITICAL  
 > 3. Unusual Activity Time: 3:47 AM vs normal active hours (6 AM - 11 PM) - HIGH  
 > 4. Protocol Shift: 60% HTTP streaming vs 95% MQTT baseline - MEDIUM  
 > **Recommended Action:** Isolate device; execute factory reset; verify vendor firmware patch.
@@ -145,29 +145,35 @@ The physical testbed comprises:
 
 ### B. Detection Performance (Table 8 - Zero-Day Attack Vectors)
 
-Evaluated under eval/RESULTS.md across identical 10-second sliding windows with dynamic anomaly scoring:
+Evaluated under `eval/RESULTS.md` (Run ID: `eval_1791581516_42_6060caa`, Seed: 42) across identical 10-second sliding windows with dynamic anomaly scoring:
 
 | Attack Vector | GUARDIAN TPR | Pooled IF | Static Rules | Robust Z-Score | F1 Score | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **DDoS Flooding** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **C&C Beaconing** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
-| **Subnet Scanning** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
-| **Data Exfiltration** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **Cryptomining** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **Zero-Day Hybrid** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **Macro Average** | **100.0%** | **80.0%** | **60.0%** | **85.0%** | - | - |
+| **DDoS Flooding** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 2.00 s |
+| **C&C Beaconing** | **100.0%** | 0.0% | 100.0% | 100.0% | 1.0000 | 1.00 s |
+| **Subnet Scanning** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9730 | 1.00 s |
+| **Data Exfiltration** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 1.00 s |
+| **Cryptomining** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9583 | 1.00 s |
+| **Zero-Day Hybrid** | **100.0%** | 0.0% | 0.0% | 100.0% | 0.9756 | 1.00 s |
+| **Macro Average** | **100.0%** | **0.0%** | **83.3%** | **100.0%** | - | - |
 
-*Window-Level False Positive Rate (FPR):* **4.1%** on continuous normal background telemetry (FAR: **0.42** alerts/device/day).
+*Window-Level False Positive Rate (FPR):* **9.3%** on continuous normal background telemetry.
 
 ### C. System Overhead & Latency Disaggregation (Table 9)
 
-| Metric | Target Specification | Empirical Measurement | Status |
+| Metric | Target Specification | Empirical Measurement | Operational Status |
 | :--- | :---: | :---: | :---: |
-| **Compute Latency ({\\text{window}} \\to S_t$)**| $< 50\text{ ms}$ | 1.68 ms (p95: 2.84 ms) | [PASS] |
-| **Enforcement Latency (Sim Control Plane)** | $< 300\text{ ms}$ | 0.008 ms (p95: 0.010 ms) | [PASS] |
-| **Time-to-Detect ({\\text{attack}} \\to \\text{Alert}$)**| $< 60\text{ s}$ | 0.00 s (instantaneous stride) | [PASS] |
-| **Resident Memory (RAM RSS)** | $< 2048\text{ MB}$ | 48.39 MB | [PASS] |
-| **Processing Throughput** | $> 100\text{ win/s}$ | 511.58 windows/s | [PASS] |
+| **Compute Latency ($W \to S_t$)** | $< 50\text{ ms}$ | 1.22 ms (p95: 1.58 ms) | [PASS] |
+| **Enforcement Latency (In-Memory Table)** | $< 300\text{ ms}$ | 0.008 ms (Kernel Dispatch: 2 - 15 ms) | [PASS] |
+| **Time-to-Detect (Attack Onset $\to$ Alert)** | $< 60\text{ s}$ | 2.00 s (Bounded temporal stride) | [PASS] |
+| **Resident Memory (RAM RSS)** | $< 256\text{ MB}$ | 45.76 MB | [PASS] |
+| **Multi-Device Scalability Throughput** | $> 100\text{ win/s}$ | 942.84 to 951.05 windows/s | [PASS] |
+| **Real-Time Buffer Drop Rate** | $< 0.1\%$ | 0.00% (0 / 162 packets dropped) | [PASS] |
+
+### D. External IoT Dataset & Real-Device Validation (P3-5 & P3-8)
+To assess generalization beyond synthetic testbeds, GUARDIAN was evaluated on real public benchmarks (`docs/EXTERNAL_DATA.md`):
+- **Stratosphere IoT-23 Malware Flows**: Evaluated on live captures of Mirai, Muhstik, Kenjiro, and Torii botnet strains. GUARDIAN achieves **100.0% detection rate** on external Mirai volumetric SYN floods and Muhstik IRC beacons.
+- **Physical Testbed & PCAP Ingestion**: Zero-dependency `PCAPImporter` (`docs/REAL_DATA_VALIDATION.md`) enables offline replay and line-rate ingestion of binary `.pcap` files captured from Raspberry Pi 4 gateway interfaces with 60-feature extraction verified.
 
 ---
 

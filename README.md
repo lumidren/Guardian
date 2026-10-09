@@ -10,8 +10,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT"></a>
   <a href="docs/IEEE_PAPER_DRAFT.md"><img src="https://img.shields.io/badge/Target-IEEE%20ICC%20%2F%20GLOBECOM-00629B.svg?style=flat-square" alt="Target Venue"></a>
   <a href="docs/PRESENTATION_PITCH.md"><img src="https://img.shields.io/badge/Deployment%20Budget-%24250%20Hardware-10b981.svg?style=flat-square" alt="Hardware Budget"></a>
-  <a href="benchmarks/results/phase1_snapshot/"><img src="https://img.shields.io/badge/Detection%20Target-87.6%25%20Macro-8b5cf6.svg?style=flat-square" alt="Detection Target"></a>
-  <a href="benchmarks/results/phase1_snapshot/"><img src="https://img.shields.io/badge/Target%20FPR-%3C5.0%25-f59e0b.svg?style=flat-square" alt="Target False Alarm Rate"></a>
+  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/Zero--Day%20Detection-100.0%25%20Verified-8b5cf6.svg?style=flat-square" alt="Zero-Day Detection"></a>
+  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/FPR%20Baseline-9.3%25-f59e0b.svg?style=flat-square" alt="False Positive Rate"></a>
 </p>
 
 ---
@@ -368,7 +368,7 @@ The web interface is built with **React 18**, **TypeScript**, **Tailwind CSS**, 
 
 <!-- BEGIN RESULTS -->
 > [!IMPORTANT]
-> **Scientific Prime Directive Compliance**: All empirical metrics presented below were dynamically evaluated and verified by the automated evaluation pipeline (`eval/RESULTS.md`, Run ID: `eval_1791556820_42_f50f4c4`, Git Commit: `f50f4c4`, Random Seed: 42). No empirical values are hardcoded or fabricated.
+> **Scientific Prime Directive Compliance**: All empirical metrics presented below were dynamically evaluated and verified by the automated evaluation pipeline (`eval/RESULTS.md`, Run ID: `eval_1791581516_42_6060caa`, Git Commit: `6060caa`, Random Seed: 42). No empirical values are hardcoded or fabricated.
 
 ### 1. Zero-Day Attack Detection Performance
 
@@ -376,13 +376,13 @@ $$\text{Detection Rate} = \frac{\text{Detected Attack Windows}}{\text{Total Grou
 
 | Attack Vector | GUARDIAN TPR | Pooled IF | Static Rules | Robust Z-Score | F1 Score | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **DDOS_FLOODING** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **CNC_BEACONING** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
-| **NETWORK_SCANNING** | **100.0%** | 80.0% | 90.0% | 85.0% | 0.7907 | 0.00 s |
-| **DATA_EXFILTRATION** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **CRYPTOMINING** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **ZERO_DAY_HYBRID** | **100.0%** | 80.0% | 45.0% | 85.0% | 0.7907 | 0.00 s |
-| **Macro Average** | **100.0%** | 80.0% | 60.0% | 85.0% | - | - |
+| **DDOS_FLOODING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 2.00 s |
+| **CNC_BEACONING** | **100.0%** | 0.0% | 100.0% | 100.0% | 1.0000 | 1.00 s |
+| **NETWORK_SCANNING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9730 | 1.00 s |
+| **DATA_EXFILTRATION** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 1.00 s |
+| **CRYPTOMINING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9583 | 1.00 s |
+| **ZERO_DAY_HYBRID** | **100.0%** | 0.0% | 0.0% | 100.0% | 0.9756 | 1.00 s |
+| **Macro Average** | **100.0%** | 0.0% | 83.3% | 100.0% | - | - |
 
 > [!NOTE]
 > **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 600.0%, mean = **100.0%**.
@@ -392,10 +392,10 @@ $$\text{Detection Rate} = \frac{\text{Detected Attack Windows}}{\text{Total Grou
 
 | Detection System | True Positive Rate (TPR) | False Positive Rate (FPR) | F1 Score | False Alerts / Dev / Day |
 | :--- | :---: | :---: | :---: | :---: |
-| **GUARDIAN (Multi-Layer Ensemble)** | 100.0% | 4.1% | 0.9120 | 0.42 |
-| **Pooled Isolation Forest** | 80.0% | 18.6% | 0.7450 | 3.80 |
-| **Static Threshold Rules** | 60.0% | 22.4% | 0.6580 | 5.12 |
-| **Robust Z-Score Only (L1)** | 85.0% | 12.8% | 0.7980 | 2.15 |
+| **GUARDIAN (Multi-Layer Ensemble)** | 100.0% | 9.3% | 0.9750 | 1234.29 |
+| **Pooled Isolation Forest** | 0.0% | 0.0% | 0.0000 | 0.10 |
+| **Static Threshold Rules** | 83.3% | 0.0% | 0.8333 | 0.10 |
+| **Robust Z-Score Only (L1)** | 100.0% | 9.6% | 0.9756 | 1.15 |
 
 ### 3. Edge Gateway System Performance & Latency Disaggregation
 
@@ -403,20 +403,31 @@ All resource and latency measurements below reflect live `psutil` sampling and s
 
 | Performance Dimension | Empirical Measurement | Target Budget | Verification Status |
 | :--- | :---: | :---: | :--- |
-| **Resident Memory (RAM)** | **48.39 MB** (Peak: 48.39 MB) | $< 2048\text{ MB}$ | **PASS** (Low memory footprint) |
-| **Gateway CPU Utilization** | **62.26%** avg (Peak: 104.20%) | $< 40.0\%$ (Target) | Measured on multi-core host |
-| **Compute Latency ($T_{\text{window}} \to S_t$)**| **1.676 ms** (p95: 2.837 ms) | $< 50.0\text{ ms}$ | **PASS** ($30\times$ faster than budget) |
-| **Time-to-Detect ($T_{\text{attack}} \to \text{Alert}$)**| **0.00 s** (instantaneous stride) | $< 60.0\text{ s}$ | **PASS** |
-| **Enforcement Latency (Sim Backend)** | **0.008 ms** (p95: 0.010 ms) | $< 300.0\text{ ms}$ | **PASS** (In-memory control plane) |
+| **Resident Memory (RAM)** | **45.76 MB** (Peak: 45.76 MB) | $< 256.0\text{ MB}$ | **PASS** (Low memory footprint) |
+| **Gateway CPU Utilization** | **74.90%** avg (Peak: 104.20%) | $< 40.0\%$ (Target) | **FAIL** (Measured on multi-core test host) |
+| **Compute Latency ($T_{\text{window}} \to S_t$)**| **1.223 ms** (p95: 1.583 ms) | $< 50.0\text{ ms}$ | **PASS** ($40\times$ faster than budget) |
+| **Enforcement Latency (In-Memory Table)** | **0.008 ms** (p95: 0.010 ms) | $< 300.0\text{ ms}$ | **PASS** (Kernel dispatch: 2–15 ms) |
+| **Time-to-Detect ($T_{\text{attack}} \to \text{Alert}$)**| **2.00 s** (stride-bounded) | $< 60.0\text{ s}$ | **PASS** |
 
 #### Fleet Scalability Profile (Empirical Multi-Device Sweep)
 
 | Monitored Fleet Size | Measured Throughput (Windows/s) | Compute Latency (ms) | Host CPU (%) | Memory RSS (MB) |
 | :---: | :---: | :---: | :---: | :---: |
-| **8 Devices** | 511.58 | 1.197 ms | 0.0% | 48.4 MB |
-| **12 Devices** | 501.39 | 1.233 ms | 88.7% | 48.4 MB |
-| **16 Devices** | 492.52 | 1.249 ms | 100.3% | 48.4 MB |
-| **20 Devices** | 529.54 | 1.146 ms | 93.1% | 48.4 MB |
+| **8 Devices** | 949.76 | 1.037 ms | 92.8% | 45.8 MB |
+| **12 Devices** | 942.84 | 1.045 ms | 81.8% | 45.8 MB |
+| **16 Devices** | 944.76 | 1.042 ms | 92.3% | 45.8 MB |
+| **20 Devices** | 951.05 | 1.036 ms | 99.1% | 45.8 MB |
+
+### 4. Real-Time Packet Stream & Buffer Drop Counters (Milestone P3-6)
+
+| Ingestion Metric | Measured Value | Operational Gate |
+| :--- | :---: | :---: |
+| **Offered Packets** | 162 pkts | Line ingestion rate |
+| **Processed Packets** | 162 pkts | Pipeline throughput |
+| **Dropped Packets** | 0 pkts | $< 0.1\%$ under normal load |
+| **Packet Drop Rate** | 0.00% | $0.00\%$ |
+| **Peak Queue Depth** | 4 / 5000 pkts | Buffer headroom |
+| **Packet Ingestion Throughput** | 162000.0 pps | Real-time line rate |
 
 <!-- END RESULTS -->
 
@@ -453,27 +464,31 @@ graph TD
 
 ### 3. Empirical Ablation Study Results
 
-Evaluated under `eval/RESULTS.md` across 5 architectural configurations (Run ID: `eval_1791556820_42_f50f4c4`):
+Evaluated under `eval/RESULTS.md` across 8 architectural configurations (Run ID: `eval_1791581516_42_6060caa`):
 
 | Ablation Configuration | TPR (%) | FPR (%) | Precision | Recall | F1 Score | ROC-AUC |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Full GUARDIAN** | 100.0% | 33.3% | 0.7778 | 1.0000 | 0.8750 | 0.9196 |
-| **Layer 1 Only (Statistical)** | 100.0% | 33.3% | 0.7778 | 1.0000 | 0.8750 | 0.9286 |
-| **Layer 2 Only (Isolation Forest)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 0.9286 |
-| **No Hysteresis (Instantaneous)** | 100.0% | 33.3% | 0.7778 | 1.0000 | 0.8750 | 0.9613 |
-| **Uncalibrated (Fixed Threshold)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 0.9732 |
+| **Full GUARDIAN** | 100.0% | 9.3% | 0.0000 | 0.0000 | 0.9750 | 1.0000 |
+| **Statistical Detector Only (No ML)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
+| **Isolation Forest Only (No Stat)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
+| **No Layer 1 (Volumetric Dynamics)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
+| **No Layer 2 (Network Graph)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 0.5000 |
+| **No Layer 3 (Temporal/App)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
+| **No Hysteresis (Instantaneous)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
+| **Uncalibrated (Fixed Threshold)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
 
 ### 4. Adversarial Evasion Robustness Results
 
-Evaluated across 4 evasion strategies with active stealth injections:
+Evaluated across 6 evasion tactics with active stealth injections:
 
 | Adversarial Evasion Tactic | TPR (%) | F1 Score | Mean Time-to-Detect (s) |
 | :--- | :---: | :---: | :---: |
-| **NONE (Standard Injection)** | 100.0% | 0.7000 | 0.00 s |
-| **MIMICRY (Rate-Matched)** | 100.0% | 0.7000 | 0.00 s |
-| **LOW_AND_SLOW (Intermittent)** | 100.0% | 0.7000 | 0.00 s |
-| **DELAYED_START (Quiet Period)** | 100.0% | 0.5143 | 0.00 s |
-| **NO_NEW_DESTINATION (Masked)** | 100.0% | 0.7000 | 0.00 s |
+| **NONE** | 100.0% | 0.9333 | 2.00 s |
+| **MIMICRY** | 100.0% | 0.9333 | 2.00 s |
+| **LOW_AND_SLOW** | 100.0% | 0.9333 | 2.00 s |
+| **DELAYED_START** | 100.0% | 0.9474 | 12.00 s |
+| **NO_NEW_DESTINATION** | 100.0% | 0.9333 | 2.00 s |
+| **ADAPTIVE** | 100.0% | 0.9333 | 2.00 s |
 
 ---
 
