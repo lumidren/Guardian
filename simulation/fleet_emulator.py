@@ -7,7 +7,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from ..capture.packet_parser import ParsedPacket
+from guardian.capture.packet_parser import ParsedPacket
 
 
 @dataclass

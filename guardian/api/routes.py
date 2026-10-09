@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from ..storage.database import DatabaseManager
 from ..enforcement.controller import EnforcementController
 from ..intelligence.cross_device import CrossDeviceThreatIntelligence
-from ..simulation.fleet_emulator import DEFAULT_FLEET_SPECS
-from ..simulation.attack_suite import AttackType
+from simulation.fleet_emulator import DEFAULT_FLEET_SPECS
+from simulation.attack_suite import AttackType
 
 
 class OverrideRequest(BaseModel):

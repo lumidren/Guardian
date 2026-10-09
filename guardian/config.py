@@ -148,8 +148,7 @@ class GuardianConfig(BaseModel):
     TARGET_CPU_USAGE_PCT: float = 40.0
     TARGET_RAM_USAGE_MB: float = 2048.0
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
 
 # Global default configuration instance

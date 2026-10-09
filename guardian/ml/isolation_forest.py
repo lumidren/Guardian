@@ -31,6 +31,8 @@ class IsolationTreeNode:
         self,
         feature_idx: int = -1,
         split_val: float = 0.0,
+        min_val: float = 0.0,
+        max_val: float = 0.0,
         left: Optional['IsolationTreeNode'] = None,
         right: Optional['IsolationTreeNode'] = None,
         size: int = 0,
@@ -38,6 +40,8 @@ class IsolationTreeNode:
     ):
         self.feature_idx = feature_idx
         self.split_val = split_val
+        self.min_val = min_val
+        self.max_val = max_val
         self.left = left
         self.right = right
         self.size = size
@@ -47,6 +51,8 @@ class IsolationTreeNode:
         d = {
             "feature_idx": self.feature_idx,
             "split_val": self.split_val,
+            "min_val": self.min_val,
+            "max_val": self.max_val,
             "size": self.size,
             "is_leaf": self.is_leaf
         }
@@ -61,6 +67,8 @@ class IsolationTreeNode:
         node = cls(
             feature_idx=d["feature_idx"],
             split_val=d["split_val"],
+            min_val=d.get("min_val", 0.0),
+            max_val=d.get("max_val", 0.0),
             size=d["size"],
             is_leaf=d["is_leaf"]
         )
@@ -112,6 +120,8 @@ class IsolationTree:
         return IsolationTreeNode(
             feature_idx=chosen_feat,
             split_val=split_val,
+            min_val=min_v,
+            max_val=max_v,
             left=left_node,
             right=right_node,
             size=n_samples,
@@ -129,7 +139,13 @@ class IsolationTree:
             return current_depth + c_factor(node.size)
 
         f_idx = node.feature_idx
-        # Shorter depths imply higher anomaly contribution
+        # If the sample value is completely outside the domain of the training cluster at this node,
+        # it is isolated immediately at current depth!
+        if x[f_idx] < node.min_val or x[f_idx] > node.max_val:
+            weight = 1.0 / (current_depth + 1.0)
+            feature_weights[f_idx] = feature_weights.get(f_idx, 0.0) + weight
+            return current_depth + 1.0
+
         weight = 1.0 / (current_depth + 1.0)
         feature_weights[f_idx] = feature_weights.get(f_idx, 0.0) + weight
 
@@ -211,8 +227,21 @@ class IsolationForestDetector:
                 total_path_length += pl
 
         avg_path = total_path_length / len(self.trees)
-        # Anomaly score equation s = 2 ^ (- E(h) / c(n))
-        anomaly_score = float(2.0 ** (- (avg_path / max(0.001, self.c_val))))
+        # Base anomaly score equation s = 2 ^ (- E(h) / c(n))
+        base_score = float(2.0 ** (- (avg_path / max(0.001, self.c_val))))
+
+        # Subspace deviation amplification: if specific features exhibit extreme out-of-distribution spikes
+        if self.baseline_mean is not None and self.baseline_std is not None:
+            z_scores = np.abs((x - self.baseline_mean) / self.baseline_std)
+            max_z = float(np.max(z_scores))
+            if max_z > 3.0:
+                # Amplify score proportionally to extreme subspace anomaly
+                amplifier = 1.0 + min(1.0, 0.15 * (max_z - 3.0))
+                anomaly_score = min(1.0, base_score * amplifier)
+            else:
+                anomaly_score = base_score
+        else:
+            anomaly_score = base_score
 
         # Normalize feature attribution weights to percentages (sum to 1.0)
         total_weight = sum(feature_weights.values())
@@ -222,6 +251,18 @@ class IsolationForestDetector:
                 if f_idx < len(FEATURE_NAMES):
                     name = FEATURE_NAMES[f_idx]
                     attribution[name] = float(w / total_weight)
+
+        # If baseline exists, also blend statistical z-deviations into attribution
+        if self.baseline_mean is not None and self.baseline_std is not None:
+            z_scores = np.abs((x - self.baseline_mean) / self.baseline_std)
+            for f_idx, z_val in enumerate(z_scores):
+                if z_val > 3.0 and f_idx < len(FEATURE_NAMES):
+                    name = FEATURE_NAMES[f_idx]
+                    attribution[name] = attribution.get(name, 0.0) + float(z_val * 0.1)
+            # Re-normalize
+            t_w = sum(attribution.values())
+            if t_w > 0:
+                attribution = {k: v / t_w for k, v in attribution.items()}
 
         return anomaly_score, attribution
 

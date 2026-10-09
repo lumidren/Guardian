@@ -7,7 +7,7 @@ import random
 import time
 from enum import Enum
 from typing import Dict, List, Optional
-from ..capture.packet_parser import ParsedPacket
+from guardian.capture.packet_parser import ParsedPacket
 from .fleet_emulator import IoTDeviceSpec
 
 
