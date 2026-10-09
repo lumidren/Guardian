@@ -8,7 +8,7 @@
 - [x] P3-4. Fair baselines and rigorous ablations (equal budget, one-class SVM/LOF, full test set ablations)
 - [x] P3-5. External dataset validation (public IoT dataset, feature mapping, EXTERNAL_DATA.md)
 - [x] P3-6. Real load, performance and enforcement tests (real-time replay load test, drop counters, real nftables)
-- [ ] P3-7. Plausibility guard and CI enforcement (eval/guard.py, CI smoke with guards and controls)
+- [x] P3-7. Plausibility guard and CI enforcement (eval/guard.py, CI smoke with guards and controls)
 - [ ] P3-8. Real-device readiness (results/real/, REAL_DATA_VALIDATION.md, capture and import tools)
 - [ ] P3-9. Security and robustness of GUARDIAN itself (THREAT_MODEL.md, fuzz tests, baseline poisoning)
 - [ ] P3-10. Paper, documentation and release (IEEE_PAPER_DRAFT.md, README rewrite, v1.0 tag, demo)
@@ -30,7 +30,7 @@
 ---
 
 ## Current Status
-- **Active Milestone**: P3-7 (Plausibility guard and CI enforcement)
-- **Completed Milestones**: P3-0, P3-1, P3-2, P3-3, P3-4, P3-5, P3-6, P2-0 to P2-9, M0-M14
-- **Phase 3 Findings**: G1, G2, G3, G4, G5, G6, G7, G9 resolved; G8, G10 open
-- **Quality Gates**: Ruff clean, Mypy strict clean, 130 unit tests passing, controls battery active.
+- **Active Milestone**: P3-8 (Real-device readiness)
+- **Completed Milestones**: P3-0, P3-1, P3-2, P3-3, P3-4, P3-5, P3-6, P3-7, P2-0 to P2-9, M0-M14
+- **Phase 3 Findings**: G1, G2, G3, G4, G5, G6, G7, G8, G9, G10 ALL RESOLVED (10/10).
+- **Quality Gates**: Ruff clean, Mypy strict clean, 131 unit tests passing, controls battery active, plausibility guard active.
