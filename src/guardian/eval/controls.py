@@ -28,6 +28,63 @@ from .scenario import GroundTruthEpisode, ScenarioBuilder
 
 
 @dataclass
+class PermutationTestResult:
+    n_permutations: int
+    observed_diff: float
+    null_mean: float
+    null_95th_percentile: float
+    p_value: float
+    passed: bool
+
+
+def run_200_shuffle_permutation_test(
+    y_true: Sequence[int],
+    y_pred: Sequence[int],
+    n_permutations: int = 200,
+    seed: int = 42,
+) -> PermutationTestResult:
+    """
+    Executes a 200-shuffle permutation test to construct the empirical null distribution
+    for |TPR - FPR|, replacing heuristic tolerance bands with statistical hypothesis testing.
+    """
+    rng = np.random.default_rng(seed)
+    y_arr = np.asarray(y_true, dtype=int)
+    y_p = np.asarray(y_pred, dtype=int)
+
+    null_diffs: list[float] = []
+    for _ in range(n_permutations):
+        y_perm = rng.permutation(y_arr)
+        tp = np.sum((y_p == 1) & (y_perm == 1))
+        p = np.sum(y_perm == 1)
+        fp = np.sum((y_p == 1) & (y_perm == 0))
+        n = np.sum(y_perm == 0)
+        tpr = float(tp / p) if p > 0 else 0.0
+        fpr = float(fp / n) if n > 0 else 0.0
+        null_diffs.append(abs(tpr - fpr))
+
+    tp_obs = np.sum((y_p == 1) & (y_arr == 1))
+    p_obs = np.sum(y_arr == 1)
+    fp_obs = np.sum((y_p == 1) & (y_arr == 0))
+    n_obs = np.sum(y_arr == 0)
+    tpr_obs = float(tp_obs / p_obs) if p_obs > 0 else 0.0
+    fpr_obs = float(fp_obs / n_obs) if n_obs > 0 else 0.0
+    diff_obs = abs(tpr_obs - fpr_obs)
+
+    p_val = float(np.mean(np.asarray(null_diffs) >= diff_obs))
+    null_mean = float(np.mean(null_diffs))
+    null_95th = float(np.percentile(null_diffs, 95))
+
+    return PermutationTestResult(
+        n_permutations=n_permutations,
+        observed_diff=diff_obs,
+        null_mean=null_mean,
+        null_95th_percentile=null_95th,
+        p_value=p_val,
+        passed=bool(p_val > 0.05 or diff_obs <= null_95th),
+    )
+
+
+@dataclass
 class ControlsEvaluationResult:
     always_alert_tpr: float
     always_alert_fpr: float
@@ -37,6 +94,8 @@ class ControlsEvaluationResult:
     shuffled_tpr: float
     shuffled_fpr: float
     shuffled_roc_auc: float
+    permutation_p_value: float
+    permutation_passed: bool
     controls_passed: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,7 +118,8 @@ class ControlsEvaluationResult:
                 "tpr": round(self.shuffled_tpr, 4),
                 "fpr": round(self.shuffled_fpr, 4),
                 "roc_auc": round(self.shuffled_roc_auc, 4),
-                "status": "PASS" if (abs(self.shuffled_tpr - self.shuffled_fpr) <= 0.25) else "FAIL",
+                "permutation_p_value": round(self.permutation_p_value, 4),
+                "status": "PASS" if self.permutation_passed else "FAIL",
             },
             "controls_passed": self.controls_passed,
         }
@@ -99,17 +159,19 @@ class EvaluationControlBattery:
         random_scores = rng.uniform(0.0, 1.0, size=len(y_t)).tolist()
         random_roc = compute_roc_auc(y_t, random_scores)
 
-        # 4. Shuffled Labels Control
+        # 4. Shuffled Labels Control with 200-Shuffle Permutation Test
         y_shuffled = rng.permutation(y_t).tolist()
         y_pred = [1 if op.is_alert(s * 100.0) else 0 for s in sc]
         shuffled_bm = compute_binary_metrics(y_shuffled, y_pred)
         shuffled_roc = compute_roc_auc(y_shuffled, sc)
 
+        perm_test = run_200_shuffle_permutation_test(y_shuffled, y_pred, n_permutations=200, seed=self.seed)
+
         # Pass criteria
         p_always = (always_bm.tpr == 1.0 and always_bm.fpr == 1.0)
         p_never = (never_bm.tpr == 0.0 and never_bm.fpr == 0.0)
         p_random = (0.40 <= random_roc <= 0.60)
-        p_shuffled = (abs(shuffled_bm.tpr - shuffled_bm.fpr) <= 0.25)
+        p_shuffled = perm_test.passed
 
         all_passed = p_always and p_never and p_random and p_shuffled
 
@@ -122,6 +184,8 @@ class EvaluationControlBattery:
             shuffled_tpr=shuffled_bm.tpr,
             shuffled_fpr=shuffled_bm.fpr,
             shuffled_roc_auc=shuffled_roc,
+            permutation_p_value=perm_test.p_value,
+            permutation_passed=perm_test.passed,
             controls_passed=all_passed,
         )
 
