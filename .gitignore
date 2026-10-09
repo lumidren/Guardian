@@ -36,11 +36,14 @@ data/processed/*
 models/checkpoints/*
 !models/checkpoints/.gitkeep
 
-# Logs & DBs
+# Logs & DBs & Testing
 *.log
 *.sqlite
 *.sqlite3
 *.db
+.coverage
+.pytest_cache/
+htmlcov/
 
 # Frontend
 frontend/node_modules/
