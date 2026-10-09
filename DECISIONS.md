@@ -76,3 +76,12 @@ This document records architectural, algorithmic, and engineering decisions made
 - **Decision**: SQLite configured with Write-Ahead Logging (`PRAGMA journal_mode=WAL`), `PRAGMA synchronous=NORMAL`, `PRAGMA busy_timeout=5000`, and strict foreign key integrity. All schema iterations are managed through Alembic migrations from day one.
 - **Rationale**: Concurrent reads and writes without thread deadlocks, minimal write amplification on SD cards, and auditable versioned database migrations.
 
+---
+
+## 3. Phase 2 Architecture Decisions (Milestone P2-1)
+
+### ADR-013: Python 3.11 Standard and pyproject.toml Consolidation
+- **Problem**: Inconsistent package specifications between `requirements.txt` and `pyproject.toml`, and Python 3.10+ declaration while the project plan standardized on Python 3.11.
+- **Decision**: Standardize `requires-python = ">=3.11"` in `pyproject.toml`, make `pyproject.toml` the sole canonical source of runtime and development dependencies, remove standalone `requirements.txt` from repository tracking, and provide `make export-requirements` for headless environments.
+- **Rationale**: Eliminates split-brain dependency specifications and enforces modern Python 3.11 typing and performance optimizations across all quality gates.
+
