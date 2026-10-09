@@ -1,0 +1,18 @@
+# GUARDIAN Phase 2 Audit Findings Log
+
+This document tracks all audit findings from Section 3 of the Phase 2 specification. Each finding details the integrity issue, required remediation, and its resolution status (including commit hash once fixed).
+
+| ID | Location | Problem | Required Fix | Status | Fixed Commit |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **F1** | `run_evaluation.py`, `literature_baselines` | Snort and Generic columns are hardcoded strings. The average row (18%, 67%) is also hardcoded. No Snort or pooled model was ever run. | Delete. Replace with real baselines (P2-4): static-threshold rules, pooled Isolation Forest, robust z-score only. No Snort numbers unless a real run exists. | open | - |
+| **F2** | `run_evaluation.py`, Table 9 | CPU '18.4% avg', Memory '142 MB', Network Overhead '+1.2 ms' and every [PASS] are literals. | Measure with psutil and process counters (P2-6). Status is computed from measured values against the configured targets. | open | - |
+| **F3** | `run_evaluation.py`, Table 10 | The whole scalability table is printed constants. No 8/12/16/20 device test exists. | Build a real scalability test (P2-6). | open | - |
+| **F4** | `run_evaluation.py`, trial loop | `DEFAULT_FLEET_SPECS[trials % len(...)]` uses `trials` (always 50), so every non-hybrid attack runs on one device only. | Use the trial index and cover every applicable device type evenly. | open | - |
+| **F5** | `run_evaluation.py`, trial loop | Each trial feeds a tracker only attack packets. Attack traffic is never mixed with the device's normal traffic, so detection is easier than reality. | Every episode is attack traffic injected into a running normal stream (P2-2). | open | - |
+| **F6** | `run_evaluation.py` | Detection counts score >= 60. False positives count score >= 61 and are described as Quarantine or Block. Different operating points. | One operating point for both, chosen on the calibration split only (P2-2). | open | - |
+| **F7** | `run_evaluation.py` | No seeds, no time-based split, no hysteresis, only 200 normal windows (one false positive = 0.5 points). Window-level FPR is not comparable to alerts per day. | Seeded multi-day simulation, time-ordered splits, production engine with hysteresis, FPR reported both per window and as false alerts per device per day. | open | - |
+| **F8** | `run_evaluation.py` | `model.score_sample(vec) if model else (0.0, {})` silently scores zero when a model file is missing. | Raise a clear error. Never substitute zero. | open | - |
+| **F9** | `run_evaluation.py` | `generate_and_train_all()` retrains every run, so results drift between runs. | Train once per (seed, split) and cache with a hash of data, config and feature registry. Retrain only when the hash changes. | open | - |
+| **F10** | `README.md` | Section 7 calls these 'Realistic Benchmark Results' and 'GUARDIAN Measured' on a Raspberry Pi 4. Badges show 87% and 4.2% as achieved. Enforcement latency of 0.05 ms is not a real firewall rule. | Rewrite from generated results only (P2-8). Remove or relabel badges. Say 'simulated data' and name the environment. | open | - |
+| **F11** | Repo layout | Both `guardian/` and `src/guardian/` exist. Both `requirements.txt` and `pyproject.toml`. Python 3.10+ while the plan says 3.11. No repo description or topics. | Resolve in P2-1. | open | - |
+| **F12** | `run_evaluation.py` | 'Detection latency' only times the compute step on one window. Time-to-detect from attack start is not measured. | Report three numbers: compute latency, time-to-detect, enforcement latency (P2-6). | open | - |
