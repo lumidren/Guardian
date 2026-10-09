@@ -1,7 +1,7 @@
 # GUARDIAN Project Progress Tracker
 
 ## Milestone Checklist
-- [ ] M0 scaffolding and quality gates
+- [x] M0 scaffolding and quality gates
 - [ ] M1 contracts and DB
 - [ ] M2 simulator
 - [ ] M3 sources and windows
@@ -20,7 +20,7 @@
 ---
 
 ## Current Status
-- **Active Milestone**: M0 (Scaffolding and quality gates)
-- **Completed Milestones**: None
-- **Next Milestone**: M0 completion and verification
+- **Active Milestone**: M1 (Contracts, config, clock, database)
+- **Completed Milestones**: M0 (Scaffolding and quality gates)
+- **Next Milestone**: M1 (Contracts, config, clock, database)
 - **Known Gaps**: None
