@@ -1,0 +1,42 @@
+# GUARDIAN Device Types and Priors Configuration (Section 7.2 & 7.5)
+
+device_types:
+  esp32_sensor:
+    description: "ESP32 Sensor Nodes (Temperature, Humidity, Motion, Air Quality)"
+    primary_protocols: ["mqtt"]
+    allowed_ports: [1883, 8883, 53, 123]
+    expected_rate_range: [1.0, 20.0]  # packets per 10s window
+    mean_packet_size: 96
+    active_hours: [0, 24]
+    allow_external_destinations: false
+    burst_tolerance: 3.0
+
+  esp8266_actuator:
+    description: "ESP8266 Actuator Nodes (Smart Plugs, Relays, Switches)"
+    primary_protocols: ["mqtt"]
+    allowed_ports: [1883, 8883]
+    expected_rate_range: [2.0, 15.0]
+    mean_packet_size: 80
+    active_hours: [0, 24]
+    allow_external_destinations: true  # Vendor cloud telemetry
+    burst_tolerance: 5.0
+
+  pi_zero:
+    description: "Raspberry Pi Zero Compute Nodes"
+    primary_protocols: ["http", "tls", "mqtt", "ntp", "dns"]
+    allowed_ports: [80, 443, 1883, 123, 53, 22]
+    expected_rate_range: [5.0, 30.0]
+    mean_packet_size: 250
+    active_hours: [0, 24]
+    allow_external_destinations: true
+    burst_tolerance: 4.0
+
+  esp32_cam:
+    description: "ESP32-CAM Smart Video Camera"
+    primary_protocols: ["http", "mqtt"]
+    allowed_ports: [80, 8080, 1883, 53]
+    expected_rate_range: [10.0, 60.0]  # Daytime high throughput
+    mean_packet_size: 1100
+    active_hours: [6, 23]  # Active 6:00 AM to 11:00 PM; quiet overnight
+    allow_external_destinations: false  # Local NVR/Hub only
+    burst_tolerance: 6.0
