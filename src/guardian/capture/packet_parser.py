@@ -5,7 +5,7 @@ Extracts Layer 2, Layer 3, and Layer 4 header fields without inspecting encrypte
 
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 @dataclass
@@ -22,12 +22,12 @@ class ParsedPacket:
     length: int = 0
     ttl: int = 64
     ip_id: int = 0
-    tcp_flags: Dict[str, bool] = field(default_factory=lambda: {
+    tcp_flags: dict[str, bool] = field(default_factory=lambda: {
         "SYN": False, "ACK": False, "PSH": False,
         "RST": False, "FIN": False, "URG": False
     })
     tcp_window: int = 0
-    tcp_timestamp: Optional[int] = None
+    tcp_timestamp: int | None = None
     is_outbound: bool = True
 
 
@@ -48,7 +48,7 @@ def infer_app_protocol(port: int, transport_proto: str) -> str:
     return transport_proto
 
 
-def parse_raw_packet(pkt: Any, local_subnet_prefix: str = "192.168.1.") -> Optional[ParsedPacket]:
+def parse_raw_packet(pkt: Any, local_subnet_prefix: str = "192.168.1.") -> ParsedPacket | None:
     """
     Parses a Scapy packet or custom dict-based packet representation.
     Extracts all metadata required for the 60 GUARDIAN behavioral features.

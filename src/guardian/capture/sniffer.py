@@ -4,22 +4,22 @@ Unified traffic sniffer supporting live network capture, PCAP replay, and synthe
 
 import queue
 import threading
-import time
-from typing import Callable, Optional
-from .packet_parser import ParsedPacket, parse_raw_packet
+from collections.abc import Callable
+
 from .flow_tracker import FlowTracker
+from .packet_parser import ParsedPacket, parse_raw_packet
 
 
 class TrafficSniffer:
-    def __init__(self, flow_tracker: FlowTracker, interface: Optional[str] = None):
+    def __init__(self, flow_tracker: FlowTracker, interface: str | None = None):
         self.flow_tracker = flow_tracker
         self.interface = interface
         self.is_running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._synthetic_queue: queue.Queue = queue.Queue()
-        self._on_packet_callbacks = []
+        self._on_packet_callbacks: list[Callable[[ParsedPacket], None]] = []
 
-    def register_callback(self, cb: Callable[[ParsedPacket], None]):
+    def register_callback(self, cb: Callable[[ParsedPacket], None]) -> None:
         """Register a subscriber callback for each parsed packet."""
         self._on_packet_callbacks.append(cb)
 

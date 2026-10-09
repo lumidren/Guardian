@@ -3,10 +3,9 @@ Sliding-window flow tracker for IoT devices.
 Aggregates packet streams by device identity (MAC or IP address) over a sliding time window.
 """
 
-import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional
+from dataclasses import dataclass
+
 from .packet_parser import ParsedPacket
 
 
@@ -16,8 +15,8 @@ class FlowSummary:
     window_start: float
     window_end: float
     duration: float
-    packets: List[ParsedPacket]
-    known_destinations: Set[str]
+    packets: list[ParsedPacket]
+    known_destinations: set[str]
     is_new_destination_seen: bool = False
 
 
@@ -25,15 +24,15 @@ class FlowTracker:
     def __init__(self, window_size_seconds: float = 10.0, max_packets_per_window: int = 50000):
         self.window_size_seconds = window_size_seconds
         self.max_packets_per_window = max_packets_per_window
-        
+
         # device_id -> deque of ParsedPacket
-        self.device_buffers: Dict[str, deque] = defaultdict(deque)
-        
+        self.device_buffers: dict[str, deque] = defaultdict(deque)
+
         # device_id -> set of previously known destination IPs (Layer 2 Identity)
-        self.known_destinations: Dict[str, Set[str]] = defaultdict(set)
-        
+        self.known_destinations: dict[str, set[str]] = defaultdict(set)
+
         # device_id -> last window processed timestamp
-        self.last_window_time: Dict[str, float] = defaultdict(float)
+        self.last_window_time: dict[str, float] = defaultdict(float)
 
     def register_known_destination(self, device_id: str, dest_ip: str):
         """Add an IP to the device's known historical communication whitelist."""
@@ -69,7 +68,7 @@ class FlowTracker:
         while len(buf) > self.max_packets_per_window:
             buf.popleft()
 
-    def get_window_summary(self, device_id: str, current_timestamp: Optional[float] = None) -> Optional[FlowSummary]:
+    def get_window_summary(self, device_id: str, current_timestamp: float | None = None) -> FlowSummary | None:
         """
         Extract the current sliding window summary for a specific device.
         """
@@ -77,7 +76,6 @@ class FlowTracker:
         if not buf or len(buf) == 0:
             return None
 
-        now = current_timestamp or time.time()
         packets = list(buf)
         start_time = packets[0].timestamp
         end_time = packets[-1].timestamp
@@ -101,7 +99,7 @@ class FlowTracker:
             is_new_destination_seen=new_dest_seen
         )
 
-    def get_all_active_devices(self) -> List[str]:
+    def get_all_active_devices(self) -> list[str]:
         """Return list of active device identifiers."""
         return list(self.device_buffers.keys())
 
