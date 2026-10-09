@@ -13,6 +13,16 @@ from .baselines import (
     RobustZScoreOnlyBaseline,
     StaticThresholdBaseline,
 )
+from .benchmarks import (
+    LatencyBenchmark,
+    LatencyReport,
+    ScalabilityBenchmark,
+    ScalabilityPoint,
+    ScalabilityReport,
+    SystemResourceBenchmark,
+    SystemResourceReport,
+    generate_scaled_fleet,
+)
 from .caching import (
     ModelBundle,
     ModelCacheManager,
@@ -88,4 +98,12 @@ __all__ = [
     "OperatingCurvePoint",
     "SensitivityAnalyzer",
     "SensitivityReport",
+    "generate_scaled_fleet",
+    "SystemResourceReport",
+    "SystemResourceBenchmark",
+    "LatencyReport",
+    "LatencyBenchmark",
+    "ScalabilityPoint",
+    "ScalabilityReport",
+    "ScalabilityBenchmark",
 ]
