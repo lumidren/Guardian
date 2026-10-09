@@ -1,0 +1,69 @@
+{
+  "intensity": "LOW",
+  "seed": 42,
+  "macro_tpr": 100.0,
+  "mean_ttd_s": 1.17,
+  "mean_f1": 0.9829,
+  "rows": [
+    {
+      "attack": "DDOS_FLOODING",
+      "device_id": "dev_01_temp",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 2.0,
+      "f1": 0.9714,
+      "detected": true
+    },
+    {
+      "attack": "CNC_BEACONING",
+      "device_id": "dev_02_motion",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 1.0,
+      "f1": 1.0,
+      "detected": true
+    },
+    {
+      "attack": "NETWORK_SCANNING",
+      "device_id": "dev_03_env",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 1.0,
+      "f1": 1.0,
+      "detected": true
+    },
+    {
+      "attack": "DATA_EXFILTRATION",
+      "device_id": "dev_04_plug",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 1.0,
+      "f1": 0.9714,
+      "detected": true
+    },
+    {
+      "attack": "CRYPTOMINING",
+      "device_id": "dev_06_compute1",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 1.0,
+      "f1": 0.9787,
+      "detected": true
+    },
+    {
+      "attack": "ZERO_DAY_HYBRID",
+      "device_id": "dev_07_compute2",
+      "intensity": "LOW",
+      "tier": "HARD",
+      "tpr": 100.0,
+      "mean_ttd_s": 1.0,
+      "f1": 0.9756,
+      "detected": true
+    }
+  ]
+}

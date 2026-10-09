@@ -53,6 +53,9 @@ from .metrics import (
     compute_pr_auc,
     compute_roc_auc,
 )
+from .root_cause import (
+    run_intensity_root_cause,
+)
 from .runner import (
     ArtifactMissingError,
     EpisodeEvaluationResult,
@@ -124,4 +127,5 @@ __all__ = [
     "RealTimeLoadBenchmark",
     "PlausibilityReport",
     "PlausibilityGuard",
+    "run_intensity_root_cause",
 ]
