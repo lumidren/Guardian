@@ -47,6 +47,11 @@ from .scenario import (
     SplitType,
     StreamWindow,
 )
+from .sensitivity import (
+    OperatingCurvePoint,
+    SensitivityAnalyzer,
+    SensitivityReport,
+)
 
 __all__ = [
     "BinaryMetrics",
@@ -80,4 +85,7 @@ __all__ = [
     "AblationResult",
     "AblationRunner",
     "get_standard_ablation_battery",
+    "OperatingCurvePoint",
+    "SensitivityAnalyzer",
+    "SensitivityReport",
 ]
