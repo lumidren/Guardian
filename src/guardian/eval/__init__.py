@@ -11,6 +11,14 @@ from .metrics import (
     compute_pr_auc,
     compute_roc_auc,
 )
+from .scenario import (
+    AttackIntensity,
+    EvasionMode,
+    GroundTruthEpisode,
+    ScenarioBuilder,
+    SplitType,
+    StreamWindow,
+)
 
 __all__ = [
     "BinaryMetrics",
@@ -20,4 +28,10 @@ __all__ = [
     "compute_pr_auc",
     "compute_false_alert_rate",
     "bootstrap_ci",
+    "SplitType",
+    "AttackIntensity",
+    "EvasionMode",
+    "GroundTruthEpisode",
+    "StreamWindow",
+    "ScenarioBuilder",
 ]
