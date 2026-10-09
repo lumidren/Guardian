@@ -16,6 +16,12 @@ from .metrics import (
     compute_pr_auc,
     compute_roc_auc,
 )
+from .runner import (
+    ArtifactMissingError,
+    EpisodeEvaluationResult,
+    EvaluationMetricsReport,
+    EvaluationRunner,
+)
 from .scenario import (
     AttackIntensity,
     EvasionMode,
@@ -42,4 +48,8 @@ __all__ = [
     "Calibrator",
     "FrozenOperatingPointError",
     "OperatingPoint",
+    "ArtifactMissingError",
+    "EpisodeEvaluationResult",
+    "EvaluationMetricsReport",
+    "EvaluationRunner",
 ]
