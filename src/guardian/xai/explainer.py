@@ -4,9 +4,8 @@ Analyzes multi-layer deviations to identify root causes and classify attack mech
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
-from ..config import FEATURE_NAMES
-from ..features.definitions import FEATURE_REGISTRY, FeatureMetadata
+
+from ..features.definitions import FEATURE_REGISTRY
 from ..ml.statistical_baseline import DeviationDetail
 from .templates import AttackClassification
 
@@ -29,17 +28,15 @@ class AnomalyExplainer:
 
     def explain(
         self,
-        features: Dict[str, float],
-        baseline_means: Dict[str, float],
-        ml_attribution: Dict[str, float],
-        statistical_deviations: List[DeviationDetail],
+        features: dict[str, float],
+        baseline_means: dict[str, float],
+        ml_attribution: dict[str, float],
+        statistical_deviations: list[DeviationDetail],
         top_k: int = 5
-    ) -> Tuple[List[FeatureAttribution], AttackClassification]:
+    ) -> tuple[list[FeatureAttribution], AttackClassification]:
         """
         Produce top-k feature attribution explanations and classify likely attack pattern.
         """
-        attributions: List[FeatureAttribution] = []
-
         # Merge statistical deviations and ML feature weights
         seen_features = set()
         candidates = []
@@ -134,9 +131,9 @@ class AnomalyExplainer:
 
     def _classify_attack(
         self,
-        features: Dict[str, float],
-        baseline_means: Dict[str, float],
-        top_attrs: List[FeatureAttribution]
+        features: dict[str, float],
+        baseline_means: dict[str, float],
+        top_attrs: list[FeatureAttribution]
     ) -> AttackClassification:
         """
         Classifies anomaly into attack taxonomies matching Table 8 in GUARDIAN report.

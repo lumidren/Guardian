@@ -3,12 +3,13 @@ Natural Language Generation (NLG) engine for GUARDIAN (Section 3.3.2).
 Renders structured, transparent, human-readable explanations in plain English.
 """
 
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional
+from typing import Any
+
 from ..ml.threat_scorer import ThreatAssessment
-from .explainer import FeatureAttribution, AnomalyExplainer
-from .templates import AttackClassification, ATTACK_REMEDIATIONS
+from .explainer import AnomalyExplainer
+from .templates import ATTACK_REMEDIATIONS
 
 
 @dataclass
@@ -20,11 +21,11 @@ class ExplainableAlertReport:
     threat_level: str
     confidence_level: str
     likely_attack: str
-    why_blocked_bullet_points: List[Dict[str, any]]
-    recommended_actions: List[str]
+    why_blocked_bullet_points: list[dict[str, Any]]
+    recommended_actions: list[str]
     plain_text_summary: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -37,11 +38,11 @@ class NLGEngine:
         device_id: str,
         device_name: str,
         assessment: ThreatAssessment,
-        features: Dict[str, float],
-        baseline_means: Dict[str, float],
-        ml_attribution: Dict[str, float],
+        features: dict[str, float],
+        baseline_means: dict[str, float],
+        ml_attribution: dict[str, float],
         statistical_deviations: list,
-        timestamp: Optional[float] = None
+        timestamp: float | None = None
     ) -> ExplainableAlertReport:
         """
         Generate complete GUARDIAN Explainable Alert Report matching Section 3.3.2.

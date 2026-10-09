@@ -3,11 +3,10 @@ Taxonomies, alert templates, and remediation actions for GUARDIAN Explainable AI
 Directly aligns with Section 3.3.2 and Table 8 in the GUARDIAN technical executive summary.
 """
 
-from enum import Enum
-from typing import Dict, List
+from enum import StrEnum
 
 
-class AttackClassification(str, Enum):
+class AttackClassification(StrEnum):
     DDOS_FLOODING = "DDoS Flooding"
     CNC_BEACONING = "Botnet C&C Communication"
     NETWORK_SCANNING = "Subnet Reconnaissance / Port Scan"
@@ -17,7 +16,7 @@ class AttackClassification(str, Enum):
     BENIGN_ANOMALY = "Unclassified Behavioral Deviation"
 
 
-ATTACK_REMEDIATIONS: Dict[AttackClassification, List[str]] = {
+ATTACK_REMEDIATIONS: dict[AttackClassification, list[str]] = {
     AttackClassification.DDOS_FLOODING: [
         "Isolate device immediately to protect local gateway bandwidth",
         "Inspect device firmware for Mirai or Bashlite botnet persistence",
