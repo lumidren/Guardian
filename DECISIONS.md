@@ -61,3 +61,18 @@ This document records architectural, algorithmic, and engineering decisions made
 ### ADR-010: Third-Party Numbers in Executive Summary
 - **Problem**: General market statistics (75B devices, 80% encrypted) cited in source summary.
 - **Decision**: Exclude unverified numbers from automated codebase. Must be verified and cited directly by author prior to IEEE submission.
+
+---
+
+## 2. Milestone M1 Architecture Decisions
+
+### ADR-011: Injectable Deterministic Simulation Clock (`SimClock`)
+- **Problem**: Simulating 14+ days of network traffic for IEEE evaluations in real time would require two weeks per test run; using system wall clock prevents determinism and headless replay.
+- **Decision**: All pipeline components, timestamp records, window aggregators, and response timers must accept an injected `Clock` interface (`RealClock` for live deployments, `SimClock` for simulation).
+- **Rationale**: Guarantees strict monotonicity, eliminates non-deterministic timing bugs, and enables multi-day network evaluations to run in minutes.
+
+### ADR-012: SQLite WAL Persistence & Alembic Migration Discipline
+- **Problem**: High-frequency feature window evaluation (every 2 seconds per device) causes SQLite lock contention and database growth on resource-constrained edge platforms.
+- **Decision**: SQLite configured with Write-Ahead Logging (`PRAGMA journal_mode=WAL`), `PRAGMA synchronous=NORMAL`, `PRAGMA busy_timeout=5000`, and strict foreign key integrity. All schema iterations are managed through Alembic migrations from day one.
+- **Rationale**: Concurrent reads and writes without thread deadlocks, minimal write amplification on SD cards, and auditable versioned database migrations.
+
