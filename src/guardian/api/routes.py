@@ -2,21 +2,21 @@
 FastAPI REST routes for GUARDIAN Gateway.
 """
 
-from typing import Dict, List, Optional
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Depends
 
-from ..storage.database import DatabaseManager
+from simulation.attack_suite import AttackType
+from simulation.fleet_emulator import DEFAULT_FLEET_SPECS
+
 from ..enforcement.controller import EnforcementController
 from ..intelligence.cross_device import CrossDeviceThreatIntelligence
-from simulation.fleet_emulator import DEFAULT_FLEET_SPECS
-from simulation.attack_suite import AttackType
+from ..storage.database import DatabaseManager
 
 
 class OverrideRequest(BaseModel):
     device_id: str
     requested_level: str  # MONITOR, RESTRICT, QUARANTINE, BLOCK
-    note: Optional[str] = "Manual user override from dashboard"
+    note: str | None = "Manual user override from dashboard"
 
 
 class SimulateAttackRequest(BaseModel):
@@ -62,7 +62,7 @@ def get_router(
         dev = next((d for d in devices if d["id"] == device_id or d["ip_address"] == device_id), None)
         if not dev:
             raise HTTPException(status_code=404, detail="Device not found")
-        
+
         # Add live telemetry and baseline info
         live_data = gateway_state.get("live_features", {}).get(dev["ip_address"], {})
         enf = enforcer.get_state(dev["id"])
@@ -81,7 +81,7 @@ def get_router(
         enforcer.override_manager.request_override(
             device_id=req.device_id,
             new_level=req.requested_level,
-            note=req.note
+            note=req.note or "Manual user override from dashboard"
         )
         return {
             "success": True,
@@ -99,7 +99,7 @@ def get_router(
         try:
             attack_enum = AttackType[req.attack_type.upper()]
         except KeyError:
-            raise HTTPException(status_code=400, detail=f"Invalid attack type: {req.attack_type}")
+            raise HTTPException(status_code=400, detail=f"Invalid attack type: {req.attack_type}") from None
 
         alert_report = trigger_fn(req.device_id, attack_enum)
         return {

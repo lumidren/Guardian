@@ -5,32 +5,32 @@ Combines REST routes, WebSocket broadcaster, background monitoring loop, and sta
 
 import asyncio
 import json
-import os
 import time
-from pathlib import Path
-from typing import Dict, Optional
+from typing import Any
+
 import psutil
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from ..config import config, ThreatLevel
-from ..capture.flow_tracker import FlowTracker
-from ..features.extractor import FeatureExtractor
-from ..ml.isolation_forest import IsolationForestDetector
-from ..ml.statistical_baseline import StatisticalBaseline
-from ..ml.concept_drift import ConceptDriftDetector
-from ..ml.hybrid_startup import HybridStartupManager
-from ..ml.threat_scorer import ThreatScorer
-from ..xai.nlg_engine import NLGEngine, ExplainableAlertReport
-from ..enforcement.controller import EnforcementController
-from ..intelligence.cross_device import CrossDeviceThreatIntelligence
-from ..storage.database import DatabaseManager
-from simulation.fleet_emulator import IoTFleetEmulator, DEFAULT_FLEET_SPECS, IoTDeviceSpec
 from simulation.attack_suite import AttackSuite, AttackType
 from simulation.dataset_generator import BaselineDatasetGenerator
-from .websockets import ws_manager
+from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTDeviceSpec, IoTFleetEmulator
+
+from ..capture.flow_tracker import FlowTracker
+from ..config import config
+from ..enforcement.controller import EnforcementController
+from ..features.extractor import FeatureExtractor
+from ..intelligence.cross_device import CrossDeviceThreatIntelligence
+from ..ml.concept_drift import ConceptDriftDetector
+from ..ml.hybrid_startup import HybridStartupManager
+from ..ml.isolation_forest import IsolationForestDetector
+from ..ml.statistical_baseline import DeviationDetail, StatisticalBaseline
+from ..ml.threat_scorer import ThreatScorer
+from ..storage.database import DatabaseManager
+from ..xai.nlg_engine import ExplainableAlertReport, NLGEngine
 from .routes import get_router
+from .websockets import ws_manager
 
 
 def create_app() -> FastAPI:
@@ -56,15 +56,15 @@ def create_app() -> FastAPI:
     extractor = FeatureExtractor()
     threat_scorer = ThreatScorer()
     nlg_engine = NLGEngine()
-    drift_detector = ConceptDriftDetector()
+    _drift_detector = ConceptDriftDetector()
     startup_manager = HybridStartupManager()
     attack_suite = AttackSuite()
 
     # Shared runtime state
-    models: Dict[str, IsolationForestDetector] = {}
-    baselines: Dict[str, StatisticalBaseline] = {}
-    trackers: Dict[str, FlowTracker] = {}
-    gateway_state = {
+    models: dict[str, IsolationForestDetector] = {}
+    baselines: dict[str, StatisticalBaseline] = {}
+    trackers: dict[str, FlowTracker] = {}
+    gateway_state: dict[str, Any] = {
         "live_features": {},
         "attack_trigger_fn": None,
         "is_running": True
@@ -103,10 +103,10 @@ def create_app() -> FastAPI:
             m_path = config.MODELS_DIR / f"{dev.id}_iforest.json"
             if m_path.exists():
                 models[dev.ip_address] = IsolationForestDetector.load(m_path)
-            
+
             b_path = config.DATA_DIR / f"{dev.id}_baseline.json"
             if b_path.exists():
-                with open(b_path, "r", encoding="utf-8") as f:
+                with open(b_path, encoding="utf-8") as f:
                     b_data = json.load(f)
                     stat_b = StatisticalBaseline()
                     stat_b.means = b_data.get("means", {})
@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
     initialize_fleet()
 
     # Real-time analysis logic for a single device window
-    def analyze_window(dev: IoTDeviceSpec, packets: list) -> Optional[ExplainableAlertReport]:
+    def analyze_window(dev: IoTDeviceSpec, packets: list) -> ExplainableAlertReport | None:
         t_detect_start = time.perf_counter()
         tracker = trackers.get(dev.ip_address)
         if not tracker:
@@ -138,12 +138,12 @@ def create_app() -> FastAPI:
         stat_b = baselines.get(dev.ip_address)
 
         ml_score = 0.0
-        ml_attribution = {}
+        ml_attribution: dict[str, float] = {}
         if model and model.is_trained:
             ml_score, ml_attribution = model.score_sample(vec)
 
         stat_score = 0.0
-        stat_deviations = []
+        stat_deviations: list[DeviationDetail] = []
         if stat_b and stat_b.is_ready:
             stat_score, stat_deviations = stat_b.evaluate(features)
 
@@ -154,7 +154,7 @@ def create_app() -> FastAPI:
             features=features
         )
 
-        detect_latency_ms = (time.perf_counter() - t_detect_start) * 1000.0
+        _detect_latency_ms = (time.perf_counter() - t_detect_start) * 1000.0
 
         # Enforce policy via Graduated Response Controller
         enf_state = enforcer.enforce(
@@ -214,7 +214,7 @@ def create_app() -> FastAPI:
         return report
 
     # Attack trigger handler for on-demand demonstration
-    def trigger_attack_handler(device_id: str, attack_type: AttackType) -> Optional[ExplainableAlertReport]:
+    def trigger_attack_handler(device_id: str, attack_type: AttackType) -> ExplainableAlertReport | None:
         dev = next((d for d in DEFAULT_FLEET_SPECS if d.id == device_id or d.ip_address == device_id), None)
         if not dev:
             return None
