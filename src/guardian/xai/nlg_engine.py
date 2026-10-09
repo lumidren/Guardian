@@ -74,12 +74,19 @@ class NLGEngine:
             "Check for vendor firmware updates"
         ])
 
+        action_verb = {
+            "BLOCK": "BLOCKED",
+            "QUARANTINE": "QUARANTINED",
+            "RESTRICT": "RESTRICTED",
+            "MONITOR": "FLAGGED FOR MONITORING",
+        }.get(assessment.threat_level.value, assessment.threat_level.value)
+
         # Generate the formatted plain text summary
         summary_lines = [
             f"{device_name.upper()} {assessment.threat_level.value}",
             f"THREAT DETECTED: {dt_str}",
             "",
-            f"WHY WAS IT {assessment.threat_level.value}?",
+            f"WHY WAS IT {action_verb}?",
         ]
 
         for b in bullets:
@@ -96,7 +103,7 @@ class NLGEngine:
         summary_lines.append("")
         summary_lines.append("RECOMMENDED ACTION:")
         for rem in remediations:
-            summary_lines.append(f"• {rem}")
+            summary_lines.append(f"- {rem}")
 
         plain_text = "\n".join(summary_lines)
 
