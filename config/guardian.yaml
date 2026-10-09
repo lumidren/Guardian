@@ -1,0 +1,65 @@
+# GUARDIAN Master Configuration (Appendix A)
+window:
+  length_s: 10.0
+  stride_s: 2.0
+
+stages:
+  rules_hours: 24.0
+  statistical_hours: 24.0
+  ml_min_samples: 20000
+
+detection:
+  robust_z:
+    threshold: 3.5
+    clip: 20.0
+    top_k: 5
+  iforest:
+    n_estimators: 200
+    max_samples: auto
+    seed: 42
+    holdout_fraction: 0.2
+  fusion_weights:
+    ml: 0.5
+    stat: 0.3
+    net: 0.2
+  hysteresis:
+    k: 2
+    n: 3
+    calm_windows: 15
+
+levels:
+  monitor_max: 30.0
+  restrict_max: 60.0
+  quarantine_max: 85.0
+
+response:
+  mode: observe
+  backend: dryrun
+  ttl_s:
+    restrict: 900
+    quarantine: 3600
+    block: null
+  protected_addresses: []
+
+network_identity:
+  known_after_windows: 20
+  known_after_hours: 2
+
+drift:
+  check_every_h: 168
+  auto_pct: 10.0
+  ask_pct: 30.0
+
+source:
+  type: simulator
+  scenario: scenarios/default.yaml
+  speed: fast
+
+api:
+  host: "127.0.0.1"
+  port: 8000
+  demo_mode: false
+
+geo:
+  provider: null
+  db_path: null
