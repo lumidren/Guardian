@@ -105,7 +105,6 @@ def test_non_semantic_fields_artifact_audit() -> None:
     x_atk = [extract_non_semantic(p) for p in attack_pkts]
 
     x = np.array(x_norm + x_atk)
-    y = np.array([0] * len(x_norm) + [1] * len(x_atk))
 
     # Evaluate a decision stump classifier across all non-semantic features
     best_acc = 0.5
