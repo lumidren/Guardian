@@ -42,6 +42,8 @@ models/checkpoints/*
 *.sqlite3
 *.db
 .coverage
+coverage.xml
+*.coverage.*
 .pytest_cache/
 htmlcov/
 
