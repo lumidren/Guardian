@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from guardian.eval.pcap_calibration import (
     extract_per_feature_pcap_stats,
     fit_bidirectional_ratio_model,
@@ -167,3 +169,22 @@ def test_dns_and_ntp_background_chatter() -> None:
     assert len(dns_pkts) == 2 and any(p.is_outbound for p in dns_pkts) and any(not p.is_outbound for p in dns_pkts)
     assert len(ntp_pkts) == 2 and any(p.is_outbound for p in ntp_pkts) and any(not p.is_outbound for p in ntp_pkts)
     assert all(p.protocol == "UDP" for p in pkts)
+
+
+def test_per_device_type_parameter_files_from_calibration(tmp_path: Path) -> None:
+    """Task 38: Verify per-device-type calibrated parameter files serialize all 5 fitted sub-models."""
+    from guardian.eval.pcap_calibration import save_calibrated_device_type_profiles
+
+    out_file = tmp_path / "calibrated_devices.json"
+    payload = save_calibrated_device_type_profiles(out_file)
+    assert out_file.exists()
+    assert "Smart Home Gateway" in payload["device_types"]
+    gw = payload["device_types"]["Smart Home Gateway"]
+    for key in (
+        "packet_size_model",
+        "inter_arrival_model",
+        "bidirectional_model",
+        "tcp_window_ttl_model",
+        "protocol_mix_model",
+    ):
+        assert key in gw

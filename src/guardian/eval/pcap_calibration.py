@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -411,6 +411,62 @@ def fit_protocol_mix_per_device_type(
     return mixes
 
 
+@dataclass(frozen=True)
+class CalibratedDeviceTypeProfile:
+    """Complete calibrated simulator parameter profile for an IoT device type."""
+
+    device_type: str
+    packet_size_model: PacketSizeMixtureModel
+    inter_arrival_model: IATMicroBurstModel
+    bidirectional_model: BidirectionalRatioModel
+    tcp_window_ttl_model: TCPStackDistributionModel
+    protocol_mix_model: ProtocolMixModel
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "device_type": self.device_type,
+            "packet_size_model": asdict(self.packet_size_model),
+            "inter_arrival_model": asdict(self.inter_arrival_model),
+            "bidirectional_model": asdict(self.bidirectional_model),
+            "tcp_window_ttl_model": asdict(self.tcp_window_ttl_model),
+            "protocol_mix_model": asdict(self.protocol_mix_model),
+        }
 
 
+def build_calibrated_device_type_profiles(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> dict[str, CalibratedDeviceTypeProfile]:
+    """Assemble calibrated parameter profiles per device type from fitted PCAP models."""
+    s = stats or extract_per_feature_pcap_stats()
+    pkt_size = fit_packet_size_mixture_model(s)
+    iat = fit_iat_micro_burst_model(s)
+    bidir = fit_bidirectional_ratio_model(s)
+    tcp_ttl = fit_tcp_window_and_ttl_distributions(s)
+    proto_mixes = fit_protocol_mix_per_device_type(s)
 
+    profiles: dict[str, CalibratedDeviceTypeProfile] = {}
+    for dtype, mix in proto_mixes.items():
+        profiles[dtype] = CalibratedDeviceTypeProfile(
+            device_type=dtype,
+            packet_size_model=pkt_size,
+            inter_arrival_model=iat,
+            bidirectional_model=bidir,
+            tcp_window_ttl_model=tcp_ttl,
+            protocol_mix_model=mix,
+        )
+    return profiles
+
+
+def save_calibrated_device_type_profiles(
+    output_path: Path,
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> dict[str, Any]:
+    """Write per-device-type calibrated parameter profiles to JSON and return the payload."""
+    profiles = build_calibrated_device_type_profiles(stats)
+    payload: dict[str, Any] = {
+        "source_pcap_summary": str(DEFAULT_COMPARISON_JSON.name),
+        "device_types": {dtype: prof.to_dict() for dtype, prof in profiles.items()},
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
