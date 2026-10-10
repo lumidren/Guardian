@@ -70,8 +70,8 @@ def _get_git_commit_sha() -> str:
 def _evaluate_adversarial_schedule(
     runner: EvaluationRunner,
     episodes_per_mode: int,
-    pre_buffer_s: float = 10.0,
-    post_buffer_s: float = 4.0,
+    pre_buffer_s: float = 20.0,
+    post_buffer_s: float = 10.0,
 ) -> dict[str, Any]:
     """
     Evaluate hardened adversarial evasion modes (`50+` episodes per mode per seed
@@ -974,27 +974,33 @@ def generate_results_markdown(report: dict[str, Any]) -> str:
 
     curves = report["baselines"].get("operating_curves", {})
     if curves and "guardian" in curves and "zscore" in curves:
+        g_m = report["baselines"]["methods"][0]
+        z_m = report["baselines"]["methods"][3]
+        g_eq = eq_far.get("guardian", g_m)
+        z_eq = eq_far.get("zscore", z_m)
+        g_pts = curves["guardian"]
+        z_pts = curves["zscore"]
+        p_pts = curves.get("pooled", g_pts)
+        g_high = g_pts[-1]
+        z_high = z_pts[-1]
         lines.extend([
             "",
             "### 2.3 Why Uncalibrated `Robust Z-Score Only` Has Higher Raw TPR Than `GUARDIAN` — and Why `GUARDIAN` Wins at Equal FAR",
             "",
-            "1. **Why Raw Uncalibrated `Robust Z-Score Only` Has Higher Raw Episode TPR (`99.3%–100.0%` vs. `92.5%–93.8%`)**:",
+            f"1. **Why Raw Uncalibrated `Robust Z-Score Only` Has Higher Raw Episode TPR (`{z_m['tpr']:.1f}%` vs. `{g_m['tpr']:.1f}%`)**:",
             "   - `RobustZScoreOnlyBaseline` computes the **maximum single-feature absolute $Z$-score** across all 60 features ($z_{\\max} = \\max_{j \\in \\{1..60\\}} |Z_j|$) and maps any $z_{\\max} \\ge 3.51$ to score $\\ge 60.0$ (clipping at $100.0$ for $z_{\\max} \\ge 5.61$).",
-            "   - Even a 1-packet covert `HARD`-tier injection perturbs at least one ratio or inter-arrival feature beyond $3.51\\sigma$, allowing `Robust Z-Score Only` at its uncalibrated threshold (`60.0`) to flag nearly every `HARD`-tier episode.",
-            "   - **The Operational Cost**: Taking the raw maximum across 60 heavy-tailed network features makes `Robust Z-Score Only` hypersensitive to benign operational bursts (`USER_TOGGLING`, `DNS_RETRY_STORM`, `MQTT_RECONNECT_FLOOD`, `CAMERA_MOTION_BURST`, `ROUTER_REBOOT`, `DST_CHANGE`). At threshold `60.0`, it suffers **`11.73%` window FPR (`1.44` false alerts/device/day)**—70% more false alarms than calibrated `GUARDIAN` (`6.95%` window FPR, `0.85` false alerts/device/day).",
+            f"   - Even a 1-packet covert `HARD`-tier injection perturbs at least one ratio or inter-arrival feature beyond $3.51\\sigma$, allowing `Robust Z-Score Only` at its uncalibrated threshold (`{z_m['threshold']:.2f}`) to flag `{z_m['tpr']:.1f}%` of episodes.",
+            f"   - **The Operational Cost**: Taking the raw maximum across 60 heavy-tailed network features makes `Robust Z-Score Only` hypersensitive to benign operational bursts (`USER_TOGGLING`, `DNS_RETRY_STORM`, `MQTT_RECONNECT_FLOOD`, `CAMERA_MOTION_BURST`, `ROUTER_REBOOT`, `DST_CHANGE`). At threshold `{z_m['threshold']:.2f}`, it suffers **`{z_m['fpr']:.2f}%` window FPR (`{z_m['far_per_day']:.2f}` false alerts/device/day)**—substantially higher false alarms than calibrated `GUARDIAN` (`{g_m['fpr']:.2f}%` window FPR, `{g_m['far_per_day']:.2f}` false alerts/device/day at threshold `{g_m['threshold']:.2f}`).",
             "2. **Why `GUARDIAN` Beats `Robust Z-Score Only` at Equal False-Alarm Rate and Low-FPR Operating Points**:",
             "   - `GUARDIAN` averages top-$K$ ($K=5$) statistical deviations ($S_{\\text{stat}}$) and fuses them with the 60-feature per-device Isolation Forest score ($S_{\\text{ML}}$) plus topology priors ($S_{\\text{net}}$), calibrated on Day 8 clean traffic.",
-            "   - When `Robust Z-Score Only` is forced to match `GUARDIAN`'s false-alarm rate ($\\text{FAR} \\le 0.85$ false alerts/device/day), `Robust Z-Score Only` must raise its threshold to `99.9`, where its episode TPR drops below `GUARDIAN` (`95.56%` vs `98.89%` on single-seed / `94.6%` vs `GUARDIAN`'s smooth operating curve).",
-            "   - Furthermore, because `Robust Z-Score Only` clips at `100.0` whenever any single feature exceeds $5.61\\sigma$, `40` benign operational windows saturate at `100.0` (`FAR = 0.83` at `threshold = 99.0`), making it **impossible** for `Robust Z-Score Only` to achieve $\\text{FAR} < 0.83$ without collapsing to `0.0%` TPR (`threshold > 100.0`). In contrast, `GUARDIAN`'s fused ensemble score remains continuous up to `99.0`, achieving **`69.0%–75.6%` episode TPR at `0.00` false alerts/device/day (`0.00%` FPR)**.",
+            f"   - At the equal false-alarm rate operating point ($\\text{{FAR}} \\le 1.00$ false alert/device/day in Table 2.2), `GUARDIAN` achieves **`{g_eq.get('episode_tpr', g_m['tpr']):.2f}%` episode TPR** (`{g_eq['far_per_day']:.2f}` FAR/day, F1 `{g_eq['f1']:.4f}` at threshold `{g_eq['threshold']:.2f}`) vs. `Robust Z-Score Only` at **`{z_eq.get('episode_tpr', z_m['tpr']):.2f}%` episode TPR** (`{z_eq['far_per_day']:.2f}` FAR/day, F1 `{z_eq['f1']:.4f}` at threshold `{z_eq['threshold']:.2f}`).",
+            f"   - Furthermore, because `Robust Z-Score Only` clips at `100.0` whenever any single feature exceeds $5.61\\sigma$, benign operational windows saturate at `100.0` (`FAR = {z_high['far_per_day']:.2f}`, `FPR = {z_high['fpr']:.2f}%` even at `threshold = {z_high['threshold']:.2f}`), making it **impossible** for `Robust Z-Score Only` to reach zero false alarms without collapsing to `0.0%` TPR (`threshold > 100.0`). In contrast, `GUARDIAN`'s fused ensemble score remains continuous up to `{g_high['threshold']:.2f}`, achieving **`{g_high['episode_tpr']:.2f}%` episode TPR at `{g_high['far_per_day']:.2f}` false alerts/device/day (`{g_high['fpr']:.2f}%` FPR)**.",
             "",
             "#### Operating Curves (`GUARDIAN` vs. `Robust Z-Score Only` vs. `Pooled IF` Across Thresholds)",
             "",
             "| Alert Threshold | GUARDIAN Ep TPR (%) | GUARDIAN Win FPR (%) | GUARDIAN FAR/Day | Robust Z-Score Ep TPR (%) | Robust Z-Score Win FPR (%) | Robust Z-Score FAR/Day | Pooled IF Ep TPR (%) | Pooled IF Win FPR (%) | Pooled IF FAR/Day |",
             "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
         ])
-        g_pts = curves["guardian"]
-        z_pts = curves["zscore"]
-        p_pts = curves.get("pooled", g_pts)
         for g_p, z_p, p_p in zip(g_pts, z_pts, p_pts, strict=False):
             lines.append(
                 f"| **{g_p['threshold']:.2f}** | {g_p['episode_tpr']:.2f}% | {g_p['fpr']:.2f}% | {g_p['far_per_day']:.2f} | "
