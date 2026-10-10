@@ -310,20 +310,25 @@ class ScenarioBuilder:
                         victim_device=dev,
                         tier=ep.tier,
                     )
-                    # Scale packets by intensity and evasion mode
-                    multiplier = (
-                        0.5
-                        if ep.intensity == AttackIntensity.LOW
-                        else (2.0 if ep.intensity == AttackIntensity.HIGH else 1.0)
-                    )
-                    if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
-                        multiplier *= 0.15
+                    if ep.tier == DifficultyTier.HARD:
+                        if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
+                            sample_attack = raw_attack[: max(1, int(len(raw_attack) * 0.5))]
+                        else:
+                            sample_attack = raw_attack
+                    else:
+                        multiplier = (
+                            0.5
+                            if ep.intensity == AttackIntensity.LOW
+                            else (2.0 if ep.intensity == AttackIntensity.HIGH else 1.0)
+                        )
+                        if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
+                            multiplier *= 0.15
 
-                    target_count = max(
-                        2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
-                        int(len(raw_attack) * multiplier),
-                    )
-                    sample_attack = raw_attack[:target_count]
+                        target_count = max(
+                            2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
+                            int(len(raw_attack) * multiplier),
+                        )
+                        sample_attack = raw_attack[:target_count]
 
                     # Interpolate attack packet timestamps within overlapping active portion
                     overlap_start = max(w_start, active_start)
