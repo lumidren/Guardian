@@ -113,9 +113,13 @@ def test_ablation_battery_execution() -> None:
 
 def test_no_ablation_row_has_zero_tpr_with_high_auc() -> None:
     """
-    Verify that no ablation row exhibits the contradictory combination of
-    TPR == 0.0 and ROC-AUC > 0.9 in the same row across protocol schedule execution.
+    Task 13: Verify that no ablation row exhibits the contradictory combination of
+    TPR == 0.0 and ROC-AUC > 0.9 in the same row across live protocol schedule execution,
+    eval/results/latest.json, and eval/RESULTS.md.
     """
+    import json
+    from pathlib import Path
+
     from guardian.eval.runner import EvaluationRunner
     from guardian.eval.scenario import DifficultyTier
 
@@ -148,3 +152,13 @@ def test_no_ablation_row_has_zero_tpr_with_high_auc() -> None:
         assert not (r.recall == 0.0 and r.roc_auc > 0.9), (
             f"Contradictory ablation row {r.config_name}: Recall={r.recall} == 0.0 while ROC-AUC={r.roc_auc} > 0.9"
         )
+
+    latest_path = Path("eval/results/latest.json")
+    if latest_path.exists():
+        latest = json.loads(latest_path.read_text(encoding="utf-8"))
+        for row in latest.get("ablation_rows", []):
+            row_tpr = float(row.get("tpr", 0.0))
+            row_auc = float(row.get("roc_auc", 0.0))
+            assert not (row_tpr == 0.0 and row_auc > 0.9), (
+                f"Contradictory published ablation row {row.get('variant')}: TPR={row_tpr} with ROC-AUC={row_auc}"
+            )
