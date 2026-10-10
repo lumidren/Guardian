@@ -134,11 +134,38 @@ DEFAULT_FLEET_SPECS: list[IoTDeviceSpec] = [
 ]
 
 
+class EphemeralPortAllocator:
+    """Persistent IANA dynamic/private ephemeral port allocator (49152..65535) per active flow."""
+
+    def __init__(self, min_port: int = 49152, max_port: int = 65535) -> None:
+        self.min_port = min_port
+        self.max_port = max_port
+        self._flow_ports: dict[tuple[str, str, int], int] = {}
+
+    def get_or_allocate(self, device_id: str, dst_ip: str, service_port: int) -> int:
+        """Return persistent client ephemeral port for (device_id, dst_ip, service_port)."""
+        key = (device_id, dst_ip, service_port)
+        if key not in self._flow_ports:
+            # Deterministic initial port seeded from flow key within [min_port, max_port]
+            span = self.max_port - self.min_port + 1
+            seed_val = sum(ord(c) for c in f"{device_id}:{dst_ip}:{service_port}")
+            self._flow_ports[key] = self.min_port + ((seed_val * 2654435761) % span)
+        return self._flow_ports[key]
+
+    def rotate_port(self, device_id: str, dst_ip: str, service_port: int) -> int:
+        """Advance to next sequential ephemeral port when a session reconnects."""
+        current = self.get_or_allocate(device_id, dst_ip, service_port)
+        next_port = self.min_port + ((current - self.min_port + 1) % (self.max_port - self.min_port + 1))
+        self._flow_ports[(device_id, dst_ip, service_port)] = next_port
+        return next_port
+
+
 class IoTFleetEmulator:
     def __init__(self, specs: list[IoTDeviceSpec] | None = None):
         self.specs = specs or DEFAULT_FLEET_SPECS
         self.specs_by_ip = {s.ip_address: s for s in self.specs}
         self.specs_by_id = {s.id: s for s in self.specs}
+        self.port_allocator = EphemeralPortAllocator()
 
     def generate_normal_window_packets(
         self,
@@ -224,7 +251,7 @@ class IoTFleetEmulator:
         peer_ip = device.normal_destinations[0]
         is_mqtt = device.primary_protocol == "MQTT"
         service_port = 1883 if is_mqtt else (443 if device.primary_protocol == "HTTPS" else 80)
-        client_port = random.randint(49152, 65535)
+        client_port = self.port_allocator.get_or_allocate(device.id, peer_ip, service_port)
 
         n_outbound = max(1, min(pkt_count - 1, int(round(pkt_count * upstream_pkt_ratio))))
         directions = [True] * n_outbound + [False] * (pkt_count - n_outbound)

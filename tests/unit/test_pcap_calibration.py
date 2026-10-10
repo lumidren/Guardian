@@ -137,3 +137,19 @@ def test_tls_keepalive_burst_model() -> None:
     iats_ms = [(pkts[i].timestamp - pkts[i - 1].timestamp) * 1000.0 for i in range(1, len(pkts))]
     assert min(iats_ms) < 20.0
     assert max(iats_ms) > 250.0
+
+
+def test_ephemeral_port_allocation() -> None:
+    """Task 36: Verify persistent ephemeral port allocation keeps unique_dst_ports=2 across bidirectional flows."""
+    from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
+
+    emulator = IoTFleetEmulator()
+    device = DEFAULT_FLEET_SPECS[0]
+    w1 = emulator.generate_bidirectional_window_packets(device, current_time=1000.0)
+    w2 = emulator.generate_bidirectional_window_packets(device, current_time=1010.0)
+    dst_ports_w1 = {p.dst_port for p in w1}
+    dst_ports_w2 = {p.dst_port for p in w2}
+    assert len(dst_ports_w1) == 2
+    assert dst_ports_w1 == dst_ports_w2
+    rotated = emulator.port_allocator.rotate_port(device.id, device.normal_destinations[0], 1883)
+    assert 49152 <= rotated <= 65535
