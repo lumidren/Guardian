@@ -60,8 +60,6 @@ class LinuxNftablesDriver:
         Build an atomic `nft -f` script reflecting all active device policies.
         """
         lines = [
-            "table inet guardian_filter",
-            "flush table inet guardian_filter",
             "table inet guardian_filter {",
             "    chain forward {",
             "        type filter hook forward priority 0; policy accept;",
@@ -126,6 +124,12 @@ class LinuxNftablesDriver:
             return False
         script = self.build_atomic_ruleset()
         try:
+            subprocess.run(
+                self._prefix_cmd(["nft", "delete", "table", "inet", "guardian_filter"]),
+                check=False,
+                capture_output=True,
+                text=True,
+            )
             subprocess.run(
                 self._prefix_cmd(["nft", "-f", "-"]),
                 input=script,
