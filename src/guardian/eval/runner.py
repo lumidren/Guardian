@@ -244,6 +244,10 @@ class EvaluationRunner:
         if self._pooled_model is not None and self._pooled_model.is_trained:
             return self._pooled_model
 
+        pool_seed = (self.seed * 100003 + 101) & 0x7FFFFFFF
+        random.seed(pool_seed)
+        np.random.seed(pool_seed)
+
         pooled_vecs: list[np.ndarray] = []
         for idx, dev in enumerate(self.devices):
             dev_vecs = self._extract_clean_vectors(
@@ -273,9 +277,14 @@ class EvaluationRunner:
         calibration_scores: list[float] = []
         pooled_cal_scores: list[float] = []
         pooled_model = self._ensure_pooled_model()
-
         for dev in self.devices:
             self._ensure_device_artifacts(dev)
+
+        cal_seed = (self.seed * 100003 + 202) & 0x7FFFFFFF
+        random.seed(cal_seed)
+        np.random.seed(cal_seed)
+
+        for dev in self.devices:
             model = self._models[dev.id]
             baseline = self._baselines[dev.id]
 
@@ -333,9 +342,6 @@ class EvaluationRunner:
         """
         Execute the full production pipeline over a time slice for a single device.
         """
-        random.seed(self.seed)
-        np.random.seed(self.seed)
-
         dev = next((d for d in self.devices if d.id == device_id or d.ip_address == device_id), None)
         if not dev:
             raise ValueError(f"Unknown device ID: {device_id}")
@@ -344,6 +350,10 @@ class EvaluationRunner:
         model = self._models[dev.id]
         baseline = self._baselines[dev.id]
         pooled_model = self._ensure_pooled_model()
+
+        slice_seed = (self.seed * 100003 + int(start_time)) & 0x7FFFFFFF
+        random.seed(slice_seed)
+        np.random.seed(slice_seed)
 
         enforcer = EnforcementController()
         flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
@@ -573,6 +583,13 @@ class EvaluationRunner:
         reflect realistic operational IoT traffic.
         """
         pooled_model = self._ensure_pooled_model()
+        for dev in self.devices:
+            self._ensure_device_artifacts(dev)
+
+        bg_seed = (self.seed * 100003 + 999983) & 0x7FFFFFFF
+        random.seed(bg_seed)
+        np.random.seed(bg_seed)
+
         benign_types = [
             HardNegativeType.USER_TOGGLING,
             HardNegativeType.DNS_RETRY_STORM,
@@ -587,7 +604,6 @@ class EvaluationRunner:
 
         for rep_idx in range(repeats):
             for d_idx, dev in enumerate(self.devices):
-                self._ensure_device_artifacts(dev)
                 model = self._models[dev.id]
                 baseline = self._baselines[dev.id]
                 static_baseline = StaticThresholdBaseline.from_device_spec(dev)
@@ -643,8 +659,8 @@ class EvaluationRunner:
     def evaluate_ground_truth_schedule(
         self,
         episodes: Sequence[GroundTruthEpisode],
-        pre_buffer_s: float = 20.0,
-        post_buffer_s: float = 10.0,
+        pre_buffer_s: float = 10.0,
+        post_buffer_s: float = 4.0,
     ) -> dict[str, Any]:
         """
         Evaluates a schedule of ground truth attack episodes over their respective time windows.
