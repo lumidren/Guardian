@@ -916,6 +916,8 @@ class EvaluationRunner:
             target_far=1.0,
         )
 
+        baseline_tpr_at_far_1 = extract_baseline_tpr_at_far_1(equal_far_comparison)
+
         return {
             "detection_rows": detection_rows,
             "per_cell_rows": per_cell_rows,
@@ -940,10 +942,21 @@ class EvaluationRunner:
                 "static": detector_summary["static"]["far_per_day"],
                 "zscore": detector_summary["zscore"]["far_per_day"],
             },
+            "baseline_tpr_at_far_1": baseline_tpr_at_far_1,
             "detector_confusion_summary": detector_summary,
             "equal_far_comparison": equal_far_comparison,
             "operating_curves": operating_curves,
         }
+
+
+def extract_baseline_tpr_at_far_1(
+    equal_far_comparison: Mapping[str, Mapping[str, Any]],
+) -> dict[str, float]:
+    """Return each detector's episode TPR (%) at the 1.0 false alert/device/day operating point."""
+    return {
+        str(k): round(float(pt.get("episode_tpr", 0.0)), 2)
+        for k, pt in equal_far_comparison.items()
+    }
 
 
 def evaluate_detector_point_at_threshold(
