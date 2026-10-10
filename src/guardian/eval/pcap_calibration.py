@@ -619,3 +619,72 @@ def generate_cross_domain_fpr_after_calibration_report(
             "test_windows": in_domain_windows,
         },
     }
+
+
+def generate_before_after_realism_markdown(
+    comparison_json_path: Path | str | None = None,
+    seed: int = 42,
+) -> str:
+    """
+    Task 41: Programmatically generate the before/after simulator calibration realism table
+    from empirical PCAP statistics and calibrated cross-domain evaluation results.
+    """
+    stats = extract_per_feature_pcap_stats(comparison_json_path)
+    ks_rep = compute_calibrated_ks_and_smd_report(stats=stats, n_windows=500, seed=seed)
+    fpr_rep = generate_cross_domain_fpr_after_calibration_report(
+        comparison_json_path=comparison_json_path,
+        n_train_windows=500,
+        n_test_windows=500,
+        seed=seed,
+    )
+    before = fpr_rep["before_calibration"]
+    after = fpr_rep["after_calibration"]
+    in_dom = fpr_rep["in_domain_real_reference"]
+
+    lines = [
+        "# Simulator Realism Calibration: Before vs After Report",
+        "",
+        "Generated programmatically from `eval/results/real_pcap_64mb_comparison.json`",
+        "and `guardian.eval.pcap_calibration` (seed=42, n=500 windows).",
+        "",
+        "## 1. Cross-Domain Transfer & Nonzero-Variance Feature Realism Summary",
+        "",
+        "| Metric | Uncalibrated Simulator (Before) | Calibrated Simulator (After) | In-Domain Real Reference |",
+        "| :--- | :---: | :---: | :---: |",
+        (
+            f"| **Nonzero-Variance Feature Matches (`SMD < 1.0` & `KS < 0.35`)** | "
+            f"`{before['nonzero_variance_matched_features']} / {before['nonzero_variance_total_features']}` | "
+            f"`{after['nonzero_variance_matched_features']} / {after['nonzero_variance_total_features']}` | "
+            f"`{after['nonzero_variance_total_features']} / {after['nonzero_variance_total_features']}` |"
+        ),
+        (
+            f"| **Cross-Domain Window FPR (`p99` threshold)** | "
+            f"`{before['cross_domain_fpr'] * 100.0:.2f}%` | "
+            f"`{after['cross_domain_fpr'] * 100.0:.2f}%` "
+            f"(`[{after['cross_domain_fpr_ci_95'][0] * 100.0:.2f}%, {after['cross_domain_fpr_ci_95'][1] * 100.0:.2f}%]`) | "
+            f"`{in_dom['fpr'] * 100.0:.2f}%` "
+            f"(`[{in_dom['fpr_ci_95'][0] * 100.0:.2f}%, {in_dom['fpr_ci_95'][1] * 100.0:.2f}%]`) |"
+        ),
+        (
+            f"| **False Alerts / Device / Day (`8,640` windows/day)** | "
+            f"`{before['false_alerts_per_device_day']:.2f}` | "
+            f"`{after['false_alerts_per_device_day']:.2f}` | "
+            f"`{in_dom['false_alerts_per_device_day']:.2f}` |"
+        ),
+        "",
+        "## 2. Per-Feature Before/After Calibration Comparison (27 Nonzero-Variance Features)",
+        "",
+        "| Feature | Real Mean (`Std`) | Uncalibrated Sim Mean (`SMD`) | Calibrated Sim Mean (`SMD`, `KS`) | Status |",
+        "| :--- | :---: | :---: | :---: | :---: |",
+    ]
+    for fname, frow in ks_rep["features"].items():
+        orig_sim_mean = stats[fname].sim_mean
+        status = "MATCH" if frow["matched"] else "RESIDUAL"
+        lines.append(
+            f"| `{fname}` | `{frow['real_mean']:.4f}` (`{frow['real_std']:.4f}`) | "
+            f"`{orig_sim_mean:.4f}` (`{frow['uncalibrated_smd']:.4f}`) | "
+            f"`{frow['calibrated_sim_mean']:.4f}` (`{frow['calibrated_smd']:.4f}`, `{frow['ks_stat']:.4f}`) | "
+            f"`{status}` |"
+        )
+    lines.append("")
+    return "\n".join(lines)

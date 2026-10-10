@@ -217,3 +217,13 @@ def test_cross_domain_fpr_report_after_calibration() -> None:
     ci_lo, ci_hi = rep["after_calibration"]["cross_domain_fpr_ci_95"]
     assert 0.0 <= ci_lo <= rep["after_calibration"]["cross_domain_fpr"] <= ci_hi <= 1.0
     assert rep["in_domain_real_reference"]["test_windows"] == 7415
+
+
+def test_before_after_realism_table_doc() -> None:
+    """Task 41: Verify docs/SIMULATOR_REALISM.md matches programmatic before/after realism table."""
+    from guardian.eval.pcap_calibration import generate_before_after_realism_markdown
+
+    doc_path = Path(__file__).resolve().parent.parent.parent / "docs" / "SIMULATOR_REALISM.md"
+    expected = generate_before_after_realism_markdown(seed=42)
+    assert doc_path.exists(), "docs/SIMULATOR_REALISM.md must exist"
+    assert doc_path.read_text(encoding="utf-8") == expected
