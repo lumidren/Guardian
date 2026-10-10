@@ -70,8 +70,8 @@ def _get_git_commit_sha() -> str:
 def _evaluate_adversarial_schedule(
     runner: EvaluationRunner,
     episodes_per_mode: int,
-    pre_buffer_s: float = 20.0,
-    post_buffer_s: float = 10.0,
+    pre_buffer_s: float = 10.0,
+    post_buffer_s: float = 4.0,
 ) -> dict[str, Any]:
     """
     Evaluate hardened adversarial evasion modes (`50+` episodes per mode per seed
@@ -507,12 +507,15 @@ def generate_multi_seed_evaluation_report(
 
     workers = max_workers or min(len(seeds), os.cpu_count() or 4)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [
-            executor.submit(generate_full_evaluation_report, s, quick_mode)
-            for s in seeds
-        ]
-        seed_reports = [f.result() for f in futures]
+    if quick_mode or workers <= 1 or len(seeds) <= 1:
+        seed_reports = [generate_full_evaluation_report(s, quick_mode=quick_mode) for s in seeds]
+    else:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = [
+                executor.submit(_evaluate_single_seed_worker, s, quick_mode)
+                for s in seeds
+            ]
+            seed_reports = [f.result() for f in futures]
 
     for rep in seed_reports:
         if base_report is None:
