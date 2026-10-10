@@ -48,9 +48,12 @@ jobs:
       run: |
         pytest --cov=src/guardian --cov-report=xml tests/unit -v
 
-    - name: Privileged Linux nftables & Playwright Dashboard E2E Verification
+    - name: Privileged Linux nftables Enforcement Verification
       run: |
         sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "nftables" -v -s
+
+    - name: Playwright Dashboard E2E Verification
+      run: |
         PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "playwright" -v -s
 
     - name: Evaluation Battery Demo (make demo)
