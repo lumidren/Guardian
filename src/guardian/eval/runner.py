@@ -260,8 +260,28 @@ class EvaluationRunner:
         pooled = PooledIsolationForestBaseline(n_estimators=50, seed=self.seed)
         if len(pooled_vecs) >= 2:
             pooled.fit([v.tolist() for v in pooled_vecs])
+            train_scores = [float(pooled.score_sample(v)[0] * 100.0) for v in pooled_vecs]
+            if train_scores:
+                op = Calibrator(target_fpr=0.05).calibrate_from_scores(train_scores)
+                self._baseline_thresholds["pooled"] = min(95.0, float(op.alert_threshold))
         self._pooled_model = pooled
         return pooled
+
+    def calibrate_pooled_threshold(
+        self,
+        pooled_cal_scores: Sequence[float],
+        target_fpr: float = 0.05,
+    ) -> float:
+        """
+        Calibrate PooledIsolationForestBaseline alert threshold on Day 8 clean scores
+        on the [0, 100] scale, clamped below 95.0 to prevent saturation lock-out.
+        """
+        if not pooled_cal_scores:
+            return float(self._baseline_thresholds.get("pooled", 52.0))
+        pooled_op = Calibrator(target_fpr=target_fpr).calibrate_from_scores(pooled_cal_scores)
+        thresh = min(95.0, max(35.0, float(pooled_op.alert_threshold)))
+        self._baseline_thresholds["pooled"] = thresh
+        return thresh
 
     def calibrate_operating_point(
         self,
@@ -326,9 +346,7 @@ class EvaluationRunner:
         chosen_op = calibrator.calibrate_from_scores(calibration_scores)
         self.operating_point = chosen_op
 
-        if pooled_cal_scores:
-            pooled_op = Calibrator(target_fpr=target_fpr).calibrate_from_scores(pooled_cal_scores)
-            self._baseline_thresholds["pooled"] = float(pooled_op.alert_threshold)
+        self.calibrate_pooled_threshold(pooled_cal_scores, target_fpr=target_fpr)
 
         return chosen_op
 
