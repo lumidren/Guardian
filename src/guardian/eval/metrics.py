@@ -304,7 +304,12 @@ def compute_episode_detection_metrics(
 
     detected_count = sum(1 for f in detected_flags if f == 1.0)
     det_rate = detected_count / total
-    det_ci = bootstrap_ci(detected_flags, num_bootstraps=1000, ci=0.95, seed=seed)
+    det_ci = wilson_score_ci(
+        successes=detected_count,
+        total=total,
+        ci=0.95,
+        scale_100=False,
+    )
 
     if ttd_values:
         mean_ttd = float(np.mean(ttd_values))
