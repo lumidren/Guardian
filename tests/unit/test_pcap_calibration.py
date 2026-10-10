@@ -7,6 +7,7 @@ from guardian.eval.pcap_calibration import (
     fit_bidirectional_ratio_model,
     fit_iat_micro_burst_model,
     fit_packet_size_mixture_model,
+    fit_tcp_window_and_ttl_distributions,
 )
 from guardian.features.registry import FEATURE_NAMES
 
@@ -64,6 +65,22 @@ def test_fit_bidirectional_ratio_model() -> None:
     rng = np.random.default_rng(42)
     flags = [model.sample_outbound_flag(rng) for _ in range(400)]
     assert 0.30 <= (sum(flags) / len(flags)) <= 0.70
+
+
+def test_fit_tcp_window_and_ttl_distributions() -> None:
+    """Task 31: Verify TCP window and TTL distributions match real PCAP stack telemetry."""
+    import numpy as np
+
+    model = fit_tcp_window_and_ttl_distributions()
+    assert 1000.0 <= model.tcp_win_mean <= 16384.0
+    assert model.outbound_ttl == 64
+    assert 40 <= model.inbound_wan_ttl < 64
+    rng = np.random.default_rng(42)
+    ttls = [model.sample_ttl(is_outbound=(i % 2 == 0), is_external=True) for i in range(100)]
+    assert abs(float(np.var(ttls)) - model.ip_ttl_variance_target) < 5.0
+    win = model.sample_tcp_window(is_outbound=True, rng=rng)
+    assert 502 <= win <= 65535
+
 
 
 

@@ -265,4 +265,63 @@ def fit_bidirectional_ratio_model(
     )
 
 
+@dataclass(frozen=True)
+class TCPStackDistributionModel:
+    """
+    Task 31: TCP window size, flag ratios, and IPv4 TTL/IP-ID stack distributions fitted from real PCAP.
+    """
+
+    tcp_win_mean: float
+    tcp_win_std: float
+    outbound_ttl: int
+    inbound_wan_ttl: int
+    ip_ttl_variance_target: float
+    tcp_psh_ratio: float
+    tcp_ack_ratio: float
+    tcp_syn_ratio: float
+    ip_id_monotonicity_target: float
+
+    def sample_tcp_window(self, is_outbound: bool, rng: np.random.Generator | None = None) -> int:
+        gen = rng or np.random.default_rng()
+        base = self.tcp_win_mean * (1.05 if is_outbound else 0.95)
+        win = int(round(float(gen.normal(base, max(64.0, self.tcp_win_std * 0.35)))))
+        return max(502, min(65535, win))
+
+    def sample_ttl(self, is_outbound: bool, is_external: bool = True) -> int:
+        if is_outbound or not is_external:
+            return self.outbound_ttl
+        return self.inbound_wan_ttl
+
+
+def fit_tcp_window_and_ttl_distributions(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> TCPStackDistributionModel:
+    """
+    Fit TCP window size, PSH/ACK/SYN flag probabilities, and outbound/inbound TTL parameters
+    from extracted real PCAP statistics.
+    """
+    import math
+
+    s = stats or extract_per_feature_pcap_stats()
+    win_mean = max(512.0, s["tcp_win_mean"].mean)
+    win_std = max(64.0, s["tcp_win_mean"].std)
+    ttl_var = max(0.0, s["ip_ttl_variance"].mean)
+    # For ~50/50 bidirectional traffic, Var(TTL) = 0.25 * (64 - ttl_in)^2 => ttl_in = 64 - 2*sqrt(Var)
+    ttl_delta = int(round(2.0 * math.sqrt(ttl_var)))
+    outbound_ttl = 64
+    inbound_ttl = max(32, min(64, outbound_ttl - ttl_delta))
+    return TCPStackDistributionModel(
+        tcp_win_mean=round(win_mean, 2),
+        tcp_win_std=round(win_std, 2),
+        outbound_ttl=outbound_ttl,
+        inbound_wan_ttl=inbound_ttl,
+        ip_ttl_variance_target=round(ttl_var, 4),
+        tcp_psh_ratio=round(max(0.05, min(0.95, s["tcp_psh_ratio"].mean)), 4),
+        tcp_ack_ratio=round(max(0.50, min(1.0, s["tcp_ack_ratio"].mean)), 4),
+        tcp_syn_ratio=round(max(0.0, min(0.50, s["tcp_syn_ratio"].mean)), 4),
+        ip_id_monotonicity_target=round(max(0.0, min(1.0, s["ip_id_monotonicity"].mean)), 4),
+    )
+
+
+
 
