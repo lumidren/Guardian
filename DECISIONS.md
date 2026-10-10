@@ -209,4 +209,16 @@ This document records architectural, algorithmic, and engineering decisions made
   4. Enforce automated parity verification in `tests/unit/test_isolation_forest_sklearn_parity.py`, validating Spearman rank correlation $\ge 0.95$ (observed $r_s = 0.9947$) and ROC-AUC equivalence ($|\Delta \text{AUC}| \le 0.03$, observed $0.9997$ vs $0.9999$) on identical synthetic benchmark data.
 - **Rationale**: Eliminates binary compilation bottlenecks on edge and 32-bit platforms, ensures pickle-free model storage, powers white-box XAI feature attributions, and empirically proves mathematical parity with the canonical Isolation Forest formulation and `scikit-learn`.
 
+### ADR-026: A Priori HARD-Tier Evasion Specification Across All Six Attack Vectors (Phase 3 Closing Pass)
+- **Problem**: During the initial Phase 3 completion pass, `HARD`-tier attack parameters were modified asymmetrically and tuned post-hoc against the detector:
+  1. `CNC_BEACONING` and `ZERO_DAY_HYBRID` were iteratively adjusted against the detector's feature distributions until their `HARD`-tier TPR dropped below `99%` (`62.8%` and `82.8%`).
+  2. Meanwhile, `DDOS_FLOODING`, `NETWORK_SCANNING`, `DATA_EXFILTRATION`, and `CRYPTOMINING` on the `HARD` tier still injected packets to un-whitelisted external IP addresses (`203.0.113.50`, `198.51.100.89`, `144.76.12.18`, random `192.168.1.x`) and high-risk ports (`21, 22, 23, 4444, 5555`), while `ScenarioBuilder` enforced a minimum floor of `5` attack packets per window (`max(5, ...)`). Those four attacks consequently remained at `100.0%` TPR even on `HARD`.
+- **Decision**:
+  1. Explicitly record that earlier `HARD`-tier parameters for `CNC_BEACONING` and `ZERO_DAY_HYBRID` were tuned against the detector, while the remaining four attacks lacked whitelisted destination and rate matching.
+  2. Define `HARD_TIER_SPEC` (`simulation/attack_suite.py`, commit `8315c7a`) and preserve exact `HARD`-tier packet counts in `ScenarioBuilder` (`src/guardian/eval/scenario.py`, commit `f14fbe1`) **a priori and commit them before running any evaluation**:
+     - **Whitelisted Destinations & Ports**: All 6 attacks on `DifficultyTier.HARD` strictly route traffic to the victim device's approved `normal_destinations` using its legitimate `primary_protocol` and standard service ports (`80, 443, 1883, 8883, 5683`), eliminating trivial `new_dst_ip_flag` and `high_risk_port_flag` triggers.
+     - **Matched Payload Size**: Payload lengths are drawn from `victim_device.normal_byte_range` scaled by attack-specific bounds (`[0.85, 1.15]` for `CNC_BEACONING`, `[0.90, 1.25]` for `DDOS_FLOODING`, `[0.80, 1.15]` for `NETWORK_SCANNING`, `[0.95, 1.35]` for `DATA_EXFILTRATION`, `[0.85, 1.20]` for `CRYPTOMINING`, and `[0.90, 1.20]` for `ZERO_DAY_HYBRID`).
+     - **Matched Fractional Packet Rate**: Injected packet rate per 2.5s window is bounded to a small fraction (`0.15` to `0.35`) of `victim_device.normal_packet_rate` without a 5-packet floor.
+- **Rationale**: Prevents post-hoc parameter tuning against evaluation metrics, treats all six threat categories symmetrically under a principled covert-evasion threat model, and tests the genuine statistical/ML detection boundary when an adversary blends into whitelisted endpoints, payload sizes, and rates.
+
 
