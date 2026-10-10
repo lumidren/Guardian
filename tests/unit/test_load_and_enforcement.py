@@ -115,3 +115,31 @@ def test_firewall_enforcement_latency_transparency() -> None:
     )
     state = controller.enforce("dev_test", "192.168.1.101", assessment)
     assert state.enforcement_latency_ms > 0.0
+
+
+def test_real_time_load_sweep_8_to_32_devices() -> None:
+    """
+    Real-time load test across fleet sizes 8, 12, 16, 20, 32 must report CPU,
+    p95 latency, and dropped windows per fleet size, not only offered packets.
+    """
+    benchmark = RealTimeLoadBenchmark(queue_capacity=5000, processing_rate_pps=20000.0)
+    reports = benchmark.run_fleet_load_sweep(
+        fleet_sizes=(8, 12, 16, 20, 32),
+        duration_seconds=20.0,
+        tick_deadline_ms=25.0,
+    )
+
+    assert [r.device_count for r in reports] == [8, 12, 16, 20, 32]
+    for r in reports:
+        d = r.to_dict()
+        assert d["total_packets_offered"] > 0
+        assert d["cpu_percent_avg"] > 0.0
+        assert d["p95_latency_ms"] > 0.0
+        assert d["windows_offered"] == r.device_count * 6
+        assert d["windows_processed"] + d["dropped_windows"] == d["windows_offered"]
+
+    # p95 latency and CPU must grow from 8 devices to 32 devices
+    assert reports[-1].p95_latency_ms > reports[0].p95_latency_ms
+    assert reports[-1].cpu_percent_avg >= reports[0].cpu_percent_avg
+    assert reports[-1].dropped_windows >= reports[0].dropped_windows
+
