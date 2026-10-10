@@ -249,3 +249,22 @@ def sync_readme_feature_table(readme_path: object | None = None) -> bool:
         target.write_text(updated, encoding="utf-8")
         return True
     return False
+
+
+def get_clock_skew_feature_policy() -> dict[str, object]:
+    """
+    Task 50: Return explicit scope and privacy policy metadata for tcp_clock_skew_est.
+    Documents that hardware RF/PUF physical-layer identity is out of scope (ADR-007) and
+    that index 56 is a purely software Layer-4 TCP Option Kind=8 (TSval) header heuristic.
+    """
+    meta = FEATURE_REGISTRY["tcp_clock_skew_est"]
+    return {
+        "feature_name": meta.name,
+        "index": meta.index,
+        "layer": str(meta.layer),
+        "header_source": "TCP Option Kind=8 (TSval)",
+        "fallback_when_ts_option_absent": 0.0,
+        "requires_rf_or_sdr_hardware": False,
+        "physical_layer_identity_in_scope": False,
+        "scope_note": CLOCK_SKEW_SCOPE_NOTE,
+    }

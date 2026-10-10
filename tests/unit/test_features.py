@@ -175,3 +175,16 @@ def test_readme_table_equals_registry_row_by_row() -> None:
         assert cells[3] == meta.description
         assert cells[4] == meta.unit
 
+
+def test_clock_skew_feature_scope_documented() -> None:
+    """Task 50: Verify clock-skew feature scope policy explicitly documents software TCP TSval heuristic vs out-of-scope RF."""
+    from guardian.features.registry import get_clock_skew_feature_policy
+
+    pol = get_clock_skew_feature_policy()
+    assert pol["feature_name"] == "tcp_clock_skew_est"
+    assert pol["index"] == 56
+    assert pol["requires_rf_or_sdr_hardware"] is False
+    assert pol["physical_layer_identity_in_scope"] is False
+    assert pol["fallback_when_ts_option_absent"] == 0.0
+    assert "ADR-007" in str(pol["scope_note"])
+
