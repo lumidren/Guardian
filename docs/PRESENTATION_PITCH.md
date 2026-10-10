@@ -14,7 +14,7 @@ When the doctor or committee asks: **"Tell me about your project"**
 > 
 > **Real validation**: 7,000 robot vacuums were compromised in a real breach. Traditional antivirus and firewalls missed it completely because legitimate binaries were used. GUARDIAN detects this immediately because behavioral patterns changed drastically—cameras active at 3:47 AM, streaming to foreign endpoints, with a 600% traffic surge.
 > 
-> We have implemented this on physical hardware—8 IoT devices plus a Raspberry Pi gateway—and achieved a **100% zero-day detection rate**, **4.1% false positive rate**, and 1.68 ms compute latency."
+> We have validated the software gateway across an 8-device simulated IoT testbed (900 episodes per seed across 3 difficulty tiers) and public PCAP captures—achieving **100.0% detection on overt and moderate attacks (Easy/Medium tiers)**, **46.7%–70.0% on covert in-band mimicry (Hard tier, 95.5% tier-averaged recall)**, **0.0%–2.3% calibrated false positive rate**, and **1.41 ms** compute latency."
 
 *Stop. Let the doctor respond.*
 
@@ -25,18 +25,18 @@ When the doctor or committee asks: **"Tell me about your project"**
 1. **Real Problem (Not Theoretical)**:
    The 7,000 robot vacuum breach happened recently. Traditional signature-based firewalls (Snort, Suricata) fail because zero-days lack pre-existing signatures.
 2. **Proven & Achievable Technology**:
-   Using unsupervised **Isolation Forest** paired with a statistical **Z-score fallback**. Runs smoothly on edge hardware (Raspberry Pi 4 / Linux Gateway) with low CPU footprint (&lt;40%) and low latency (&lt;1s).
+   Using unsupervised **Isolation Forest** paired with a non-parametric **Robust Z-score (MAD) fallback**. Runs on edge gateway software with **1.41 ms** mean compute latency (p95: **2.03 ms**) and **68.1 MB** resident memory.
 3. **Multiple Safety Nets**:
-   - If ML models encounter sparse data, the **Statistical Fallback (Z-score / MAD)** guarantees 75–80% detection accuracy.
-   - If a false positive occurs, the **Graduated Response (Monitor &rarr; Restrict &rarr; Quarantine &rarr; Block)** minimizes impact, and the **One-Click Override** allows immediate feedback-driven retraining.
+   - If ML models encounter sparse data, the **Statistical Fallback (Robust Z-score / MAD)** provides immediate non-parametric boundary protection.
+   - If a false positive occurs, the **Graduated Response (Monitor &rarr; Restrict &rarr; Quarantine &rarr; Block)** minimizes impact, and the **One-Click Override** allows immediate operator remediation.
 4. **Novel Contribution**:
    Four distinct innovations combined:
-   - Multi-layer behavioral identity framework (60 features)
-   - Per-device self-learning baseline (zero manual configuration)
-   - Explainable AI with Natural Language Generation (plain English attribution)
-   - Edge architecture at consumer price ($250 total budget).
-5. **Mature Limitation Handling**:
-   We acknowledge cold start, concept drift, and mimicry attacks honestly, with clear mitigations documented in the paper.
+   - Multi-layer behavioral identity framework (60 header/timing metadata features; no payload decryption)
+   - Per-device self-learning baseline with Day 8 clean calibration split
+   - Explainable AI with Natural Language Generation (tree-path attribution to plain English)
+   - Edge gateway architecture designed for a \$250 hardware budget.
+5. **Mature Limitation & Scope Handling**:
+   We explicitly state simulator-only boundaries, enforcement latency disaggregation ($0.009\text{ ms}$ dry-run state update vs $2\text{--}15\text{ ms}$ real Linux `nft -f` kernel transaction), and intensity-dependent detection drop-off on covert mimicry ($100\%$ at $\ge 1.0\times$ intensity down to $33.3\%$ at $0.1\times$ intensity).
 
 ---
 
@@ -46,7 +46,7 @@ When the doctor or committee asks: **"Tell me about your project"**
 | :--- | :--- |
 | *"This will revolutionize IoT security"* | *"This is solid incremental research addressing a real gap in consumer edge defense."* |
 | *"We will definitely get published in top-tier journals"* | *"We are targeting mid-tier IEEE conferences (ICC / GLOBECOM) with strong 35–40% acceptance rates."* |
-| *"The system is 100% accurate"* | *"We achieve 100% zero-day detection across tested attack classes with a 4.1% false alarm rate on continuous mixed traffic."* |
+| *"The system is 100% accurate"* | *"We achieve 95.5% tier-averaged recall (100.0% on Easy/Medium tiers, 46.7%–70.0% on Hard covert mimicry) with a 0.0%–2.3% calibrated false alarm rate."* |
 | *"This has never been done before"* | *"Behavioral identity and natural-language explainability have not been combined in this edge-native manner for consumer IoT."* |
 
 ---
@@ -57,13 +57,13 @@ When the doctor or committee asks: **"Tell me about your project"**
 > **Answer**: *"Our system is designed specifically for encrypted traffic. We analyze network metadata—packet timing, inter-arrival time distributions, flow volume, and endpoint dynamics—which remain visible under TLS/DTLS encryption. Over 80% of IoT traffic is encrypted today; deep packet inspection is failing, making our metadata approach future-proof."*
 
 ### Q2: "What if an attacker mimics normal behavior?"
-> **Answer**: *"That is why we use multi-layer identity. An attacker might mimic packet volume, but to achieve an objective they must contact a new external destination or alter protocol timing. Evading all layers simultaneously is exponentially more difficult. We address mimicry limitations explicitly in Section 6.3."*
+> **Answer**: *"We tested this directly in our Hard difficulty tier (`eval/results/hard_tier_investigation/INVESTIGATION_REPORT.md`). When an attacker reuses the device's whitelisted MQTT broker IP, matches normal payload byte distributions, and throttles injection to 1–2 packets per 10s window (`0.25x` intensity), Layer 2 destination features have zero effect size ($d = 0.00$), and recall drops to 53.3% on C&C beaconing and 46.7% on Zero-Day Hybrid. Detecting ultra-low-rate (`0.1x`) in-band mimicry requires multi-hour sequence accumulators beyond a 10-second sliding window."*
 
 ### Q3: "Can you really finish in 12 weeks?"
-> **Answer**: *"Yes. We are not inventing new machine learning mathematics from scratch; we combine established Isolation Forests, statistical anomaly thresholds, and Linux iptables kernel enforcement. We have already validated the software pipeline with a complete testbed."*
+> **Answer**: *"Yes. We combine established Isolation Forests, non-parametric MAD thresholds, and Linux `nftables` kernel enforcement. Our software pipeline, 14-day multi-tier evaluation harness, and offline public IoT PCAP replay are complete and reproducible."*
 
 ### Q4: "What if machine learning struggles?"
-> **Answer**: *"We have implemented a dual-engine architecture: if the Isolation Forest confidence is low, the Z-score statistical fallback automatically provides baseline protection, ensuring the project never stalls."*
+> **Answer**: *"We have implemented a dual-engine architecture: if the Isolation Forest confidence is low, the Robust Z-score statistical fallback automatically provides baseline protection, ensuring the system degrades gracefully."*
 
 ### Q5: "What makes this novel for publication?"
-> **Answer**: *"The combination: (1) First multi-layer behavioral identity framework for consumer IoT; (2) Plain English explainability with feature deviation metrics; (3) Real physical validation on Raspberry Pi and ESP32 hardware at consumer price point ($250)."*
+> **Answer**: *"The combination: (1) 60-feature multi-layer behavioral identity framework for consumer IoT; (2) Plain English explainability with tree-path attribution; (3) Honest, rigorous evaluation across difficulty tiers, control detectors, and public PCAP traces within a \$250 gateway architecture."*
