@@ -517,7 +517,7 @@ class AblationRunner:
             flow_tracker.register_known_destination(dev.ip_address, dst)
 
         threat_scorer = ThreatScorer()
-        calibrated_op = self.operating_point or OperatingPoint(alert_threshold=40.0, frozen=True)
+        calibrated_op = self._get_calibrated_op_for_config(config)
 
         windows: list[StreamWindow] = self.scenario_builder.generate_device_stream_windows(
             device_id=dev.id,
@@ -653,10 +653,32 @@ class AblationRunner:
             results.append(res)
         return results
 
+    def _get_calibrated_op_for_config(self, config: AblationConfig) -> OperatingPoint:
+        """
+        Return the Day 8 calibrated OperatingPoint for the given ablation configuration
+        using the exact same Calibrator(target_fpr=0.05) threshold procedure as Full GUARDIAN.
+        """
+        if not config.enable_calibration:
+            return OperatingPoint(alert_threshold=60.0, frozen=True)
+        cache: dict[str, OperatingPoint] = getattr(self, "_calibrated_config_ops", {})
+        if config.name in cache:
+            return cache[config.name]
+        base_op = self.operating_point
+        ops = self._calibrate_battery_on_day8(
+            battery=[config],
+            full_guardian_op=base_op,
+            target_fpr=0.05,
+            duration_per_device_s=60.0,
+        )
+        op = ops[0]
+        cache[config.name] = op
+        self._calibrated_config_ops = cache
+        return op
+
     def _calibrate_battery_on_day8(
         self,
         battery: Sequence[AblationConfig],
-        full_guardian_op: OperatingPoint,
+        full_guardian_op: OperatingPoint | None = None,
         target_fpr: float = 0.05,
         duration_per_device_s: float = 60.0,
     ) -> list[OperatingPoint]:
@@ -667,6 +689,7 @@ class AblationRunner:
         cal_start = 7.0 * self.scenario_builder.SECONDS_PER_DAY
         threat_scorer = ThreatScorer()
         scores_by_cfg: list[list[float]] = [[] for _ in battery]
+        ref_op = full_guardian_op or OperatingPoint(alert_threshold=60.0, frozen=True)
 
         for dev in self.devices:
             self._ensure_artifacts(dev)
@@ -696,7 +719,7 @@ class AblationRunner:
                 base_stat_score, _ = baseline.evaluate(base_features)
 
                 for idx, cfg in enumerate(battery):
-                    if idx == 0:
+                    if idx == 0 and full_guardian_op is not None and cfg.name == "Full GUARDIAN":
                         continue
                     raw_score, _ = self._score_window_for_config(
                         config=cfg,
@@ -706,20 +729,20 @@ class AblationRunner:
                         model=model,
                         baseline=baseline,
                         threat_scorer=threat_scorer,
-                        calibrated_op=full_guardian_op,
+                        calibrated_op=ref_op,
                     )
                     scores_by_cfg[idx].append(raw_score)
 
         ops: list[OperatingPoint] = []
         for idx, cfg in enumerate(battery):
-            if idx == 0:
+            if idx == 0 and full_guardian_op is not None and cfg.name == "Full GUARDIAN":
                 ops.append(full_guardian_op)
             elif not cfg.enable_calibration:
                 ops.append(OperatingPoint(alert_threshold=60.0, frozen=True))
             elif scores_by_cfg[idx]:
                 ops.append(Calibrator(target_fpr=target_fpr).calibrate_from_scores(scores_by_cfg[idx]))
             else:
-                ops.append(full_guardian_op)
+                ops.append(ref_op)
         return ops
 
     def run_protocol_schedule_battery(
