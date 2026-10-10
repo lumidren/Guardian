@@ -180,3 +180,88 @@ def test_plausibility_guard_rejects_flat_scalability() -> None:
     assert not result.is_plausible
     assert any("Flat scalability benchmark detected" in v for v in result.violations)
 
+
+def test_plausibility_guard_rejects_99_percent_hard_tpr_without_evidence_note() -> None:
+    """99%+ TPR on HARD tier must fail unless an explicit evidence note exists."""
+    guard = PlausibilityGuard()
+
+    # Without evidence note -> MUST FAIL
+    unsupported_report = {
+        "detection": {
+            "rows": [
+                {"attack": "CNC_BEACONING", "tier": "HARD", "guardian_tpr": 99.5, "mean_ttd_s": 2.5, "f1": 0.88},
+                {"attack": "DDOS_FLOODING", "tier": "HARD", "guardian_tpr": 70.0, "mean_ttd_s": 1.5, "f1": 0.80},
+            ]
+        }
+    }
+    result = guard.validate(unsupported_report)
+    assert not result.is_plausible
+    assert any("Implausible perfection on HARD tier" in v for v in result.violations)
+
+    # With evidence note -> PASSES
+    supported_report = {
+        "detection": {
+            "rows": [
+                {
+                    "attack": "CNC_BEACONING",
+                    "tier": "HARD",
+                    "guardian_tpr": 99.5,
+                    "mean_ttd_s": 2.5,
+                    "f1": 0.88,
+                    "evidence_note": "Exfiltration channel utilizes distinct port signature validated against RFC 8446.",
+                },
+                {"attack": "DDOS_FLOODING", "tier": "HARD", "guardian_tpr": 70.0, "mean_ttd_s": 1.5, "f1": 0.80},
+            ]
+        }
+    }
+    result_supported = guard.validate(supported_report)
+    assert not any("Implausible perfection on HARD tier" in v for v in result_supported.violations)
+
+
+def test_plausibility_guard_compares_against_control_detectors() -> None:
+    """Verifies that PlausibilityGuard compares detector FPR against explicit control detectors."""
+    guard = PlausibilityGuard()
+
+    # Compare against always-alert control
+    control_alert_report = {
+        "detection": {
+            "rows": [
+                {"attack": "DDOS_FLOODING", "guardian_tpr": 90.0, "mean_ttd_s": 2.0, "f1": 0.70},
+            ]
+        },
+        "controls": {
+            "always_alert": {"tpr": 100.0, "fpr": 95.0, "status": "PASS"},
+            "shuffled_labels": {"tpr": 50.0, "fpr": 45.0, "status": "PASS"},
+        },
+        "baselines": {
+            "methods": [
+                {"name": "GUARDIAN (Multi-Layer Ensemble)", "tpr": 92.0, "fpr": 90.0, "f1": 0.65},
+            ]
+        },
+    }
+    res_always = guard.validate(control_alert_report)
+    assert not res_always.is_plausible
+    assert any("always-alert control detector" in v for v in res_always.violations)
+
+    # Compare against shuffled-label control (no margin over chance)
+    shuffled_fail_report = {
+        "detection": {
+            "rows": [
+                {"attack": "DDOS_FLOODING", "guardian_tpr": 52.0, "mean_ttd_s": 2.0, "f1": 0.50},
+            ]
+        },
+        "controls": {
+            "always_alert": {"tpr": 100.0, "fpr": 100.0, "status": "PASS"},
+            "shuffled_labels": {"tpr": 50.0, "fpr": 45.0, "status": "PASS"},
+        },
+        "baselines": {
+            "methods": [
+                {"name": "GUARDIAN (Multi-Layer Ensemble)", "tpr": 52.0, "fpr": 46.0, "f1": 0.49},
+            ]
+        },
+    }
+    res_shuffled = guard.validate(shuffled_fail_report)
+    assert not res_shuffled.is_plausible
+    assert any("shuffled-label control detector" in v for v in res_shuffled.violations)
+
+
