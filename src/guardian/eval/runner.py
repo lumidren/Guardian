@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 
+from simulation.attack_suite import AttackType
 from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTDeviceSpec
 
 from ..capture.flow_tracker import FlowTracker
@@ -24,7 +25,7 @@ from ..ml.isolation_forest import IsolationForestDetector
 from ..ml.statistical_baseline import StatisticalBaseline
 from ..ml.threat_scorer import ThreatScorer
 from .baselines import RobustZScoreOnlyBaseline, StaticThresholdBaseline
-from .calibration import OperatingPoint
+from .calibration import Calibrator, OperatingPoint
 from .metrics import (
     BinaryMetrics,
     compute_binary_metrics,
@@ -194,6 +195,59 @@ class EvaluationRunner:
                 b = StatisticalBaseline()
                 b.is_ready = True
                 self._baselines[dev.id] = b
+
+    def calibrate_operating_point(
+        self,
+        target_fpr: float = 0.05,
+        duration_per_device_s: float = 60.0,
+    ) -> OperatingPoint:
+        """
+        Calibrate OperatingPoint threshold on Day 8 clean background traffic and freeze it.
+        Strict time-ordered split: Day 8 (604,800s to 691,200s).
+        """
+        cal_start = 7.0 * self.scenario_builder.SECONDS_PER_DAY
+        calibration_scores: list[float] = []
+
+        for dev in self.devices:
+            self._ensure_device_artifacts(dev)
+            model = self._models[dev.id]
+            baseline = self._baselines[dev.id]
+
+            cal_windows = self.scenario_builder.generate_device_stream_windows(
+                device_id=dev.id,
+                start_time=cal_start,
+                end_time=cal_start + duration_per_device_s,
+                episodes=[],
+            )
+
+            flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+            for dst in dev.normal_destinations:
+                flow_tracker.register_known_destination(dev.ip_address, dst)
+
+            for w in cal_windows:
+                flow_tracker.device_buffers[dev.ip_address].clear()
+                for p in w.packets:
+                    flow_tracker.ingest_packet(p)
+
+                summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
+                if not summary:
+                    continue
+
+                features = self.extractor.extract(summary)
+                vec = self.extractor.extract_vector(summary)
+                ml_score, _ = model.score_sample(vec)
+                stat_score, _ = baseline.evaluate(features)
+                assessment = self.threat_scorer.assess(
+                    ml_score=ml_score,
+                    statistical_score=stat_score,
+                    features=features,
+                )
+                calibration_scores.append(assessment.threat_score)
+
+        calibrator = Calibrator(target_fpr=target_fpr)
+        chosen_op = calibrator.calibrate_from_scores(calibration_scores)
+        self.operating_point = chosen_op
+        return chosen_op
 
     def evaluate_device_slice(
         self,
@@ -395,3 +449,99 @@ class EvaluationRunner:
                 "pooled": pooled_bin,
             },
         )
+
+    def evaluate_ground_truth_schedule(
+        self,
+        episodes: Sequence[GroundTruthEpisode],
+        pre_buffer_s: float = 20.0,
+        post_buffer_s: float = 10.0,
+    ) -> dict[str, Any]:
+        """
+        Evaluates a schedule of ground truth attack episodes over their respective time windows.
+        Aggregates metrics per attack class, per difficulty tier, and across baseline detectors.
+        """
+        for dev in self.devices:
+            self._ensure_device_artifacts(dev)
+
+        ep_results: list[dict[str, Any]] = []
+
+        for ep in episodes:
+            stride = self.scenario_builder.stride_s
+            slice_start = max(0.0, float(np.floor((ep.start_time - pre_buffer_s) / stride) * stride))
+            slice_end = ep.end_time + post_buffer_s
+            rep = self.evaluate_device_slice(
+                device_id=ep.device_id,
+                start_time=slice_start,
+                end_time=slice_end,
+                episodes=[ep],
+            )
+            detected = rep.detected_episodes > 0
+            ttd = rep.mean_time_to_detect_s if detected else None
+            static_det = rep.baseline_metrics.get("static")
+            zscore_det = rep.baseline_metrics.get("zscore")
+            pooled_det = rep.baseline_metrics.get("pooled")
+
+            ep_results.append({
+                "episode_id": ep.episode_id,
+                "attack": ep.attack_type.value,
+                "tier": ep.tier.value,
+                "intensity": ep.intensity.value,
+                "device_id": ep.device_id,
+                "detected": detected,
+                "ttd": ttd,
+                "guardian_f1": rep.window_metrics.f1,
+                "static_detected": (static_det.tp > 0) if static_det else False,
+                "zscore_detected": (zscore_det.tp > 0) if zscore_det else False,
+                "pooled_detected": (pooled_det.tp > 0) if pooled_det else False,
+            })
+
+        # Aggregate per attack class
+        attack_types = list(AttackType)
+        detection_rows: list[dict[str, Any]] = []
+
+        for atk in attack_types:
+            atk_eps = [r for r in ep_results if r["attack"] == atk.value]
+            if not atk_eps:
+                continue
+            n_total = len(atk_eps)
+            g_det = sum(1 for r in atk_eps if r["detected"])
+            p_det = sum(1 for r in atk_eps if r["pooled_detected"])
+            s_det = sum(1 for r in atk_eps if r["static_detected"])
+            z_det = sum(1 for r in atk_eps if r["zscore_detected"])
+
+            ttds = [r["ttd"] for r in atk_eps if r["ttd"] is not None]
+            mean_ttd = float(sum(ttds) / len(ttds)) if ttds else 0.0
+            mean_f1 = float(sum(r["guardian_f1"] for r in atk_eps) / n_total)
+
+            detection_rows.append({
+                "attack": atk.value,
+                "guardian_tpr": round((g_det / n_total) * 100.0, 1),
+                "pooled_if_tpr": round((p_det / n_total) * 100.0, 1),
+                "static_rules_tpr": round((s_det / n_total) * 100.0, 1),
+                "zscore_tpr": round((z_det / n_total) * 100.0, 1),
+                "f1": round(mean_f1, 4),
+                "mean_ttd_s": round(mean_ttd, 2),
+                "total_episodes": n_total,
+                "detected_episodes": g_det,
+            })
+
+        # Aggregate per difficulty tier
+        tier_breakdown: dict[str, dict[str, Any]] = {}
+        for tier_val in ("EASY", "MEDIUM", "HARD"):
+            tier_eps = [r for r in ep_results if r["tier"] == tier_val]
+            if tier_eps:
+                t_total = len(tier_eps)
+                t_det = sum(1 for r in tier_eps if r["detected"])
+                t_ttds = [r["ttd"] for r in tier_eps if r["ttd"] is not None]
+                tier_breakdown[tier_val] = {
+                    "tpr": round((t_det / t_total) * 100.0, 1),
+                    "mean_ttd_s": round(float(sum(t_ttds) / len(t_ttds)), 2) if t_ttds else 0.0,
+                    "total_episodes": t_total,
+                    "detected_episodes": t_det,
+                }
+
+        return {
+            "detection_rows": detection_rows,
+            "tier_breakdown": tier_breakdown,
+            "episode_results": ep_results,
+        }

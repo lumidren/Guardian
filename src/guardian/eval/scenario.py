@@ -142,10 +142,13 @@ class ScenarioBuilder:
         episodes_per_attack: int = 50,
         min_gap_seconds: float = 120.0,
         attack_types: Sequence[AttackType] | None = None,
+        tiers: Sequence[DifficultyTier] | None = None,
+        episodes_per_tier: int | None = None,
     ) -> list[GroundTruthEpisode]:
         """
         Generate deterministic ground truth schedule across test days (Days 9-14).
         Attacks are strictly barred from Train (Days 1-7) and Calibration (Day 8).
+        Supports multi-tier schedules across all 6 attacks x 3 tiers (EASY, MEDIUM, HARD).
         """
         rng = np.random.default_rng(self.seed)
         attacks = list(attack_types or list(AttackType))
@@ -158,32 +161,45 @@ class ScenarioBuilder:
 
         episodes: list[GroundTruthEpisode] = []
         episode_idx = 0
+        valid_devs = self.devices
 
-        # Build list of planned episodes (balanced across attack types and intensities)
-        planned_runs: list[tuple[AttackType, AttackIntensity, EvasionMode, IoTDeviceSpec]] = []
-        for atk in attacks:
-            # Filter devices applicable to attack (or use all devices)
-            valid_devs = self.devices
-            for i in range(episodes_per_attack):
-                intensity = intensities[i % len(intensities)]
-                dev = valid_devs[i % len(valid_devs)]
-                evasion = evasion_modes[0]
-                planned_runs.append((atk, intensity, evasion, dev))
+        # Build list of planned episodes (balanced across attack types, tiers, and intensities)
+        planned_runs: list[tuple[AttackType, AttackIntensity, EvasionMode, IoTDeviceSpec, DifficultyTier]] = []
+        if tiers is not None:
+            tier_list = list(tiers)
+            target_eps = episodes_per_tier if episodes_per_tier is not None else max(1, episodes_per_attack // len(tier_list))
+            for atk in attacks:
+                for tier in tier_list:
+                    for i in range(target_eps):
+                        intensity = intensities[i % len(intensities)]
+                        dev = valid_devs[(i + int(atk.value.__hash__())) % len(valid_devs)]
+                        evasion = evasion_modes[0]
+                        planned_runs.append((atk, intensity, evasion, dev, tier))
+        else:
+            for atk in attacks:
+                for i in range(episodes_per_attack):
+                    intensity = intensities[i % len(intensities)]
+                    dev = valid_devs[i % len(valid_devs)]
+                    evasion = evasion_modes[0]
+                    planned_runs.append((atk, intensity, evasion, dev, DifficultyTier.MEDIUM))
 
         # Shuffle planned runs deterministically
         shuffled_indices = rng.permutation(len(planned_runs))
 
-        # Schedule episodes across available test time window with gaps
-        current_time = test_start_time + 300.0  # Start 5m into day 9
+        # Schedule episodes across available test time window with balanced gaps
+        total_span = test_end_time - test_start_time - 600.0
+        step_interval = total_span / max(1, len(planned_runs))
+        current_time = test_start_time + 300.0
 
-        for idx in shuffled_indices:
-            atk, intensity, evasion, dev = planned_runs[idx]
+        for k, idx in enumerate(shuffled_indices):
+            atk, intensity, evasion, dev, tier = planned_runs[idx]
             # Duration between 30s and 90s
             duration = 30.0 + (int(rng.integers(0, 7)) * 10.0)
-            base_start = current_time + float(rng.uniform(10.0, 30.0))
+            base_start = current_time + (k * step_interval) + float(rng.uniform(0.0, max(1.0, step_interval * 0.1)))
+            aligned_base = float(np.floor(base_start / self.stride_s) * self.stride_s)
             # Apply random sub-window offset ensuring TTD cannot be 0.0s by design
             offset = calculate_sub_window_offset(stride_s=self.stride_s, rng=rng)
-            start_t = round(base_start + offset, 3)
+            start_t = round(aligned_base + offset, 3)
             end_t = round(start_t + duration, 3)
 
             if end_t >= test_end_time - 60.0:
@@ -191,7 +207,7 @@ class ScenarioBuilder:
 
             episodes.append(
                 GroundTruthEpisode(
-                    episode_id=f"ep_{episode_idx:04d}_{atk.name.lower()}",
+                    episode_id=f"ep_{episode_idx:04d}_{atk.name.lower()}_{tier.value.lower()}",
                     device_id=dev.id,
                     attack_type=atk,
                     start_time=start_t,
@@ -199,10 +215,10 @@ class ScenarioBuilder:
                     duration_seconds=duration,
                     intensity=intensity,
                     evasion_mode=evasion,
+                    tier=tier,
                 )
             )
             episode_idx += 1
-            current_time = end_t + min_gap_seconds + float(rng.uniform(10.0, 50.0))
 
         return episodes
 

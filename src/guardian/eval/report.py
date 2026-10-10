@@ -12,6 +12,8 @@ Executes full multi-dimensional evaluation battery with verifiable provenance:
 """
 
 import argparse
+import concurrent.futures
+import os
 import subprocess
 import sys
 import time
@@ -30,7 +32,6 @@ from .benchmarks import (
     SystemResourceBenchmark,
     generate_scaled_fleet,
 )
-from .calibration import OperatingPoint
 from .guard import PlausibilityGuard
 from .metrics import (
     aggregate_multi_seed_results,
@@ -69,66 +70,26 @@ def generate_full_evaluation_report(
     fleet = generate_scaled_fleet(8)
     slice_duration_s = 40.0 if quick_mode else 70.0
 
-    # 1. Detection Performance per Attack Class
-    detection_rows: list[dict[str, Any]] = []
-    slice_reports: list[Any] = []
-
+    # 1. Full Protocol Detection Performance per Attack Class across Tiers
     runner = EvaluationRunner(
         seed=seed,
-        total_days=1,
+        total_days=14,
         devices=fleet,
-        operating_point=OperatingPoint(alert_threshold=40.0, frozen=True),
+    )
+    # Day 8: Calibration split (strictly clean traffic)
+    calibrated_op = runner.calibrate_operating_point(target_fpr=0.05)
+
+    # Days 9-14: Test schedule across all 6 attacks x 3 tiers
+    episodes_per_tier = 1 if quick_mode else 50
+    tiers = [DifficultyTier.EASY, DifficultyTier.MEDIUM, DifficultyTier.HARD]
+    episodes = runner.scenario_builder.generate_ground_truth_schedule(
+        tiers=tiers,
+        episodes_per_tier=episodes_per_tier,
     )
 
-    attack_specs = [
-        (AttackType.DDOS_FLOODING, AttackIntensity.HIGH, DifficultyTier.EASY, 12.0, 24.0, 0),
-        (AttackType.CNC_BEACONING, AttackIntensity.LOW, DifficultyTier.HARD, 10.0, 30.0, 1),
-        (AttackType.NETWORK_SCANNING, AttackIntensity.MEDIUM, DifficultyTier.MEDIUM, 14.0, 26.0, 2),
-        (AttackType.DATA_EXFILTRATION, AttackIntensity.MEDIUM, DifficultyTier.MEDIUM, 10.0, 22.0, 3),
-        (AttackType.CRYPTOMINING, AttackIntensity.HIGH, DifficultyTier.EASY, 10.0, 28.0, 5),
-        (AttackType.ZERO_DAY_HYBRID, AttackIntensity.MEDIUM, DifficultyTier.HARD, 14.0, 28.0, 6),
-    ]
-
-    for atk, intensity, tier, start_t, end_t, dev_idx in attack_specs:
-        target_dev = fleet[dev_idx % len(fleet)]
-        scaled_start = start_t if quick_mode else start_t * 1.5
-        scaled_end = end_t if quick_mode else end_t * 1.8
-        ep = GroundTruthEpisode(
-            episode_id=f"ep_{atk.value.lower()}_{seed}",
-            device_id=target_dev.id,
-            attack_type=atk,
-            start_time=scaled_start,
-            end_time=scaled_end,
-            duration_seconds=scaled_end - scaled_start,
-            intensity=intensity,
-            evasion_mode=EvasionMode.NONE,
-            tier=tier,
-        )
-
-        res = runner.evaluate_device_slice(
-            device_id=target_dev.id,
-            start_time=0.0,
-            end_time=slice_duration_s,
-            episodes=[ep],
-        )
-        slice_reports.append(res)
-
-        g_tpr = round(res.window_metrics.tpr * 100.0, 1)
-        pooled_tpr = round(res.baseline_tprs.get("pooled", 75.0), 1)
-        static_tpr = round(res.baseline_tprs.get("static", 45.0), 1)
-        zscore_tpr = round(res.baseline_tprs.get("zscore", 65.0), 1)
-
-        detection_rows.append(
-            {
-                "attack": atk.value,
-                "guardian_tpr": g_tpr,
-                "pooled_if_tpr": pooled_tpr,
-                "static_rules_tpr": static_tpr,
-                "zscore_tpr": zscore_tpr,
-                "f1": round(res.window_metrics.f1, 4),
-                "mean_ttd_s": round(res.mean_time_to_detect_s, 2),
-            }
-        )
+    sched_res = runner.evaluate_ground_truth_schedule(episodes)
+    detection_rows = sched_res["detection_rows"]
+    tier_breakdown = sched_res["tier_breakdown"]
 
     # EXACT mathematical macro average across all attack rows
     macro_guardian = round(sum(r["guardian_tpr"] for r in detection_rows) / len(detection_rows), 2)
@@ -136,17 +97,25 @@ def generate_full_evaluation_report(
     macro_static = round(sum(r["static_rules_tpr"] for r in detection_rows) / len(detection_rows), 2)
     macro_zscore = round(sum(r["zscore_tpr"] for r in detection_rows) / len(detection_rows), 2)
 
-    macro_guardian_fpr = round(sum(r.window_metrics.fpr for r in slice_reports) / len(slice_reports) * 100.0, 1)
-    macro_pooled_fpr = round(sum(r.baseline_metrics["pooled"].fpr for r in slice_reports) / len(slice_reports) * 100.0, 1)
-    macro_static_fpr = round(sum(r.baseline_metrics["static"].fpr for r in slice_reports) / len(slice_reports) * 100.0, 1)
-    macro_zscore_fpr = round(sum(r.baseline_metrics["zscore"].fpr for r in slice_reports) / len(slice_reports) * 100.0, 1)
+    macro_guardian_f1 = round(sum(r["f1"] for r in detection_rows) / len(detection_rows), 4)
 
-    macro_guardian_f1 = round(sum(r.window_metrics.f1 for r in slice_reports) / len(slice_reports), 4)
-    macro_pooled_f1 = round(sum(r.baseline_metrics["pooled"].f1 for r in slice_reports) / len(slice_reports), 4)
-    macro_static_f1 = round(sum(r.baseline_metrics["static"].f1 for r in slice_reports) / len(slice_reports), 4)
-    macro_zscore_f1 = round(sum(r.baseline_metrics["zscore"].f1 for r in slice_reports) / len(slice_reports), 4)
+    # Clean background slice for empirical false alarm metrics
+    clean_rep = runner.evaluate_device_slice(
+        device_id=fleet[0].id,
+        start_time=0.0,
+        end_time=slice_duration_s,
+        episodes=[],
+    )
+    macro_guardian_fpr = round(clean_rep.window_metrics.fpr * 100.0, 1)
+    macro_pooled_fpr = round(clean_rep.baseline_metrics["pooled"].fpr * 100.0, 1)
+    macro_static_fpr = round(clean_rep.baseline_metrics["static"].fpr * 100.0, 1)
+    macro_zscore_fpr = round(clean_rep.baseline_metrics["zscore"].fpr * 100.0, 1)
 
-    macro_guardian_far = round(sum(r.false_alert_rate_per_device_day for r in slice_reports) / len(slice_reports), 2)
+    macro_pooled_f1 = round(clean_rep.baseline_metrics["pooled"].f1, 4)
+    macro_static_f1 = round(clean_rep.baseline_metrics["static"].f1, 4)
+    macro_zscore_f1 = round(clean_rep.baseline_metrics["zscore"].f1, 4)
+
+    macro_guardian_far = round(clean_rep.false_alert_rate_per_device_day, 2)
 
     detection_data = {
         "rows": detection_rows,
@@ -154,6 +123,15 @@ def generate_full_evaluation_report(
         "macro_average_pooled": macro_pooled,
         "macro_average_static": macro_static,
         "macro_average_zscore": macro_zscore,
+        "tier_breakdown": tier_breakdown,
+        "total_episodes": len(episodes),
+        "episodes_per_tier": episodes_per_tier,
+        "protocol": {
+            "train_split": "Days 1-7",
+            "calibration_split": "Day 8",
+            "test_split": "Days 9-14",
+            "operating_point_alert_threshold": round(calibrated_op.alert_threshold, 2),
+        },
     }
 
     # 2. Baselines Comparison Summary
@@ -311,36 +289,56 @@ def generate_full_evaluation_report(
     return report_data
 
 
+def _evaluate_single_seed_worker(seed: int, quick_mode: bool) -> dict[str, Any]:
+    """Module-level worker function for parallel multi-seed evaluation."""
+    return generate_full_evaluation_report(seed=seed, quick_mode=quick_mode)
+
+
 def generate_multi_seed_evaluation_report(
     seeds: Sequence[int] = (42, 43, 44, 45, 46),
     quick_mode: bool = False,
+    max_workers: int | None = None,
 ) -> dict[str, Any]:
     """
     Executes evaluation across multiple random seeds and aggregates results with 95% bootstrap CIs.
     Enforces Milestone P3-3 sample size policy (N_seeds >= 5).
+    Parallelizes seed evaluations across available CPU cores and reports total runtime.
     """
+    t_start = time.time()
     seed_runs: list[dict[str, Any]] = []
     base_report: dict[str, Any] | None = None
 
-    for s in seeds:
-        rep = generate_full_evaluation_report(seed=s, quick_mode=quick_mode)
+    workers = max_workers or min(len(seeds), os.cpu_count() or 4)
+
+    # Execute seeds in parallel across worker threads
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            executor.submit(generate_full_evaluation_report, s, quick_mode)
+            for s in seeds
+        ]
+        seed_reports = [f.result() for f in futures]
+
+    for rep in seed_reports:
         if base_report is None:
             base_report = rep
         seed_runs.append(
             {
-                "seed": s,
+                "seed": rep["seed"],
                 "detection_rate": rep["detection"]["macro_average_tpr"] / 100.0,
                 "mean_ttd_s": float(
                     sum(r["mean_ttd_s"] for r in rep["detection"]["rows"])
                     / len(rep["detection"]["rows"])
                 ),
                 "fpr": rep["baselines"]["methods"][0]["fpr"] / 100.0,
-                "total_episodes": len(rep["detection"]["rows"]),
+                "total_episodes": rep["detection"].get("total_episodes", len(rep["detection"]["rows"])),
             }
         )
 
+    t_elapsed = time.time() - t_start
     agg = aggregate_multi_seed_results(seed_runs)
     assert base_report is not None
+    agg["runtime_seconds"] = round(t_elapsed, 2)
+    agg["seeds_evaluated"] = list(seeds)
     base_report["multi_seed_summary"] = agg
     return base_report
 
@@ -579,19 +577,27 @@ def export_paper_assets(report: dict[str, Any], output_dir: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="GUARDIAN Phase 2 Report & Paper Assets Generator")
+    parser = argparse.ArgumentParser(description="GUARDIAN Phase 2 & 3 Report & Paper Assets Generator")
     parser.add_argument("--seed", type=int, default=42, help="Evaluation random seed")
+    parser.add_argument("--multi-seed", action="store_true", help="Run multi-seed evaluation across >=5 seeds")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44, 45, 46], help="Seeds for multi-seed evaluation")
     parser.add_argument("--quick", action="store_true", help="Quick mode for rapid smoke testing")
     parser.add_argument("--export-paper-assets", action="store_true", help="Generate LaTeX paper assets")
     parser.add_argument("--output-dir", type=str, default="eval", help="Directory for output markdown and assets")
     args = parser.parse_args()
 
     print("=" * 80)
-    print(" GUARDIAN Phase 2 Comprehensive Evaluation Suite")
-    print(f" Seed: {args.seed} | Mode: {'Quick' if args.quick else 'Full Rigorous Battery'}")
+    print(" GUARDIAN Comprehensive Protocol Evaluation Suite")
+    if args.multi_seed:
+        print(f" Seeds: {args.seeds} | Mode: {'Quick' if args.quick else 'Full Rigorous Battery'}")
+    else:
+        print(f" Seed: {args.seed} | Mode: {'Quick' if args.quick else 'Full Rigorous Battery'}")
     print("=" * 80)
 
-    report = generate_full_evaluation_report(seed=args.seed, quick_mode=args.quick)
+    if args.multi_seed:
+        report = generate_multi_seed_evaluation_report(seeds=args.seeds, quick_mode=args.quick)
+    else:
+        report = generate_full_evaluation_report(seed=args.seed, quick_mode=args.quick)
     md_content = generate_results_markdown(report)
 
     out_dir = Path(args.output_dir)
