@@ -82,13 +82,24 @@ class AttackSuite:
                 ))
 
         elif attack_type == AttackType.CNC_BEACONING:
-            c2_ip = "91.240.118.52"
             if tier == DifficultyTier.EASY:
+                c2_ip = "91.240.118.52"
                 pkt_count = random.randint(25, 40)
+                dst_port = 8443
+                app_proto = "HTTPS"
+                len_min, len_max = 180, 240
             elif tier == DifficultyTier.MEDIUM:
+                c2_ip = "91.240.118.52"
                 pkt_count = random.randint(8, 14)
-            else:  # HARD
-                pkt_count = random.randint(2, 4)
+                dst_port = 8443
+                app_proto = "HTTPS"
+                len_min, len_max = 180, 240
+            else:  # HARD - covert in-band telemetry channel piggybacking
+                c2_ip = victim_device.normal_destinations[0]
+                pkt_count = random.randint(1, 2)
+                dst_port = 1883 if victim_device.primary_protocol == "MQTT" else 80
+                app_proto = victim_device.primary_protocol
+                len_min, len_max = victim_device.normal_byte_range
 
             for i in range(pkt_count):
                 ts = start_time + (i * (window_duration / max(1, pkt_count)))
@@ -99,10 +110,10 @@ class AttackSuite:
                     src_mac=victim_device.mac_address,
                     dst_mac="B8:27:EB:AA:BB:CC",
                     src_port=random.randint(49152, 65535),
-                    dst_port=8443,
+                    dst_port=dst_port,
                     protocol="TCP",
-                    app_protocol="HTTPS",
-                    length=random.randint(180, 240),
+                    app_protocol=app_proto,
+                    length=random.randint(len_min, len_max),
                     ttl=64,
                     ip_id=random.randint(1, 65535),
                     tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
@@ -206,13 +217,24 @@ class AttackSuite:
                 ))
 
         elif attack_type == AttackType.ZERO_DAY_HYBRID:
-            moscow_ip = "185.220.101.47"
             if tier == DifficultyTier.EASY:
+                moscow_ip = "185.220.101.47"
                 pkt_count = random.randint(800, 900)
+                dst_port = 80
+                app_proto = "HTTP"
+                len_min, len_max = 1200, 1480
             elif tier == DifficultyTier.MEDIUM:
+                moscow_ip = "185.220.101.47"
                 pkt_count = random.randint(180, 240)
-            else:  # HARD
-                pkt_count = random.randint(20, 30)
+                dst_port = 80
+                app_proto = "HTTP"
+                len_min, len_max = 1200, 1480
+            else:  # HARD - covert zero-day hybrid mimicry matching approved destinations and byte profiles
+                moscow_ip = victim_device.normal_destinations[0]
+                pkt_count = 1
+                dst_port = 1883 if victim_device.primary_protocol == "MQTT" else 80
+                app_proto = victim_device.primary_protocol
+                len_min, len_max = victim_device.normal_byte_range
 
             for _ in range(pkt_count):
                 ts = random.uniform(start_time, now)
@@ -223,10 +245,10 @@ class AttackSuite:
                     src_mac=victim_device.mac_address,
                     dst_mac="B8:27:EB:AA:BB:CC",
                     src_port=random.randint(50000, 60000),
-                    dst_port=80,
+                    dst_port=dst_port,
                     protocol="TCP",
-                    app_protocol="HTTP",
-                    length=random.randint(1200, 1480),
+                    app_protocol=app_proto,
+                    length=random.randint(len_min, len_max),
                     ttl=64,
                     ip_id=random.randint(1, 65535),
                     tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
