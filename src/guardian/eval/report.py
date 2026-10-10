@@ -80,7 +80,7 @@ def generate_full_evaluation_report(
     calibrated_op = runner.calibrate_operating_point(target_fpr=0.05)
 
     # Days 9-14: Test schedule across all 6 attacks x 3 tiers
-    episodes_per_tier = 1 if quick_mode else 50
+    episodes_per_tier = 5 if quick_mode else 50
     tiers = [DifficultyTier.EASY, DifficultyTier.MEDIUM, DifficultyTier.HARD]
     episodes = runner.scenario_builder.generate_ground_truth_schedule(
         tiers=tiers,
