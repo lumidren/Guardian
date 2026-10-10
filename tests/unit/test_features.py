@@ -74,3 +74,38 @@ def test_streaming_normalizer_welford_update() -> None:
     # Backward compatibility alias test
     alias_inst = FeatureNormalizer()
     assert isinstance(alias_inst, StreamingNormalizer)
+
+
+def test_registry_is_single_source_of_truth_for_readme_code_and_docs() -> None:
+    from pathlib import Path
+
+    from guardian.features.registry import (
+        EXCLUDED_PAYLOAD_FEATURES,
+        FEATURE_NAMES as REG_NAMES,
+        FEATURE_REGISTRY as REG_MAP,
+        render_readme_feature_table,
+    )
+
+    assert REG_NAMES == FEATURE_NAMES
+    assert list(REG_MAP.keys()) == REG_NAMES
+    assert all(not meta.requires_payload_bytes for meta in REG_MAP.values())
+    assert set(EXCLUDED_PAYLOAD_FEATURES.keys()) == {
+        "mqtt_topic_count",
+        "mqtt_new_topic",
+        "mqtt_msg_rate",
+        "mqtt_payload_len_mean",
+    }
+
+    root = Path(__file__).resolve().parents[2]
+    readme_text = (root / "README.md").read_text(encoding="utf-8")
+    expected_table = render_readme_feature_table()
+    assert expected_table in readme_text, (
+        "README.md 60-feature table must be generated from src/guardian/features/registry.py"
+    )
+
+    real_doc_text = (root / "docs" / "REAL_DATA_VALIDATION.md").read_text(encoding="utf-8")
+    for feat_name in REG_NAMES:
+        assert f"`{feat_name}`" in real_doc_text, (
+            f"Feature {feat_name} from registry.py missing in docs/REAL_DATA_VALIDATION.md"
+        )
+
