@@ -7,7 +7,7 @@ Enforces loud failures on missing artifacts (fixing F8) and produces reproducibl
 
 import json
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -879,49 +879,14 @@ class EvaluationRunner:
         n_devs = max(1, len(self.devices))
 
         def _evaluate_detector_at_threshold(det_key: str, thresh: float) -> dict[str, Any]:
-            norm_s = normal_window_scores[det_key]
-            atk_s = attack_window_scores[det_key]
-            ep_s = episode_peak_scores[det_key]
-
-            fp_c = sum(1 for s in norm_s if s >= thresh)
-            tn_c = len(norm_s) - fp_c
-            tp_w = sum(1 for s in atk_s if s >= thresh)
-            fn_w = len(atk_s) - tp_w
-
-            ep_tp = sum(1 for s in ep_s if s >= thresh)
-            ep_fn = len(ep_s) - ep_tp
-
-            # Confusion-based F1: use window counts (tp_w, fp_c, fn_w); if ep_tp > 0 and tp_w == 0, use ep_tp
-            eff_tp = tp_w if tp_w > 0 else ep_tp
-            eff_fn = fn_w if tp_w > 0 else ep_fn
-            f1_val = round(
-                compute_f1_from_confusion_counts(eff_tp, fp_c, tn_c, eff_fn),
-                4,
+            return evaluate_detector_point_at_threshold(
+                normal_scores=normal_window_scores[det_key],
+                attack_scores=attack_window_scores[det_key],
+                episode_scores=episode_peak_scores[det_key],
+                threshold=thresh,
+                num_devices=n_devs,
+                days_observed=days_obs,
             )
-
-            fpr_pct = round((fp_c / max(1, len(norm_s))) * 100.0, 2)
-            ep_tpr_pct = round((ep_tp / max(1, len(ep_s))) * 100.0, 2)
-            win_tpr_pct = round((tp_w / max(1, len(atk_s))) * 100.0, 2)
-            far_val = round(
-                compute_false_alert_rate(
-                    num_false_alerts=fp_c,
-                    num_devices=n_devs,
-                    days_observed=days_obs,
-                ),
-                2,
-            )
-            return {
-                "threshold": round(thresh, 2),
-                "tp": eff_tp,
-                "fp": fp_c,
-                "tn": tn_c,
-                "fn": eff_fn,
-                "episode_tpr": ep_tpr_pct,
-                "window_tpr": win_tpr_pct,
-                "fpr": fpr_pct,
-                "f1": f1_val,
-                "far_per_day": far_val,
-            }
 
         default_thresholds = {
             "guardian": guardian_thresh,
@@ -942,19 +907,14 @@ class EvaluationRunner:
         }
 
         # Equal False-Alarm Rate comparison (target <= 1.0 false alert/device/day, or closest achievable FAR)
-        target_far = 1.0
-        equal_far_comparison: dict[str, dict[str, Any]] = {}
-        candidate_grid = [round(x, 2) for x in np.linspace(20.0, 99.9, 160)]
-        for k in ("guardian", "pooled", "static", "zscore"):
-            pts = [_evaluate_detector_at_threshold(k, t) for t in candidate_grid]
-            feasible = [p for p in pts if p["far_per_day"] <= target_far]
-            if feasible:
-                # Highest episode TPR among thresholds achieving FAR <= target_far
-                best_pt = max(feasible, key=lambda p: (p["episode_tpr"], p["f1"], -p["threshold"]))
-            else:
-                # Minimum FAR achievable if detector's score saturates at 100.0
-                best_pt = min(pts, key=lambda p: (p["far_per_day"], -p["episode_tpr"]))
-            equal_far_comparison[k] = best_pt
+        equal_far_comparison = compute_equal_far_comparison(
+            normal_window_scores=normal_window_scores,
+            attack_window_scores=attack_window_scores,
+            episode_peak_scores=episode_peak_scores,
+            num_devices=n_devs,
+            days_observed=days_obs,
+            target_far=1.0,
+        )
 
         return {
             "detection_rows": detection_rows,
@@ -984,4 +944,93 @@ class EvaluationRunner:
             "equal_far_comparison": equal_far_comparison,
             "operating_curves": operating_curves,
         }
+
+
+def evaluate_detector_point_at_threshold(
+    normal_scores: Sequence[float],
+    attack_scores: Sequence[float],
+    episode_scores: Sequence[float],
+    threshold: float,
+    num_devices: int = 8,
+    days_observed: float = 6.0,
+) -> dict[str, Any]:
+    """Evaluate a detector's confusion counts, TPR, FPR, F1, and FAR/day at a given threshold."""
+    fp_c = sum(1 for s in normal_scores if s >= threshold)
+    tn_c = len(normal_scores) - fp_c
+    tp_w = sum(1 for s in attack_scores if s >= threshold)
+    fn_w = len(attack_scores) - tp_w
+
+    ep_tp = sum(1 for s in episode_scores if s >= threshold)
+    ep_fn = len(episode_scores) - ep_tp
+
+    eff_tp = tp_w if tp_w > 0 else ep_tp
+    eff_fn = fn_w if tp_w > 0 else ep_fn
+    f1_val = round(
+        compute_f1_from_confusion_counts(eff_tp, fp_c, tn_c, eff_fn),
+        4,
+    )
+
+    fpr_pct = round((fp_c / max(1, len(normal_scores))) * 100.0, 2)
+    ep_tpr_pct = round((ep_tp / max(1, len(episode_scores))) * 100.0, 2)
+    win_tpr_pct = round((tp_w / max(1, len(attack_scores))) * 100.0, 2)
+    far_val = round(
+        compute_false_alert_rate(
+            num_false_alerts=fp_c,
+            num_devices=max(1, num_devices),
+            days_observed=max(1e-6, days_observed),
+        ),
+        2,
+    )
+    return {
+        "threshold": round(float(threshold), 2),
+        "tp": eff_tp,
+        "fp": fp_c,
+        "tn": tn_c,
+        "fn": eff_fn,
+        "episode_tpr": ep_tpr_pct,
+        "window_tpr": win_tpr_pct,
+        "fpr": fpr_pct,
+        "f1": f1_val,
+        "far_per_day": far_val,
+    }
+
+
+def compute_equal_far_comparison(
+    normal_window_scores: Mapping[str, Sequence[float]],
+    attack_window_scores: Mapping[str, Sequence[float]],
+    episode_peak_scores: Mapping[str, Sequence[float]],
+    num_devices: int = 8,
+    days_observed: float = 6.0,
+    target_far: float = 1.0,
+    detector_keys: Sequence[str] = ("guardian", "pooled", "static", "zscore"),
+) -> dict[str, dict[str, Any]]:
+    """
+    Compare all detectors at an equal false-alarm budget (target_far false alerts/device/day),
+    or at the minimum achievable FAR if a detector's score saturates at 100.0.
+    """
+    equal_far_comparison: dict[str, dict[str, Any]] = {}
+    candidate_grid = [round(float(x), 2) for x in np.linspace(20.0, 99.9, 160)]
+    for k in detector_keys:
+        norm_s = normal_window_scores.get(k, [])
+        atk_s = attack_window_scores.get(k, [])
+        ep_s = episode_peak_scores.get(k, [])
+        pts = [
+            evaluate_detector_point_at_threshold(
+                normal_scores=norm_s,
+                attack_scores=atk_s,
+                episode_scores=ep_s,
+                threshold=t,
+                num_devices=num_devices,
+                days_observed=days_observed,
+            )
+            for t in candidate_grid
+        ]
+        feasible = [p for p in pts if p["far_per_day"] <= target_far]
+        if feasible:
+            best_pt = max(feasible, key=lambda p: (p["episode_tpr"], p["f1"], -p["threshold"]))
+        else:
+            best_pt = min(pts, key=lambda p: (p["far_per_day"], -p["episode_tpr"]))
+        equal_far_comparison[k] = best_pt
+    return equal_far_comparison
+
 
