@@ -173,3 +173,17 @@ def test_dataset_license_and_checksum_registry() -> None:
     doc_path = Path(__file__).resolve().parent.parent.parent / "docs" / "DATASET_REGISTRY.md"
     assert doc_path.exists()
     assert doc_path.read_text(encoding="utf-8") == generate_dataset_registry_markdown()
+
+
+def test_cross_device_generalization() -> None:
+    """Task 46: Verify leave-one-device-type-out (LODO) cross-device generalization evaluation."""
+    from guardian.eval.external import evaluate_cross_device_generalization
+
+    rep = evaluate_cross_device_generalization(seed=42, n_windows_per_device=60)
+    assert rep["held_out_device_type_count"] == 7
+    assert rep["overall_tpr"] >= 0.85
+    assert "Smart Home Gateway" in rep["per_held_out_device_type"]
+    for row in rep["per_held_out_device_type"].values():
+        assert 0.0 <= row["tpr"] <= 1.0
+        assert 0.0 <= row["fpr"] <= 1.0
+        assert len(row["tpr_ci_95"]) == 2

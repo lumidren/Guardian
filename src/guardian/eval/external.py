@@ -511,3 +511,86 @@ def generate_dataset_registry_markdown() -> str:
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def evaluate_cross_device_generalization(
+    seed: int = 42,
+    n_windows_per_device: int = 60,
+) -> dict[str, Any]:
+    """
+    Task 46: Leave-one-device-type-out (LODO) cross-device generalization evaluation.
+    Trains a normalized anomaly baseline on K-1 device types and evaluates benign FPR
+    and attack TPR on the held-out unseen device type.
+    """
+    from .metrics import wilson_score_ci
+    from .pcap_calibration import build_calibrated_device_type_profiles
+
+    profiles = build_calibrated_device_type_profiles()
+    device_types = list(profiles.keys())
+    rng = np.random.default_rng(seed)
+
+    benign_by_type: dict[str, np.ndarray] = {}
+    attack_by_type: dict[str, np.ndarray] = {}
+
+    for dtype, prof in profiles.items():
+        mix = prof.protocol_mix_model
+        base_vec = np.array(
+            [
+                prof.packet_size_model.mu_payload,
+                prof.inter_arrival_model.inter_mean_s,
+                prof.bidirectional_model.upstream_pkt_ratio_mean,
+                prof.tcp_window_ttl_model.tcp_win_mean / 65535.0,
+                mix.https_ratio + mix.mqtt_ratio + mix.http_ratio,
+                mix.dns_ratio + mix.ntp_ratio,
+            ],
+            dtype=np.float64,
+        )
+        noise = rng.normal(0.0, 0.04, size=(n_windows_per_device, base_vec.size))
+        benign_by_type[dtype] = base_vec * (1.0 + noise)
+        # Synthetic volumetric/scan perturbation on held-out device type
+        atk_shift = np.array([2.4, 0.25, 1.65, 0.55, 0.45, 4.5], dtype=np.float64)
+        atk_noise = rng.normal(0.0, 0.06, size=(n_windows_per_device // 2, base_vec.size))
+        attack_by_type[dtype] = base_vec * atk_shift * (1.0 + atk_noise)
+
+    per_held_out: dict[str, dict[str, Any]] = {}
+    all_tp = all_fp = all_tn = all_fn = 0
+
+    for held_out in device_types:
+        train_mats = [benign_by_type[d] for d in device_types if d != held_out]
+        x_train = np.vstack(train_mats)
+        mu = np.mean(x_train, axis=0)
+        sd = np.maximum(np.std(x_train, axis=0), 1e-6)
+        train_scores = np.mean(np.abs((x_train - mu) / sd), axis=1)
+        thresh = float(np.percentile(train_scores, 99.0))
+
+        b_scores = np.mean(np.abs((benign_by_type[held_out] - mu) / sd), axis=1)
+        a_scores = np.mean(np.abs((attack_by_type[held_out] - mu) / sd), axis=1)
+
+        y_true = [0] * len(b_scores) + [1] * len(a_scores)
+        y_pred = [int(s > thresh) for s in b_scores] + [int(s > thresh) for s in a_scores]
+        m = compute_binary_metrics(y_true, y_pred)
+        tpr_ci = wilson_score_ci(m.tp, m.tp + m.fn, scale_100=False)
+        fpr_ci = wilson_score_ci(m.fp, m.fp + m.tn, scale_100=False)
+
+        all_tp += m.tp
+        all_fp += m.fp
+        all_tn += m.tn
+        all_fn += m.fn
+
+        per_held_out[held_out] = {
+            "tpr": round(m.tpr, 4),
+            "tpr_ci_95": [round(tpr_ci.ci_lower, 4), round(tpr_ci.ci_upper, 4)],
+            "fpr": round(m.fpr, 4),
+            "fpr_ci_95": [round(fpr_ci.ci_lower, 4), round(fpr_ci.ci_upper, 4)],
+            "f1": round(m.f1, 4),
+        }
+
+    overall_tpr = all_tp / max(1, all_tp + all_fn)
+    overall_fpr = all_fp / max(1, all_fp + all_tn)
+    return {
+        "seed": seed,
+        "held_out_device_type_count": len(device_types),
+        "overall_tpr": round(overall_tpr, 4),
+        "overall_fpr": round(overall_fpr, 4),
+        "per_held_out_device_type": per_held_out,
+    }
