@@ -222,6 +222,61 @@ class ScenarioBuilder:
 
         return episodes
 
+    def generate_adversarial_schedule(
+        self,
+        episodes_per_mode: int = 50,
+    ) -> list[GroundTruthEpisode]:
+        """
+        Generate hardened adversarial evasion schedule across all 6 EvasionModes
+        in the Days 9-14 TEST split (50+ episodes per mode per seed).
+        """
+        rng = np.random.default_rng(self.seed + 777)
+        test_start_time = 8.0 * self.SECONDS_PER_DAY
+        test_end_time = float(self.total_days) * self.SECONDS_PER_DAY
+        available_span = max(3600.0, test_end_time - test_start_time - 3600.0)
+
+        modes = list(EvasionMode)
+        attack_types = list(AttackType)
+        total_eps = len(modes) * episodes_per_mode
+        spacing = max(90.0, available_span / max(1, total_eps))
+
+        episodes: list[GroundTruthEpisode] = []
+        ep_idx = 0
+        for mode in modes:
+            for k in range(episodes_per_mode):
+                atk = attack_types[(ep_idx + k) % len(attack_types)]
+                dev = self.devices[(ep_idx + k) % len(self.devices)]
+                # Hardened adversarial episodes default to HARD tier for active evasion modes
+                tier = (
+                    DifficultyTier.MEDIUM
+                    if (mode == EvasionMode.NONE and k % 2 == 0)
+                    else DifficultyTier.HARD
+                )
+                intensity = AttackIntensity.LOW if mode != EvasionMode.NONE else AttackIntensity.MEDIUM
+                duration = float(rng.integers(24, 48))
+                base_start = test_start_time + 600.0 + ep_idx * spacing
+                aligned_base = float(np.floor(base_start / self.stride_s) * self.stride_s)
+                offset = calculate_sub_window_offset(stride_s=self.stride_s, rng=rng)
+                start_t = round(aligned_base + offset, 3)
+                end_t = round(start_t + duration, 3)
+
+                episodes.append(
+                    GroundTruthEpisode(
+                        episode_id=f"ep_adv_{ep_idx:04d}_{mode.value.lower()}",
+                        device_id=dev.id,
+                        attack_type=atk,
+                        start_time=start_t,
+                        end_time=end_t,
+                        duration_seconds=duration,
+                        intensity=intensity,
+                        evasion_mode=mode,
+                        tier=tier,
+                    )
+                )
+                ep_idx += 1
+
+        return episodes
+
     def create_offset_episode(
         self,
         episode_id: str,
@@ -305,6 +360,17 @@ class ScenarioBuilder:
                     if w_end <= active_start:
                         continue
 
+                    # Adaptive backoff evasion: alternate active and quiet windows to evade hysteresis/rate triggers
+                    win_offset_idx = int(round(max(0.0, w_start - active_start) / max(0.1, self.stride_s)))
+                    if ep.evasion_mode == EvasionMode.ADAPTIVE and (win_offset_idx % 2 == 1):
+                        continue
+                    if (
+                        ep.evasion_mode == EvasionMode.LOW_AND_SLOW
+                        and ep.tier == DifficultyTier.HARD
+                        and (win_offset_idx % 2 == 1)
+                    ):
+                        continue
+
                     raw_attack = self.attack_suite.inject_attack(
                         attack_type=ep.attack_type,
                         victim_device=dev,
@@ -312,7 +378,14 @@ class ScenarioBuilder:
                     )
                     if ep.tier == DifficultyTier.HARD:
                         if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
-                            sample_attack = raw_attack[: max(1, int(len(raw_attack) * 0.5))]
+                            sample_attack = raw_attack[:1]
+                        elif ep.evasion_mode in (
+                            EvasionMode.MIMICRY,
+                            EvasionMode.NO_NEW_DESTINATION,
+                            EvasionMode.ADAPTIVE,
+                            EvasionMode.DELAYED_START,
+                        ):
+                            sample_attack = raw_attack[: max(1, int(len(raw_attack) * 0.65))]
                         else:
                             sample_attack = raw_attack
                     else:
@@ -323,6 +396,8 @@ class ScenarioBuilder:
                         )
                         if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
                             multiplier *= 0.15
+                        elif ep.evasion_mode == EvasionMode.ADAPTIVE:
+                            multiplier *= 0.40
 
                         target_count = max(
                             2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
@@ -344,12 +419,14 @@ class ScenarioBuilder:
                         if p.tcp_timestamp is not None:
                             p.tcp_timestamp = int(p.timestamp * 1000) % 4294967295
 
-                        # Evasion Mode: Mimicry (match legitimate packet size distribution)
+                        # Evasion Mode: Mimicry (match legitimate packet size distribution and destination)
                         if ep.evasion_mode == EvasionMode.MIMICRY:
                             p.length = int(min_b + (j % (max(1, max_b - min_b + 1))))
+                            if ep.tier == DifficultyTier.HARD:
+                                p.dst_ip = dev.normal_destinations[j % len(dev.normal_destinations)]
 
                         # Evasion Mode: No New Destination (exploit legitimate approved endpoints)
-                        if ep.evasion_mode == EvasionMode.NO_NEW_DESTINATION:
+                        if ep.evasion_mode in (EvasionMode.NO_NEW_DESTINATION, EvasionMode.ADAPTIVE):
                             p.dst_ip = dev.normal_destinations[j % len(dev.normal_destinations)]
 
                         attack_pkts.append(p)
