@@ -459,6 +459,34 @@ class AttackSuite:
         )
         return packets
 
+    def inject_delayed_start_attack(
+        self,
+        attack_type: AttackType,
+        victim_device: IoTDeviceSpec,
+        episode_start_time: float,
+        episode_duration: float,
+        window_start: float,
+        window_end: float,
+    ) -> list[ParsedPacket]:
+        """
+        Inject hardened delayed-start attack: remains completely dormant during the
+        initial 50% of the episode (up to 30.0s) so baseline sliding windows remain
+        unperturbed, then injects covert whitelisted HARD-tier packets.
+        """
+        dormant_duration = min(30.0, episode_duration * 0.5)
+        active_start = episode_start_time + dormant_duration
+        if window_end <= active_start:
+            return []
+        overlap_start = max(window_start, active_start)
+        overlap_dur = max(0.1, window_end - overlap_start)
+        raw = self._inject_hard_tier_covert_packets(
+            attack_type=attack_type,
+            victim_device=victim_device,
+            start_time=overlap_start,
+            window_duration=overlap_dur,
+        )
+        return raw[: max(1, int(len(raw) * 0.65))]
+
     def inject_adaptive_attack(
         self,
         victim_device: IoTDeviceSpec,
