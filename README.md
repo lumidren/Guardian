@@ -448,7 +448,26 @@ The web interface is built with **React 18**, **TypeScript**, **Tailwind CSS**, 
 | **Robust Z-Score Only (L1)** | 94.47 | **93.78%** | 86.69% | 8.01% | 0.9213 | 0.98 |
 
 > [!NOTE]
-> **Why Uncalibrated `Robust Z-Score Only` Has Higher Raw TPR (`99.6%` vs `96.1%`) — and Why `GUARDIAN` Wins at Low-FPR Operating Points**: `RobustZScoreOnlyBaseline` takes the raw single-feature maximum $z_{\max} = \max_{j \in \{1..60\}} |Z_j|$ across all 60 features and clips at `100.0` whenever any single feature exceeds $5.61\sigma$. At its uncalibrated threshold (`60.00`), it suffers **`16.46%` window FPR (`2.02` false alerts/device/day)**—77% more false alarms than calibrated `GUARDIAN` (`9.29%` FPR, `1.14` FAR/day). Because `Robust Z-Score Only` clips at `100.0` on benign operational bursts, it retains `7.43%` FPR (`0.91` FAR/day) even at `threshold = 99.00` and cannot achieve $\text{FAR} < 0.91$ without collapsing to `0.0%` TPR (`threshold > 100.0`). In contrast, `GUARDIAN`'s fused ensemble score remains continuous up to `99.00`, achieving **`66.67%` episode TPR at `0.00` false alerts/device/day (`0.00%` FPR)** (full operating curves in [`eval/RESULTS.md`](eval/RESULTS.md)).
+> **Why Uncalibrated `Robust Z-Score Only` Has Higher Raw TPR (`99.6%` vs `96.1%`) — and Why `GUARDIAN` Wins at Low-FPR Operating Points**: `RobustZScoreOnlyBaseline` takes the raw single-feature maximum $z_{\max} = \max_{j \in \{1..60\}} |Z_j|$ across all 60 features and clips at `100.0` whenever any single feature exceeds $5.61\sigma$. At its uncalibrated threshold (`60.00`), it suffers **`16.46%` window FPR (`2.02` false alerts/device/day)**—77% more false alarms than calibrated `GUARDIAN` (`9.29%` FPR, `1.14` FAR/day). Because `Robust Z-Score Only` clips at `100.0` on benign operational bursts, it retains `7.43%` FPR (`0.91` FAR/day) even at `threshold = 99.00` and cannot achieve $\text{FAR} < 0.91$ without collapsing to `0.0%` TPR (`threshold > 100.0`). In contrast, `GUARDIAN`'s fused ensemble score remains continuous up to `99.00`, achieving **`66.67%` episode TPR at `0.00` false alerts/device/day (`0.00%` FPR)**.
+
+#### Operating Curves (`GUARDIAN` vs. `Robust Z-Score Only` vs. `Pooled IF` Across Thresholds)
+
+| Alert Threshold | GUARDIAN Ep TPR (%) | GUARDIAN Win FPR (%) | GUARDIAN FAR/Day | Robust Z-Score Ep TPR (%) | Robust Z-Score Win FPR (%) | Robust Z-Score FAR/Day | Pooled IF Ep TPR (%) | Pooled IF Win FPR (%) | Pooled IF FAR/Day |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **30.00** | 100.00% | 34.45% | 4.22 | 100.00% | 32.38% | 3.97 | 100.00% | 100.00% | 12.25 |
+| **40.00** | 99.93% | 18.37% | 2.25 | 100.00% | 32.38% | 3.97 | 100.00% | 99.40% | 12.18 |
+| **50.00** | 99.22% | 13.45% | 1.65 | 99.91% | 21.40% | 2.62 | 99.53% | 69.63% | 8.53 |
+| **55.00** | 98.69% | 11.68% | 1.43 | 99.89% | 19.07% | 2.34 | 96.60% | 40.91% | 5.01 |
+| **60.00** | 97.44% | 10.39% | 1.27 | 99.65% | 16.46% | 2.02 | 88.75% | 23.04% | 2.82 |
+| **65.00** | 96.25% | 9.45% | 1.16 | 99.35% | 14.53% | 1.78 | 79.00% | 13.52% | 1.66 |
+| **68.65** | 95.87% | 8.88% | 1.09 | 99.13% | 13.37% | 1.64 | 72.87% | 9.26% | 1.13 |
+| **72.00** | 95.40% | 8.55% | 1.05 | 98.38% | 12.33% | 1.51 | 68.31% | 6.37% | 0.78 |
+| **75.00** | 93.42% | 8.24% | 1.01 | 97.93% | 11.55% | 1.42 | 63.89% | 4.22% | 0.52 |
+| **80.00** | 91.33% | 7.49% | 0.92 | 97.31% | 10.50% | 1.28 | 56.33% | 2.25% | 0.27 |
+| **85.00** | 66.67% | 0.00% | 0.00 | 96.02% | 9.31% | 1.14 | 37.33% | 0.75% | 0.09 |
+| **90.00** | 66.67% | 0.00% | 0.00 | 95.55% | 8.64% | 1.06 | 0.96% | 0.00% | 0.00 |
+| **95.00** | 66.67% | 0.00% | 0.00 | 93.33% | 7.95% | 0.97 | 0.00% | 0.00% | 0.00 |
+| **99.00** | 66.67% | 0.00% | 0.00 | 92.91% | 7.43% | 0.91 | 0.00% | 0.00% | 0.00 |
 
 ### 3. Edge Gateway System Performance & Latency Disaggregation
 
@@ -473,12 +492,36 @@ All resource and latency measurements below reflect live `psutil` sampling and s
 
 ### 4. 10-Minute Real-Time Packet Stream, CPU Disaggregation & Burst Saturation Benchmark (Review Fix 6)
 
+| Ingestion Metric | Measured Value | Operational Gate |
+| :--- | :---: | :---: |
+| **Real-Time Wall-Clock Duration** | 756.40 s | $\ge 600.0\text{ s}$ ($10\text{ min}$) |
+| **Offered Packets (10-Min Fleet Run)** | 37,645 pkts | Continuous real-time stream |
+| **Processed Packets (10-Min Fleet Run)** | 37,645 pkts | Pipeline throughput |
+| **Dropped Packets (1x Normal Load)** | 0 pkts | $< 0.1\%$ under normal load |
+| **Packet Drop Rate (1x Normal Load)** | 0.00% | $0.00\%$ |
+| **Peak Queue Depth (1x Normal Load)** | 17 / 5000 pkts | Buffer headroom |
+| **Window Processing Latency (Mean / p95 / p99)** | 82.429 ms / 196.525 ms / 234.736 ms | Real-time window scoring |
+| **Pipeline Consumer CPU vs. Generator Overhead CPU** | **7.03%** pipeline / 0.10% generator | Separated benchmark overhead |
+| **Packet Ingestion Throughput** | 27.15 pps | Real-time line rate |
+
+#### 4.1 10-Minute Real-Time Fleet-Size Breakdown (`200 s` Each at `8, 16, 32` Devices = `600.4 s` Total)
+
 | Fleet Size | Duration (s) | Offered Pkts | Processed Pkts | Dropped Pkts | Peak Queue | Mean / p95 / p99 Latency (ms) | Pipeline CPU (%) | Generator Overhead CPU (%) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **8 Devices** | 200.07 s | 5,431 | 5,431 | 0 | 7 / 5000 | 82.429 / 196.525 / 234.736 ms | **7.03%** | 0.10% |
 | **16 Devices** | 200.15 s | 10,750 | 10,750 | 0 | 9 / 5000 | 151.275 / 368.735 / 460.437 ms | **13.77%** | 0.12% |
 | **32 Devices** | 200.20 s | 21,464 | 21,464 | 0 | 17 / 5000 | 311.071 / 727.209 / 871.331 ms | **29.17%** | 0.31% |
-| **Total (10-Min Fleet Sweep)** | **600.42 s** (`756.40 s` w/ burst sweep) | **37,645** (`578,175` w/ burst) | **37,645** | **0 (0.00%)** | **17 / 5000** | **82.429 / 196.525 / 234.736 ms** (8-dev) | **7.03%–29.17%** | **0.10%–0.31%** |
+
+#### 4.2 Burst-Factor Saturation Sweep (`16` Devices, `60 s` per Burst Level from `1x` to `100x`)
+
+| Burst Factor | Throughput (pps) | Offered Pkts | Processed Pkts | Dropped Windows | Peak Queue | Mean / p95 / p99 Latency (ms) | Pipeline CPU (%) | Generator Overhead CPU (%) |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1.0x** | 628.04 pps | 2,830 | 2,830 | 366 / 416 | 9 / 5000 | 91.450 / 182.804 / 216.803 ms | **69.23%** | 0.45% |
+| **5.0x** | 1250.00 pps | 14,150 | 14,150 | 401 / 416 | 45 / 5000 | 229.352 / 530.264 / 636.024 ms | **100.00%** | 2.52% |
+| **10.0x** | 1488.48 pps | 28,300 | 28,300 | 410 / 416 | 90 / 5000 | 385.779 / 914.368 / 1128.419 ms | **100.00%** | 2.34% |
+| **25.0x** | 2958.19 pps | 70,750 | 70,750 | 415 / 416 | 225 / 5000 | 489.431 / 1051.129 / 1332.088 ms | **100.00%** | 4.26% |
+| **50.0x** | 4131.87 pps | 141,500 | 141,500 | 416 / 416 | 479 / 5000 | 678.383 / 1428.158 / 1725.609 ms | **100.00%** | 5.98% |
+| **100.0x** | 5825.61 pps | 283,000 | 283,000 | 416 / 416 | 998 / 5000 | 951.881 / 1980.670 / 2384.956 ms | **100.00%** | 8.80% |
 
 <!-- END RESULTS -->
 
