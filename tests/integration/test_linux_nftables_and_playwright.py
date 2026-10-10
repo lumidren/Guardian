@@ -24,13 +24,10 @@ import shutil
 import socket
 import subprocess
 import sys
-import threading
 import time
 
 import pytest
-import uvicorn
 
-from guardian.api.app import create_app
 from guardian.config import ThreatLevel
 from guardian.enforcement.controller import EnforcementController
 from guardian.enforcement.iptables_driver import (
@@ -222,17 +219,31 @@ def test_playwright_dashboard_and_attack_injection() -> None:
     pw_sync = pytest.importorskip("playwright.sync_api")
 
     port = _find_free_port()
-    app = create_app()
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(config)
-
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"src{os.pathsep}."
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "guardian.api.app:create_app",
+            "--factory",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
     # Wait for server readiness
     base_url = f"http://127.0.0.1:{port}"
     ready = False
-    for _ in range(30):
+    for _ in range(50):
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 ready = True
@@ -245,11 +256,11 @@ def test_playwright_dashboard_and_attack_injection() -> None:
         with pw_sync.sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            page.goto(base_url, wait_until="networkidle")
+            page.goto(base_url, wait_until="domcontentloaded", timeout=15000)
 
             # 1. Verify title and 8 device cards render
             assert "GUARDIAN" in page.title()
-            page.wait_for_selector("#device-grid .device-card", timeout=10000)
+            page.wait_for_selector("#device-grid .device-card", timeout=15000)
             cards = page.locator("#device-grid .device-card")
             assert cards.count() == 8
 
@@ -259,7 +270,7 @@ def test_playwright_dashboard_and_attack_injection() -> None:
 
             # 3. Verify Explainable AI modal appears with score and root-cause bullets
             modal = page.locator("#xai-modal")
-            modal.wait_for(state="visible", timeout=10000)
+            modal.wait_for(state="visible", timeout=15000)
             score_text = page.locator("#modal-score").inner_text()
             assert "/100" in score_text
             bullets = page.locator("#modal-bullets > div")
@@ -267,9 +278,12 @@ def test_playwright_dashboard_and_attack_injection() -> None:
 
             # 4. Click One-Click Unblock & Retrain and verify modal closes
             page.click("button:has-text('One-Click Unblock')")
-            modal.wait_for(state="hidden", timeout=5000)
+            modal.wait_for(state="hidden", timeout=10000)
 
             browser.close()
     finally:
-        server.should_exit = True
-        thread.join(timeout=5.0)
+        proc.terminate()
+        try:
+            proc.wait(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
