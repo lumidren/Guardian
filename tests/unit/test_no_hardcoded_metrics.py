@@ -114,49 +114,67 @@ def test_readme_and_results_md_tables_match() -> None:
 
 def test_no_cross_table_cell_assignment_or_overwrite() -> None:
     """
-    Fails if any table row/cell in src/guardian/eval/report.py is assigned or overwritten
-    from another table (e.g., assigning ablation_dict_list[0]['tpr'] = macro_guardian),
-    or if check_evaluation_cross_table_consistency compares a variable against itself.
+    Task 14: Fails if any table row/cell in src/guardian/eval/report.py is assigned or overwritten
+    from another table (e.g., assigning ablation_dict_list[0]['tpr'] = macro_guardian or
+    copying a cell from detection_rows into ablation_rows), or if
+    check_evaluation_cross_table_consistency compares a variable against itself.
     """
     import ast
 
-    report_py = Path(__file__).resolve().parent.parent.parent / "src" / "guardian" / "eval" / "report.py"
-    source = report_py.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(report_py))
+    import pytest
 
     protected_table_vars = {
         "ablation_dict_list",
         "ablation_results",
+        "ablation_rows",
         "ablations_data",
         "detection_rows",
         "detection_data",
+        "per_cell_rows",
         "baselines_data",
         "adv_rows",
+        "adversarial_rows",
         "adversarial_data",
         "scalability_data",
     }
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Subscript):
-                    # Unwrap nested subscripts like ablation_dict_list[0]["tpr"]
-                    root = target.value
-                    while isinstance(root, ast.Subscript):
-                        root = root.value
-                    if isinstance(root, ast.Name) and root.id in protected_table_vars:
-                        raise AssertionError(
-                            f"Forbidden post-hoc table cell overwrite detected in report.py at line {node.lineno}: "
-                            f"mutating '{root.id}[...]' after runner computation."
+    def _assert_ast_has_no_cross_table_copy(tree: ast.AST) -> None:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                rhs_names = {
+                    n.id for n in ast.walk(node.value) if isinstance(n, ast.Name) and n.id in protected_table_vars
+                }
+                for target in node.targets:
+                    if isinstance(target, ast.Subscript):
+                        root = target.value
+                        while isinstance(root, ast.Subscript):
+                            root = root.value
+                        if isinstance(root, ast.Name) and root.id in protected_table_vars:
+                            raise AssertionError(
+                                f"Forbidden post-hoc table cell overwrite detected at line {node.lineno}: "
+                                f"mutating '{root.id}[...]' after runner computation."
+                            )
+                        if isinstance(root, ast.Name) and rhs_names:
+                            raise AssertionError(
+                                f"Forbidden cross-table cell copy detected at line {node.lineno}: "
+                                f"assigning '{root.id}[...]' from {sorted(rhs_names)}."
+                            )
+
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id == "check_evaluation_cross_table_consistency":
+                    kw_map = {kw.arg: ast.dump(kw.value) for kw in node.keywords if kw.arg}
+                    if "main_fpr" in kw_map and "ablation_fpr" in kw_map:
+                        assert kw_map["main_fpr"] != kw_map["ablation_fpr"], (
+                            f"Tautological cross-table consistency check at line {node.lineno}: "
+                            "main_fpr and ablation_fpr pass the exact same expression!"
                         )
 
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "check_evaluation_cross_table_consistency":
-                kw_map = {kw.arg: ast.dump(kw.value) for kw in node.keywords if kw.arg}
-                if "main_fpr" in kw_map and "ablation_fpr" in kw_map:
-                    assert kw_map["main_fpr"] != kw_map["ablation_fpr"], (
-                        f"Tautological cross-table consistency check at line {node.lineno}: "
-                        "main_fpr and ablation_fpr pass the exact same expression!"
-                    )
+    report_py = Path(__file__).resolve().parent.parent.parent / "src" / "guardian" / "eval" / "report.py"
+    source = report_py.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(report_py))
+    _assert_ast_has_no_cross_table_copy(tree)
 
-
+    # Negative check: synthetic cross-table cell copy must fail
+    bad_tree = ast.parse('ablation_rows[0]["tpr"] = detection_rows[0]["guardian_tpr"]\n')
+    with pytest.raises(AssertionError, match="Forbidden post-hoc table cell overwrite"):
+        _assert_ast_has_no_cross_table_copy(bad_tree)
