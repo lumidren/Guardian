@@ -268,3 +268,59 @@ def get_clock_skew_feature_policy() -> dict[str, object]:
         "physical_layer_identity_in_scope": False,
         "scope_note": CLOCK_SKEW_SCOPE_NOTE,
     }
+
+
+def compute_registry_sha256() -> str:
+    """Task 51: Compute deterministic SHA-256 hash of the ordered 60-feature registry schema."""
+    import hashlib
+    import json
+
+    canonical_rows = [
+        {
+            "index": m.index,
+            "name": m.name,
+            "layer": str(m.layer),
+            "unit": m.unit,
+            "requires_payload_bytes": m.requires_payload_bytes,
+        }
+        for m in FEATURE_REGISTRY.values()
+    ]
+    payload = json.dumps(canonical_rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def write_model_registry_sidecar(
+    model_path: object,
+    extra_metadata: dict[str, object] | None = None,
+) -> object:
+    """Task 51: Write a JSON sidecar alongside a saved model storing the feature registry SHA-256 hash."""
+    import json
+    from pathlib import Path
+
+    mpath = Path(str(model_path))
+    sidecar = mpath.with_suffix(mpath.suffix + ".registry.json")
+    data: dict[str, object] = {
+        "feature_count": len(FEATURE_NAMES),
+        "feature_names": list(FEATURE_NAMES),
+        "registry_sha256": compute_registry_sha256(),
+    }
+    if extra_metadata:
+        data.update(extra_metadata)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return sidecar
+
+
+def verify_model_registry_sidecar(sidecar_path: object) -> bool:
+    """Task 51: Verify that a saved model's registry sidecar matches the current FEATURE_REGISTRY hash."""
+    import json
+    from pathlib import Path
+
+    spath = Path(str(sidecar_path))
+    if not spath.exists():
+        return False
+    raw = json.loads(spath.read_text(encoding="utf-8"))
+    return bool(
+        raw.get("registry_sha256") == compute_registry_sha256()
+        and raw.get("feature_names") == list(FEATURE_NAMES)
+    )

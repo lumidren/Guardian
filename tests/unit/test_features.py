@@ -188,3 +188,22 @@ def test_clock_skew_feature_scope_documented() -> None:
     assert pol["fallback_when_ts_option_absent"] == 0.0
     assert "ADR-007" in str(pol["scope_note"])
 
+
+def test_store_registry_hash_in_model_sidecar(tmp_path: object) -> None:
+    """Task 51: Verify model sidecar stores and validates deterministic FEATURE_REGISTRY SHA-256 hash."""
+    from pathlib import Path
+
+    from guardian.features.registry import (
+        compute_registry_sha256,
+        verify_model_registry_sidecar,
+        write_model_registry_sidecar,
+    )
+
+    h1 = compute_registry_sha256()
+    assert len(h1) == 64
+    model_file = Path(str(tmp_path)) / "guardian_if.pkl"
+    model_file.write_bytes(b"dummy")
+    sidecar = Path(str(write_model_registry_sidecar(model_file, {"device_id": "dev_01_temp"})))
+    assert sidecar.exists()
+    assert verify_model_registry_sidecar(sidecar) is True
+
