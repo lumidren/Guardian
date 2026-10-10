@@ -10,8 +10,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT"></a>
   <a href="docs/IEEE_PAPER_DRAFT.md"><img src="https://img.shields.io/badge/Target-IEEE%20ICC%20%2F%20GLOBECOM-00629B.svg?style=flat-square" alt="Target Venue"></a>
   <a href="docs/PRESENTATION_PITCH.md"><img src="https://img.shields.io/badge/Deployment%20Budget-%24250%20Hardware-10b981.svg?style=flat-square" alt="Hardware Budget"></a>
-  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/Zero--Day%20Detection-100.0%25%20Verified-8b5cf6.svg?style=flat-square" alt="Zero-Day Detection"></a>
-  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/FPR%20Baseline-9.3%25-f59e0b.svg?style=flat-square" alt="False Positive Rate"></a>
+  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/Tier--Averaged%20Detection-95.5%25%20(Easy%2FMed%20100%25%20%7C%20Hard%2047--70%25)-8b5cf6.svg?style=flat-square" alt="Tier-Averaged Detection"></a>
+  <a href="eval/RESULTS.md"><img src="https://img.shields.io/badge/Calibrated%20FPR-0.0%25%20Clean%20%7C%202.3%25%20Multi--Seed-f59e0b.svg?style=flat-square" alt="False Positive Rate"></a>
 </p>
 
 ---
@@ -22,9 +22,12 @@ The explosive proliferation of Internet of Things (IoT) devices in consumer, med
 1. **Signature Blindness**: Novel zero-day intrusions lack published signatures, rendering signature-only detection ineffective against uncataloged exploit chains.
 2. **End-to-End Encryption Barrier**: Pervasive transport encryption (TLS 1.3, DTLS, QUIC) blinds deep packet inspection without invasive, latency-inducing middleboxes and key-escrow architectures.
 
-**GUARDIAN** (*Graduated User-friendly Anomaly Response with Device Identity And Natural language*) addresses these challenges through an edge-native, zero-trust security framework engineered for low-cost gateway hardware ($250 total fleet budget). By observing packet metadata alone—**without payload inspection or decryption**—GUARDIAN extracts 60 statistical and topological features across sliding time windows ($W = 10\text{ s}, \Delta t = 2\text{ s}$). 
+**GUARDIAN** (*Graduated User-friendly Anomaly Response with Device Identity And Natural language*) addresses these challenges through an edge-native, zero-trust security framework engineered for low-cost gateway hardware (\$250 total fleet budget). By observing packet metadata alone—**without payload inspection or decryption**—GUARDIAN extracts 60 statistical and topological features across sliding time windows ($W = 10\text{ s}, \Delta t = 2\text{ s}$). 
 
-The detection pipeline combines an unsupervised **Isolation Forest** (200 isolation trees) with non-parametric **Robust Statistics (Median Absolute Deviation)** and an egress **Network Destination Graph**. An empirical **Hysteresis State Machine** ($k=2 \text{ of } n=3$ escalation, $M=15$ calm cooldown) suppresses stochastic network false alarms. Containment is enforced within a $<300\text{ ms}$ budget via kernel-level `nftables` (simulation backend latency $\le 0.01\text{ ms}$) across four graduated tiers (**MONITOR &rarr; RESTRICT &rarr; QUARANTINE &rarr; BLOCK**), accompanied by an **Explainable AI (XAI)** engine delivering human-readable root-cause diagnostics.
+The detection pipeline combines an unsupervised **Isolation Forest** (200 isolation trees) with non-parametric **Robust Statistics (Median Absolute Deviation)** and an egress **Network Destination Graph**. An empirical **Hysteresis State Machine** ($k=2 \text{ of } n=3$ escalation, $M=15$ calm cooldown) suppresses stochastic network false alarms. Containment is enforced within a $<300\text{ ms}$ budget via kernel-level `nftables` (where the in-memory dry-run state transition takes $0.009\text{ ms}$, while real Linux `nft -f` subprocess compilation and atomic kernel rule application requires $2\text{--}15\text{ ms}$) across four graduated tiers (**MONITOR &rarr; RESTRICT &rarr; QUARANTINE &rarr; BLOCK**), accompanied by an **Explainable AI (XAI)** engine delivering human-readable root-cause diagnostics.
+
+> [!WARNING]
+> **Simulator-Only Scope & Empirical Limitations**: Primary multi-day benchmarks are executed against GUARDIAN's stochastic IoT telemetry simulator (with complementary offline replay of public PCAP captures). Detection is explicitly intensity- and tier-dependent: while overt and moderate attacks (`EASY`/`MEDIUM` tiers, $\ge 1.0\times$ intensity) achieve $100.0\%$ recall, covert `HARD`-tier adversaries that reuse whitelisted broker IPs, match normal payload byte ranges, and inject only $1\text{--}2\text{ pkts}/10\text{s}$ (`0.1x–0.25x` intensity) overlap the benign feature distribution and reduce recall to $46.7\%\text{--}70.0\%$.
 
 ---
 
@@ -368,34 +371,34 @@ The web interface is built with **React 18**, **TypeScript**, **Tailwind CSS**, 
 
 <!-- BEGIN RESULTS -->
 > [!IMPORTANT]
-> **Scientific Prime Directive Compliance**: All empirical metrics presented below were dynamically evaluated and verified by the automated evaluation pipeline (`eval/RESULTS.md`, Run ID: `eval_1791581516_42_6060caa`, Git Commit: `6060caa`, Random Seed: 42). No empirical values are hardcoded or fabricated.
+> **Scientific Prime Directive Compliance**: All empirical metrics presented below were dynamically evaluated and verified by the automated evaluation pipeline (`eval/RESULTS.md`, Run ID: `eval_1791615776_42_11270e5`, Git Commit: `11270e5`, Random Seed: 42). Evaluated under the full time-ordered protocol (Days 1–7 train, Day 8 clean calibration, Days 9–14 test across all 6 attacks $\times$ 3 tiers $\times$ 50 episodes = 900 episodes per seed). No empirical values are hardcoded or fabricated.
 
-### 1. Zero-Day Attack Detection Performance
+### 1. Zero-Day Attack Detection Performance (Tier-Averaged Protocol)
 
-$$\text{Detection Rate} = \frac{\text{Detected Attack Windows}}{\text{Total Ground-Truth Attack Windows}} \times 100\%$$
+$$\text{Detection Rate} = \frac{\text{Detected Attack Episodes}}{\text{Total Ground-Truth Attack Episodes}} \times 100\%$$
 
 | Attack Vector | GUARDIAN TPR | Pooled IF | Static Rules | Robust Z-Score | F1 Score | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **DDOS_FLOODING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 2.00 s |
-| **CNC_BEACONING** | **100.0%** | 0.0% | 100.0% | 100.0% | 1.0000 | 1.00 s |
-| **NETWORK_SCANNING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9730 | 1.00 s |
-| **DATA_EXFILTRATION** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 1.00 s |
-| **CRYPTOMINING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9583 | 1.00 s |
-| **ZERO_DAY_HYBRID** | **100.0%** | 0.0% | 0.0% | 100.0% | 0.9756 | 1.00 s |
-| **Macro Average** | **100.0%** | 0.0% | 83.3% | 100.0% | - | - |
+| **DDOS_FLOODING** | **100.0%** | 0.0% | 91.3% | 100.0% | 0.9995 | 1.01 s |
+| **CNC_BEACONING** | **83.3%** | 0.0% | 66.7% | 99.3% | 0.7569 | 2.85 s |
+| **NETWORK_SCANNING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9999 | 1.00 s |
+| **DATA_EXFILTRATION** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9996 | 1.02 s |
+| **CRYPTOMINING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9995 | 1.03 s |
+| **ZERO_DAY_HYBRID** | **90.0%** | 0.0% | 64.7% | 96.7% | 0.7520 | 4.06 s |
+| **Macro Average** | **95.5%** | 0.0% | 87.1% | 99.3% | - | - |
 
 > [!NOTE]
-> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 600.0%, mean = **100.0%**.
-> Unmeasured signature NIDS (Snort) comparisons have been removed in favor of real, empirical machine-learning baselines evaluated on identical sliding-window features.
+> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 573.3%, mean = **95.5%**.
+> **Intensity- and Tier-Dependent Breakdown** ([`INVESTIGATION_REPORT.md`](eval/results/hard_tier_investigation/INVESTIGATION_REPORT.md)): While `EASY` ($5.0\times$ volume) and `MEDIUM` ($1.0\times$ volume) tiers achieve **100.0%** detection across all 6 attack classes, `HARD` tier (`0.25x` covert in-band telemetry mimicry reusing whitelisted destinations and matching normal payload byte distributions) drops recall to **50.0%–53.3%** on `CNC_BEACONING` (Mean TTD: $7.61\text{--}15.36\text{ s}$) and **46.7%–70.0%** on `ZERO_DAY_HYBRID` (Mean TTD: $10.00\text{--}11.37\text{ s}$). Sweeping intensity multipliers from $0.1\times \to 5.0\times$ yields a monotonically increasing TPR curve ($33.3\% \to 53.3\% \to 86.7\% \to 100.0\%$).
 
 ### 2. Empirical Baselines Comparison
 
 | Detection System | True Positive Rate (TPR) | False Positive Rate (FPR) | F1 Score | False Alerts / Dev / Day |
 | :--- | :---: | :---: | :---: | :---: |
-| **GUARDIAN (Multi-Layer Ensemble)** | 100.0% | 9.3% | 0.9750 | 1234.29 |
+| **GUARDIAN (Multi-Layer Ensemble)** | 95.5% | 0.0% | 0.9179 | 0.00 |
 | **Pooled Isolation Forest** | 0.0% | 0.0% | 0.0000 | 0.10 |
-| **Static Threshold Rules** | 83.3% | 0.0% | 0.8333 | 0.10 |
-| **Robust Z-Score Only (L1)** | 100.0% | 9.6% | 0.9756 | 1.15 |
+| **Static Threshold Rules** | 87.1% | 0.0% | 0.0000 | 0.10 |
+| **Robust Z-Score Only (L1)** | 99.3% | 9.7% | 0.0000 | 1.16 |
 
 ### 3. Edge Gateway System Performance & Latency Disaggregation
 
@@ -403,20 +406,20 @@ All resource and latency measurements below reflect live `psutil` sampling and s
 
 | Performance Dimension | Empirical Measurement | Target Budget | Verification Status |
 | :--- | :---: | :---: | :--- |
-| **Resident Memory (RAM)** | **45.76 MB** (Peak: 45.76 MB) | $< 256.0\text{ MB}$ | **PASS** (Low memory footprint) |
-| **Gateway CPU Utilization** | **74.90%** avg (Peak: 104.20%) | $< 40.0\%$ (Target) | **FAIL** (Measured on multi-core test host) |
-| **Compute Latency ($T_{\text{window}} \to S_t$)**| **1.223 ms** (p95: 1.583 ms) | $< 50.0\text{ ms}$ | **PASS** ($40\times$ faster than budget) |
-| **Enforcement Latency (In-Memory Table)** | **0.008 ms** (p95: 0.010 ms) | $< 300.0\text{ ms}$ | **PASS** (Kernel dispatch: 2–15 ms) |
-| **Time-to-Detect ($T_{\text{attack}} \to \text{Alert}$)**| **2.00 s** (stride-bounded) | $< 60.0\text{ s}$ | **PASS** |
+| **Resident Memory (RAM)** | **68.07 MB** (Peak: 68.07 MB) | $< 256.0\text{ MB}$ | **PASS** (Low memory footprint) |
+| **Gateway CPU Utilization** | **56.78%** avg (Peak: 104.20%) | $< 40.0\%$ (Target) | **FAIL** (Measured on multi-core test host) |
+| **Compute Latency ($T_{\text{window}} \to S_t$)**| **1.407 ms** (p95: 2.029 ms) | $< 50.0\text{ ms}$ | **PASS** ($25\times$ faster than budget) |
+| **Enforcement Latency (Dry-Run State Update)** | **0.009 ms** (p95: 0.011 ms) | $< 300.0\text{ ms}$ | **PASS** (Dry-run state update; real Linux `nft -f` kernel transaction takes 2–15 ms) |
+| **Time-to-Detect ($T_{\text{attack}} \to \text{Alert}$)**| **1.05 s** (continuous sub-window offset) | $< 60.0\text{ s}$ | **PASS** |
 
 #### Fleet Scalability Profile (Empirical Multi-Device Sweep)
 
 | Monitored Fleet Size | Measured Throughput (Windows/s) | Compute Latency (ms) | Host CPU (%) | Memory RSS (MB) |
 | :---: | :---: | :---: | :---: | :---: |
-| **8 Devices** | 949.76 | 1.037 ms | 92.8% | 45.8 MB |
-| **12 Devices** | 942.84 | 1.045 ms | 81.8% | 45.8 MB |
-| **16 Devices** | 944.76 | 1.042 ms | 92.3% | 45.8 MB |
-| **20 Devices** | 951.05 | 1.036 ms | 99.1% | 45.8 MB |
+| **8 Devices** | 903.41 | 1.090 ms | 88.2% | 68.1 MB |
+| **12 Devices** | 883.23 | 1.114 ms | 95.8% | 68.1 MB |
+| **16 Devices** | 872.23 | 1.130 ms | 85.2% | 68.1 MB |
+| **20 Devices** | 849.52 | 1.161 ms | 88.5% | 68.1 MB |
 
 ### 4. Real-Time Packet Stream & Buffer Drop Counters (Milestone P3-6)
 
@@ -464,11 +467,11 @@ graph TD
 
 ### 3. Empirical Ablation Study Results
 
-Evaluated under `eval/RESULTS.md` across 8 architectural configurations (Run ID: `eval_1791581516_42_6060caa`):
+Evaluated under `eval/RESULTS.md` across 8 architectural configurations (Run ID: `eval_1791615776_42_11270e5`):
 
 | Ablation Configuration | TPR (%) | FPR (%) | Precision | Recall | F1 Score | ROC-AUC |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Full GUARDIAN** | 100.0% | 9.3% | 0.0000 | 0.0000 | 0.9750 | 1.0000 |
+| **Full GUARDIAN** | 95.5% | 0.0% | 0.0000 | 0.0000 | 0.9179 | 1.0000 |
 | **Statistical Detector Only (No ML)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
 | **Isolation Forest Only (No Stat)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
 | **No Layer 1 (Volumetric Dynamics)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
@@ -479,16 +482,16 @@ Evaluated under `eval/RESULTS.md` across 8 architectural configurations (Run ID:
 
 ### 4. Adversarial Evasion Robustness Results
 
-Evaluated across 6 evasion tactics with active stealth injections:
+Evaluated across 6 evasion tactics at medium intensity with random sub-window start offsets:
 
 | Adversarial Evasion Tactic | TPR (%) | F1 Score | Mean Time-to-Detect (s) |
 | :--- | :---: | :---: | :---: |
-| **NONE** | 100.0% | 0.9333 | 2.00 s |
-| **MIMICRY** | 100.0% | 0.9333 | 2.00 s |
-| **LOW_AND_SLOW** | 100.0% | 0.9333 | 2.00 s |
-| **DELAYED_START** | 100.0% | 0.9474 | 12.00 s |
-| **NO_NEW_DESTINATION** | 100.0% | 0.9333 | 2.00 s |
-| **ADAPTIVE** | 100.0% | 0.9333 | 2.00 s |
+| **NONE** | 100.0% | 1.0000 | 1.63 s |
+| **MIMICRY** | 100.0% | 1.0000 | 1.29 s |
+| **LOW_AND_SLOW** | 100.0% | 1.0000 | 1.31 s |
+| **DELAYED_START** | 100.0% | 1.0000 | 11.21 s |
+| **NO_NEW_DESTINATION** | 100.0% | 1.0000 | 1.48 s |
+| **ADAPTIVE** | 100.0% | 1.0000 | 0.64 s |
 
 ---
 
@@ -538,13 +541,26 @@ graph TD
 
 ## Quickstart & Verification Guide
 
+> [!IMPORTANT]
+> **Windows Environment Note**:
+> - Use **64-bit Python 3.11+** (`python -c "import struct; print(struct.calcsize('P') * 8)"` must output `64`), **WSL2 (Ubuntu 22.04+)**, or **Docker**. 32-bit Windows Python interpreters lack prebuilt binary wheels for optional C-extension development packages (`scikit-learn`, `scipy`).
+> - On Windows PowerShell where GNU `make` is not installed, use the included [`make.ps1`](make.ps1) task runner:
+>   ```powershell
+>   powershell -ExecutionPolicy Bypass -File .\make.ps1 setup
+>   powershell -ExecutionPolicy Bypass -File .\make.ps1 lint
+>   powershell -ExecutionPolicy Bypass -File .\make.ps1 type
+>   powershell -ExecutionPolicy Bypass -File .\make.ps1 test
+>   powershell -ExecutionPolicy Bypass -File .\make.ps1 demo
+>   ```
+> - Real kernel-level `nftables` firewall enforcement requires a privileged Linux environment (**WSL2** with `nftables` enabled or a privileged **Docker** container with `--cap-add=NET_ADMIN`); on Windows hosts, `EnforcementController` automatically operates in dry-run simulation mode.
+
 ### 1. Local Setup
 ```bash
 # Clone repository
 git clone https://github.com/lumidren/Guardian.git
 cd Guardian
 
-# Create and activate virtual environment
+# Create and activate virtual environment (64-bit Python 3.11+)
 python -m venv venv
 source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
@@ -554,14 +570,12 @@ pip install -e ".[dev]"
 
 ### 2. Run Test Suite & Quality Gates
 ```bash
-# Run unit test suite with coverage
-pytest -v --cov=src/guardian --cov-report=term-missing
-
-# Run code style and linter
-ruff check src tests config
-
-# Run strict static type checking
-mypy src/guardian
+# Using GNU Make (Linux / macOS / WSL) or .\make.ps1 (Windows PowerShell)
+make lint    # ruff check src tests config
+make type    # mypy src/guardian
+make test    # pytest tests/unit tests/integration -v
+make cov     # pytest --cov=src/guardian --cov-report=term-missing tests/
+make demo    # End-to-end IoT defense pipeline smoke demonstration
 ```
 
 ### 3. Run Database Migrations
