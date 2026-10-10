@@ -158,3 +158,18 @@ def test_external_track_never_uses_labels_for_training(tmp_path: Path) -> None:
     f_flip = adapter.extract_features(w_flip)
     assert f_orig == f_flip
     assert score_unlabeled_feature_windows([f_orig]) == score_unlabeled_feature_windows([f_flip])
+
+
+def test_dataset_license_and_checksum_registry() -> None:
+    """Task 45: Verify dataset, license, and SHA-256 checksum registry matches docs/DATASET_REGISTRY.md."""
+    from guardian.eval.external import EXTERNAL_DATASET_REGISTRY, generate_dataset_registry_markdown
+
+    assert len(EXTERNAL_DATASET_REGISTRY) >= 3
+    for entry in EXTERNAL_DATASET_REGISTRY:
+        assert len(entry["sha256"]) == 64
+        assert "CC BY 4.0" in entry["license"]
+        assert entry["size_bytes"] > 0
+
+    doc_path = Path(__file__).resolve().parent.parent.parent / "docs" / "DATASET_REGISTRY.md"
+    assert doc_path.exists()
+    assert doc_path.read_text(encoding="utf-8") == generate_dataset_registry_markdown()

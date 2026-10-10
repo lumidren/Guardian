@@ -457,3 +457,57 @@ def generate_external_attack_detection_report(
         "f1": round(metrics.f1, 4),
         "per_attack_family": per_family,
     }
+
+
+EXTERNAL_DATASET_REGISTRY: tuple[dict[str, Any], ...] = (
+    {
+        "dataset_id": "iot23_somfy_02",
+        "dataset_name": "Stratosphere IoT-23 — CTU-Honeypot-Capture-7-1 (Somfy-02)",
+        "filename": "Somfy-02/2019-07-03-16-41-09-192.168.1.158.pcap",
+        "size_bytes": 33104424,
+        "sha256": "2a32158374fce6635272ff8fc0ff39b88e1e759100a6384b9a2c8b14ad5dc7b6",
+        "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International)",
+        "doi": "https://doi.org/10.5281/zenodo.4743746",
+        "label_policy": "Unlabeled benign capture (used for calibration and cross-domain FPR)",
+    },
+    {
+        "dataset_id": "iot23_somfy_04",
+        "dataset_name": "Stratosphere IoT-23 — CTU-Honeypot-Capture-7-1 (Somfy-04)",
+        "filename": "Somfy-04/2019-07-05-16-41-14-192.168.1.158.pcap",
+        "size_bytes": 33213386,
+        "sha256": "b7e06c6dbd9cc731b13c741cb6244a36de0f181eeb884c409704f1d5bb991738",
+        "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International)",
+        "doi": "https://doi.org/10.5281/zenodo.4743746",
+        "label_policy": "Unlabeled benign capture (used for calibration and cross-domain FPR)",
+    },
+    {
+        "dataset_id": "iot23_somfy_combined_64mb",
+        "dataset_name": "Stratosphere IoT-23 — Combined Somfy TaHoma 64 MB Replay Trace",
+        "filename": "somfy_combined_64mb.pcap",
+        "size_bytes": 66317786,
+        "sha256": "068ce86e900adaa96d9d6075ca652de7b52e535475d029b6c7e8701565c6f3d3",
+        "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International)",
+        "doi": "https://doi.org/10.5281/zenodo.4743746",
+        "label_policy": "Labels used strictly for post-hoc evaluation scoring; never for training",
+    },
+)
+
+
+def generate_dataset_registry_markdown() -> str:
+    """Task 45: Generate canonical external dataset, license, and SHA-256 checksum registry markdown."""
+    lines = [
+        "# External Dataset, License & Checksum Registry",
+        "",
+        "Canonical provenance, license, and SHA-256 checksum registry for external IoT captures",
+        "evaluated by GUARDIAN (`src/guardian/eval/external.py`).",
+        "",
+        "| Dataset ID | File | Size (Bytes) | SHA-256 Checksum | License | DOI | Label Policy |",
+        "| :--- | :--- | :---: | :--- | :---: | :--- | :--- |",
+    ]
+    for entry in EXTERNAL_DATASET_REGISTRY:
+        lines.append(
+            f"| `{entry['dataset_id']}` | `{entry['filename']}` | `{entry['size_bytes']}` | "
+            f"`{entry['sha256']}` | {entry['license']} | {entry['doi']} | {entry['label_policy']} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
