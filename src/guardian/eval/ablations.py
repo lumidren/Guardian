@@ -16,7 +16,8 @@ import numpy as np
 from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTDeviceSpec
 
 from ..capture.flow_tracker import FlowTracker
-from ..config import FEATURE_NAMES, config as guardian_config
+from ..config import FEATURE_NAMES
+from ..config import config as guardian_config
 from ..features.extractor import FeatureExtractor
 from ..ml.isolation_forest import IsolationForestDetector
 from ..ml.statistical_baseline import StatisticalBaseline
@@ -307,6 +308,7 @@ class AblationRunner:
         self.seed = seed
         self.devices = list(devices or DEFAULT_FLEET_SPECS)
         self.deadline_seconds = deadline_seconds
+        self.total_days = total_days
         self.operating_point = operating_point
         self.extractor = FeatureExtractor()
         self.scenario_builder = ScenarioBuilder(
@@ -761,9 +763,10 @@ class AblationRunner:
         total_seconds_observed = 0.0
 
         for ep_idx, ep in enumerate(episodes):
-            dev = next((d for d in self.devices if d.id == ep.device_id or d.ip_address == ep.device_id), None)
-            if not dev:
+            ep_dev = next((d for d in self.devices if d.id == ep.device_id or d.ip_address == ep.device_id), None)
+            if not ep_dev:
                 continue
+            dev = ep_dev
             model = self._models[dev.id]
             baseline = self._baselines[dev.id]
 
@@ -904,4 +907,87 @@ class AblationRunner:
             )
 
         return results
+
+    def run_multi_seed_protocol_battery(
+        self,
+        seeds: Sequence[int] = (42, 43, 44, 45, 46),
+        episodes_per_tier: int = 50,
+        target_fpr: float = 0.05,
+    ) -> list[dict[str, Any]]:
+        """
+        Execute the 8-configuration ablation battery across multiple random seeds
+        inside the full 14-day time-ordered protocol and aggregate mean and 95% CIs.
+        """
+        from .metrics import bootstrap_ci
+        from .runner import EvaluationRunner
+        from .scenario import DifficultyTier
+
+        per_seed_batteries: list[list[AblationResult]] = []
+        for s in seeds:
+            ev_runner = EvaluationRunner(
+                seed=int(s),
+                total_days=self.total_days,
+                deadline_seconds=self.deadline_seconds,
+                devices=self.devices,
+            )
+            op = ev_runner.calibrate_operating_point(target_fpr=target_fpr, duration_per_device_s=60.0)
+            episodes = ev_runner.scenario_builder.generate_ground_truth_schedule(
+                tiers=[DifficultyTier.EASY, DifficultyTier.MEDIUM, DifficultyTier.HARD],
+                episodes_per_tier=episodes_per_tier,
+            )
+            sched = ev_runner.evaluate_ground_truth_schedule(episodes)
+            ab_runner = AblationRunner(
+                seed=int(s),
+                total_days=self.total_days,
+                deadline_seconds=self.deadline_seconds,
+                operating_point=op,
+                devices=self.devices,
+            )
+            per_seed_batteries.append(
+                ab_runner.run_protocol_schedule_battery(
+                    episodes=episodes,
+                    operating_point=op,
+                    precomputed_episode_windows=sched.get("precomputed_episode_windows"),
+                )
+            )
+
+        if not per_seed_batteries:
+            return []
+
+        aggregated: list[dict[str, Any]] = []
+        n_variants = len(per_seed_batteries[0])
+        for idx in range(n_variants):
+            variant_runs = [b[idx] for b in per_seed_batteries]
+            tprs = [r.tpr * 100.0 for r in variant_runs]
+            fprs = [r.fpr * 100.0 for r in variant_runs]
+            f1s = [r.f1 for r in variant_runs]
+            aucs = [r.roc_auc for r in variant_runs]
+            ttds = [r.mean_ttd_seconds for r in variant_runs]
+            fars = [r.false_alerts_per_device_day for r in variant_runs]
+
+            tpr_ci = bootstrap_ci(tprs, num_bootstraps=1000, seed=42)
+            fpr_ci = bootstrap_ci(fprs, num_bootstraps=1000, seed=42)
+            f1_ci = bootstrap_ci(f1s, num_bootstraps=1000, seed=42)
+            ttd_ci = bootstrap_ci(ttds, num_bootstraps=1000, seed=42)
+
+            aggregated.append(
+                {
+                    "variant": variant_runs[0].config_name,
+                    "n_seeds": len(seeds),
+                    "total_episodes": sum(r.total_episodes for r in variant_runs),
+                    "tpr": round(tpr_ci.mean, 1),
+                    "tpr_ci_lower": round(tpr_ci.ci_lower, 1),
+                    "tpr_ci_upper": round(tpr_ci.ci_upper, 1),
+                    "fpr": round(fpr_ci.mean, 2),
+                    "fpr_ci_lower": round(fpr_ci.ci_lower, 2),
+                    "fpr_ci_upper": round(fpr_ci.ci_upper, 2),
+                    "f1": round(f1_ci.mean, 4),
+                    "f1_ci_lower": round(f1_ci.ci_lower, 4),
+                    "f1_ci_upper": round(f1_ci.ci_upper, 4),
+                    "roc_auc": round(float(np.mean(aucs)), 4),
+                    "mean_ttd_s": round(ttd_ci.mean, 2),
+                    "far_per_day": round(float(np.mean(fars)), 2),
+                }
+            )
+        return aggregated
 
