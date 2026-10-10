@@ -3,6 +3,7 @@ Linux iptables and nftables driver for GUARDIAN Gateway (Raspberry Pi 4).
 Executes graduated packet filtering policies at the Linux kernel level.
 """
 
+import os
 import shutil
 import subprocess
 import time
@@ -17,6 +18,10 @@ DEFAULT_PROTECTED_ADDRESSES: frozenset[str] = frozenset(
         "192.168.1.2",
     }
 )
+
+
+def _is_privileged_linux() -> bool:
+    return hasattr(os, "geteuid") and os.geteuid() == 0
 
 
 class LinuxNftablesDriver:
@@ -37,7 +42,7 @@ class LinuxNftablesDriver:
         self.local_subnet = local_subnet
         self.protected_addresses = set(protected_addresses)
         self.netns = netns
-        self.has_nft = shutil.which("nft") is not None
+        self.has_nft = (shutil.which("nft") is not None) and _is_privileged_linux()
         self.active_policies: dict[str, ThreatLevel] = {}
 
     def is_protected(self, ip_address: str) -> bool:
@@ -142,12 +147,14 @@ class LinuxNftablesDriver:
             self.active_policies.pop(ip_address, None)
             return float(time.perf_counter() - start)
 
+        prev_level = self.active_policies.get(ip_address, ThreatLevel.MONITOR)
         if level == ThreatLevel.MONITOR:
             self.active_policies.pop(ip_address, None)
         else:
             self.active_policies[ip_address] = level
 
-        self._commit_ruleset()
+        if prev_level != level or self.netns is not None:
+            self._commit_ruleset()
         return float(time.perf_counter() - start)
 
     def revert_policy(self, ip_address: str) -> bool:
@@ -183,7 +190,8 @@ class LinuxIptablesDriver:
         self.interface = interface
         self.local_subnet = local_subnet
         self.protected_addresses = set(protected_addresses)
-        self.has_iptables = shutil.which("iptables") is not None
+        self.has_iptables = (shutil.which("iptables") is not None) and _is_privileged_linux()
+        self.active_policies: dict[str, ThreatLevel] = {}
 
     def is_protected(self, ip_address: str) -> bool:
         return ip_address in self.protected_addresses
@@ -208,20 +216,26 @@ class LinuxIptablesDriver:
         if not self.has_iptables:
             return time.perf_counter() - start
 
+        prev_level = self.active_policies.get(ip_address, ThreatLevel.MONITOR)
+        if prev_level == level:
+            return float(time.perf_counter() - start)
+
         # Clear existing rules for this device
         self._clear_device_rules(ip_address)
 
         if level == ThreatLevel.MONITOR:
-            # Default logging or accept
-            pass
+            self.active_policies.pop(ip_address, None)
         elif level == ThreatLevel.RESTRICT:
+            self.active_policies[ip_address] = level
             # Block external WAN IPs, allow local subnet
             self._run_cmd(["iptables", "-I", "FORWARD", "-s", ip_address, "!", "-d", self.local_subnet, "-j", "DROP"])
         elif level == ThreatLevel.QUARANTINE:
+            self.active_policies[ip_address] = level
             # Isolate: block all external WAN and isolate from gateway services except DHCP/DNS
             self._run_cmd(["iptables", "-I", "FORWARD", "-s", ip_address, "-j", "DROP"])
             self._run_cmd(["iptables", "-I", "INPUT", "-s", ip_address, "!", "-p", "udp", "--dport", "67:68", "-j", "DROP"])
         elif level == ThreatLevel.BLOCK:
+            self.active_policies[ip_address] = level
             # Complete isolation: Drop all inbound and outbound traffic
             self._run_cmd(["iptables", "-I", "FORWARD", "-s", ip_address, "-j", "DROP"])
             self._run_cmd(["iptables", "-I", "INPUT", "-s", ip_address, "-j", "DROP"])
@@ -229,6 +243,7 @@ class LinuxIptablesDriver:
         return float(time.perf_counter() - start)
 
     def revert_policy(self, ip_address: str) -> None:
+        self.active_policies.pop(ip_address, None)
         self._clear_device_rules(ip_address)
 
     def measure_enforcement_latency(self, ip_address: str, level: ThreatLevel) -> dict[str, float]:
