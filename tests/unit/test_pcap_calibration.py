@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from guardian.eval.pcap_calibration import (
     extract_per_feature_pcap_stats,
+    fit_bidirectional_ratio_model,
     fit_iat_micro_burst_model,
     fit_packet_size_mixture_model,
 )
@@ -50,5 +51,19 @@ def test_fit_iat_micro_burst_model() -> None:
     assert len(ts) == 16
     assert ts == sorted(ts)
     assert 100.0 <= ts[0] <= ts[-1] <= 110.0
+
+
+def test_fit_bidirectional_ratio_model() -> None:
+    """Task 30: Verify bidirectional packet/byte ratio model sums to 1.0 and matches real PCAP."""
+    import numpy as np
+
+    model = fit_bidirectional_ratio_model()
+    assert abs((model.upstream_pkt_ratio_mean + model.downstream_pkt_ratio_mean) - 1.0) < 1e-5
+    assert abs((model.upstream_byte_ratio_mean + model.downstream_byte_ratio_mean) - 1.0) < 1e-5
+    assert 0.35 <= model.upstream_pkt_ratio_mean <= 0.65
+    rng = np.random.default_rng(42)
+    flags = [model.sample_outbound_flag(rng) for _ in range(400)]
+    assert 0.30 <= (sum(flags) / len(flags)) <= 0.70
+
 
 

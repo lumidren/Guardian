@@ -223,3 +223,46 @@ def fit_iat_micro_burst_model(
     )
 
 
+@dataclass(frozen=True)
+class BidirectionalRatioModel:
+    """
+    Task 30: Bidirectional packet and byte ratio model fitted from real PCAP telemetry.
+    Ensures upstream + downstream ratios sum to 1.0 while matching empirical variance.
+    """
+
+    upstream_pkt_ratio_mean: float
+    upstream_pkt_ratio_std: float
+    downstream_pkt_ratio_mean: float
+    upstream_byte_ratio_mean: float
+    upstream_byte_ratio_std: float
+    downstream_byte_ratio_mean: float
+
+    def sample_outbound_flag(self, rng: np.random.Generator | None = None) -> bool:
+        gen = rng or np.random.default_rng()
+        return bool(float(gen.random()) < self.upstream_pkt_ratio_mean)
+
+
+def fit_bidirectional_ratio_model(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> BidirectionalRatioModel:
+    """
+    Fit upstream/downstream packet and byte ratios directly from real PCAP feature statistics.
+    """
+    s = stats or extract_per_feature_pcap_stats()
+    up_pkt = max(0.05, min(0.95, s["upstream_pkt_ratio"].mean))
+    up_pkt_std = max(0.01, s["upstream_pkt_ratio"].std)
+    down_pkt = round(1.0 - up_pkt, 6)
+    up_byte = max(0.05, min(0.95, s["upstream_byte_ratio"].mean))
+    up_byte_std = max(0.01, s["upstream_byte_ratio"].std)
+    down_byte = round(1.0 - up_byte, 6)
+    return BidirectionalRatioModel(
+        upstream_pkt_ratio_mean=round(up_pkt, 6),
+        upstream_pkt_ratio_std=round(up_pkt_std, 6),
+        downstream_pkt_ratio_mean=down_pkt,
+        upstream_byte_ratio_mean=round(up_byte, 6),
+        upstream_byte_ratio_std=round(up_byte_std, 6),
+        downstream_byte_ratio_mean=down_byte,
+    )
+
+
+
