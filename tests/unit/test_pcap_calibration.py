@@ -153,3 +153,17 @@ def test_ephemeral_port_allocation() -> None:
     assert dst_ports_w1 == dst_ports_w2
     rotated = emulator.port_allocator.rotate_port(device.id, device.normal_destinations[0], 1883)
     assert 49152 <= rotated <= 65535
+
+
+def test_dns_and_ntp_background_chatter() -> None:
+    """Task 37: Verify DNS and NTP background chatter generates bidirectional UDP/53 and UDP/123 pairs."""
+    from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
+
+    emulator = IoTFleetEmulator()
+    device = DEFAULT_FLEET_SPECS[0]
+    pkts = emulator.generate_dns_ntp_background_chatter(device, current_time=1000.0)
+    dns_pkts = [p for p in pkts if p.app_protocol == "DNS"]
+    ntp_pkts = [p for p in pkts if p.app_protocol == "NTP"]
+    assert len(dns_pkts) == 2 and any(p.is_outbound for p in dns_pkts) and any(not p.is_outbound for p in dns_pkts)
+    assert len(ntp_pkts) == 2 and any(p.is_outbound for p in ntp_pkts) and any(not p.is_outbound for p in ntp_pkts)
+    assert all(p.protocol == "UDP" for p in pkts)

@@ -388,6 +388,112 @@ class IoTFleetEmulator:
 
         return packets
 
+    def generate_dns_ntp_background_chatter(
+        self,
+        device: IoTDeviceSpec,
+        window_duration: float = 10.0,
+        current_time: float | None = None,
+        include_dns: bool = True,
+        include_ntp: bool = True,
+    ) -> list[ParsedPacket]:
+        """Generate calibrated background UDP/53 DNS and UDP/123 NTP request/response chatter pairs."""
+        now = current_time or time.time()
+        start_time = now - window_duration
+        packets: list[ParsedPacket] = []
+        gateway_ip = device.normal_destinations[0]
+        zero_flags = {"SYN": False, "ACK": False, "PSH": False, "RST": False, "FIN": False, "URG": False}
+
+        if include_dns:
+            dns_ts = start_time + random.uniform(0.5, max(1.0, window_duration * 0.4))
+            dns_port = self.port_allocator.get_or_allocate(device.id, gateway_ip, 53)
+            packets.append(
+                ParsedPacket(
+                    timestamp=dns_ts,
+                    src_ip=device.ip_address,
+                    dst_ip=gateway_ip,
+                    src_mac=device.mac_address,
+                    dst_mac="B8:27:EB:AA:BB:CC",
+                    src_port=dns_port,
+                    dst_port=53,
+                    protocol="UDP",
+                    app_protocol="DNS",
+                    length=74,
+                    ttl=64,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags=dict(zero_flags),
+                    tcp_window=0,
+                    tcp_timestamp=0,
+                    is_outbound=True,
+                )
+            )
+            packets.append(
+                ParsedPacket(
+                    timestamp=min(now, dns_ts + 0.004),
+                    src_ip=gateway_ip,
+                    dst_ip=device.ip_address,
+                    src_mac="B8:27:EB:AA:BB:CC",
+                    dst_mac=device.mac_address,
+                    src_port=53,
+                    dst_port=dns_port,
+                    protocol="UDP",
+                    app_protocol="DNS",
+                    length=90,
+                    ttl=64,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags=dict(zero_flags),
+                    tcp_window=0,
+                    tcp_timestamp=0,
+                    is_outbound=False,
+                )
+            )
+
+        if include_ntp:
+            ntp_ts = start_time + random.uniform(max(1.5, window_duration * 0.5), max(2.0, window_duration * 0.9))
+            ntp_server = "129.6.15.28"
+            packets.append(
+                ParsedPacket(
+                    timestamp=ntp_ts,
+                    src_ip=device.ip_address,
+                    dst_ip=ntp_server,
+                    src_mac=device.mac_address,
+                    dst_mac="B8:27:EB:AA:BB:CC",
+                    src_port=123,
+                    dst_port=123,
+                    protocol="UDP",
+                    app_protocol="NTP",
+                    length=90,
+                    ttl=64,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags=dict(zero_flags),
+                    tcp_window=0,
+                    tcp_timestamp=0,
+                    is_outbound=True,
+                )
+            )
+            packets.append(
+                ParsedPacket(
+                    timestamp=min(now, ntp_ts + 0.018),
+                    src_ip=ntp_server,
+                    dst_ip=device.ip_address,
+                    src_mac="B8:27:EB:AA:BB:CC",
+                    dst_mac=device.mac_address,
+                    src_port=123,
+                    dst_port=123,
+                    protocol="UDP",
+                    app_protocol="NTP",
+                    length=90,
+                    ttl=171,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags=dict(zero_flags),
+                    tcp_window=0,
+                    tcp_timestamp=0,
+                    is_outbound=False,
+                )
+            )
+
+        packets.sort(key=lambda p: p.timestamp)
+        return packets
+
     def generate_hard_negative_packets(
         self,
         device: IoTDeviceSpec,
