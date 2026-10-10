@@ -565,7 +565,7 @@ class EvaluationRunner:
             },
         )
 
-    def _evaluate_benign_operational_background(self, num_episodes: int = 90) -> list[dict[str, float]]:
+    def _evaluate_benign_operational_background(self, num_episodes: int = 90) -> list[dict[str, Any]]:
         """
         Evaluate benign operational bursts (USER_TOGGLING, DNS_RETRY_STORM,
         MQTT_RECONNECT_FLOOD, CAMERA_MOTION_BURST, ROUTER_REBOOT, DST_CHANGE)
@@ -582,7 +582,7 @@ class EvaluationRunner:
             HardNegativeType.DST_CHANGE,
         ]
         repeats = max(1, num_episodes // 90)
-        records: list[dict[str, float]] = []
+        records: list[dict[str, Any]] = []
         base_t = 9.0 * self.scenario_builder.SECONDS_PER_DAY
 
         for rep_idx in range(repeats):
@@ -625,6 +625,13 @@ class EvaluationRunner:
                     pooled_raw, _ = pooled_model.score_sample(vec)
                     records.append(
                         {
+                            "device_id": dev.id,
+                            "end_time": w_end,
+                            "has_attack": False,
+                            "active_episode_ids": [],
+                            "base_features": features,
+                            "base_ml_score": float(ml_score),
+                            "base_stat_score": float(stat_score),
                             "guardian_score": float(assessment.threat_score),
                             "pooled_score": float(pooled_raw * 100.0),
                             "static_score": float(static_score),
@@ -688,11 +695,12 @@ class EvaluationRunner:
                 end_time=slice_end,
                 episodes=[ep],
             )
-            win_recs = getattr(self, "_last_window_records", [])
+            win_recs = list(getattr(self, "_last_window_records", []))
             ep_max_map = getattr(self, "_last_ep_max_scores", {})
             precomputed_episode_windows.append(
                 {
                     "episode_id": ep.episode_id,
+                    "device_id": ep.device_id,
                     "window_records": win_recs,
                 }
             )
@@ -731,14 +739,25 @@ class EvaluationRunner:
                 "pooled_detected": p_peak >= pooled_thresh,
             })
 
-        # Include benign operational hard-negative windows on Days 9-14
+        # Include benign operational hard-negative windows on Days 9-14 and attach to precomputed_episode_windows
         benign_ops = self._evaluate_benign_operational_background(len(episodes))
         total_seconds += len(benign_ops) * self.scenario_builder.window_size_s
+        first_ep_by_dev: dict[str, list[dict[str, Any]]] = {}
+        for p_entry in precomputed_episode_windows:
+            d_id = str(p_entry.get("device_id", ""))
+            if d_id and d_id not in first_ep_by_dev:
+                first_ep_by_dev[d_id] = p_entry["window_records"]
+
         for br in benign_ops:
-            normal_window_scores["guardian"].append(br["guardian_score"])
-            normal_window_scores["pooled"].append(br["pooled_score"])
-            normal_window_scores["static"].append(br["static_score"])
-            normal_window_scores["zscore"].append(br["zscore_score"])
+            normal_window_scores["guardian"].append(float(br["guardian_score"]))
+            normal_window_scores["pooled"].append(float(br["pooled_score"]))
+            normal_window_scores["static"].append(float(br["static_score"]))
+            normal_window_scores["zscore"].append(float(br["zscore_score"]))
+            d_id = str(br.get("device_id", ""))
+            if d_id in first_ep_by_dev:
+                first_ep_by_dev[d_id].append(br)
+            elif precomputed_episode_windows:
+                precomputed_episode_windows[0]["window_records"].append(br)
 
         # Aggregate per attack class and per (attack, tier) cell
         attack_types = list(AttackType)
