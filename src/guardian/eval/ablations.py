@@ -620,12 +620,15 @@ class AblationRunner:
         operating_point: OperatingPoint,
         pre_buffer_s: float = 20.0,
         post_buffer_s: float = 10.0,
+        precomputed_episode_windows: Sequence[dict[str, Any]] | None = None,
     ) -> list[AblationResult]:
         """
         Execute all 8 standard ablation configurations inside the full time-ordered protocol
         using the exact same Days 1-7 models/baselines, Day 8 calibrated threshold, and
         Days 9-14 ground-truth episode schedule. Extracts base window features once per window.
         """
+        import random
+
         for dev in self.devices:
             self._ensure_artifacts(dev)
 
@@ -646,7 +649,7 @@ class AblationRunner:
         false_alerts_by_cfg: list[int] = [0 for _ in range(n_cfg)]
         total_seconds_observed = 0.0
 
-        for ep in episodes:
+        for ep_idx, ep in enumerate(episodes):
             dev = next((d for d in self.devices if d.id == ep.device_id or d.ip_address == ep.device_id), None)
             if not dev:
                 continue
@@ -657,33 +660,56 @@ class AblationRunner:
             slice_end = ep.end_time + post_buffer_s
             total_seconds_observed += max(0.0, slice_end - slice_start)
 
-            flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
-            for dst in dev.normal_destinations:
-                flow_tracker.register_known_destination(dev.ip_address, dst)
-
-            windows = self.scenario_builder.generate_device_stream_windows(
-                device_id=dev.id,
-                start_time=slice_start,
-                end_time=slice_end,
-                episodes=[ep],
-            )
-
             in_streak = [False for _ in range(n_cfg)]
 
-            for w in windows:
-                flow_tracker.device_buffers[dev.ip_address].clear()
-                for p in w.packets:
-                    flow_tracker.ingest_packet(p)
+            if precomputed_episode_windows is not None and ep_idx < len(precomputed_episode_windows):
+                window_records = precomputed_episode_windows[ep_idx]["window_records"]
+            else:
+                random.seed(self.seed)
+                np.random.seed(self.seed)
 
-                summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
-                if not summary:
-                    continue
+                flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+                for dst in dev.normal_destinations:
+                    flow_tracker.register_known_destination(dev.ip_address, dst)
 
-                base_features = self.extractor.extract(summary)
-                base_vec = self.extractor.extract_vector(summary)
-                base_ml_score, _ = model.score_sample(base_vec)
-                base_stat_score, _ = baseline.evaluate(base_features)
-                is_attack_window = 1 if w.has_attack else 0
+                windows = self.scenario_builder.generate_device_stream_windows(
+                    device_id=dev.id,
+                    start_time=slice_start,
+                    end_time=slice_end,
+                    episodes=[ep],
+                )
+                window_records = []
+                for w in windows:
+                    flow_tracker.device_buffers[dev.ip_address].clear()
+                    for p in w.packets:
+                        flow_tracker.ingest_packet(p)
+
+                    summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
+                    if not summary:
+                        continue
+
+                    base_features = self.extractor.extract(summary)
+                    base_vec = self.extractor.extract_vector(summary)
+                    base_ml_score, _ = model.score_sample(base_vec)
+                    base_stat_score, _ = baseline.evaluate(base_features)
+                    window_records.append(
+                        {
+                            "end_time": w.end_time,
+                            "has_attack": w.has_attack,
+                            "active_episode_ids": w.active_episode_ids,
+                            "base_features": base_features,
+                            "base_ml_score": base_ml_score,
+                            "base_stat_score": base_stat_score,
+                        }
+                    )
+
+            for w_rec in window_records:
+                base_features = w_rec["base_features"]
+                base_ml_score = w_rec["base_ml_score"]
+                base_stat_score = w_rec["base_stat_score"]
+                is_attack_window = 1 if w_rec["has_attack"] else 0
+                w_end_time = float(w_rec["end_time"])
+                active_ep_ids = w_rec["active_episode_ids"]
 
                 for idx, cfg in enumerate(battery):
                     raw_score, is_alert = self._score_window_for_config(
@@ -700,13 +726,12 @@ class AblationRunner:
                     y_pred_by_cfg[idx].append(1 if is_alert else 0)
                     scores_by_cfg[idx].append(raw_score / 100.0)
 
-                    if w.active_episode_ids:
-                        alert_time = w.end_time
-                        time_into_ep = alert_time - ep.start_time
+                    if active_ep_ids:
+                        time_into_ep = w_end_time - ep.start_time
                         if is_alert and (0.0 <= time_into_ep <= self.deadline_seconds):
                             if not ep_detected_by_cfg[idx][ep.episode_id]:
                                 ep_detected_by_cfg[idx][ep.episode_id] = True
-                                ep_first_alert_by_cfg[idx][ep.episode_id] = alert_time
+                                ep_first_alert_by_cfg[idx][ep.episode_id] = w_end_time
                     else:
                         if is_alert:
                             if cfg.enable_hysteresis:
