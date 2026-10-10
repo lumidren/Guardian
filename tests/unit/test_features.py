@@ -146,3 +146,32 @@ def test_sync_readme_feature_table_from_registry(tmp_path: object) -> None:
     assert render_readme_feature_table() in sample_readme.read_text(encoding="utf-8")
     assert sync_readme_feature_table(sample_readme) is False
 
+
+def test_readme_table_equals_registry_row_by_row() -> None:
+    """Task 49: Verify every row and column of the README.md 60-feature table equals FEATURE_REGISTRY."""
+    from pathlib import Path
+
+    from guardian.features.registry import (
+        FEATURE_REGISTRY as REG_MAP,
+    )
+    from guardian.features.registry import (
+        render_readme_feature_table,
+    )
+
+    root = Path(__file__).resolve().parents[2]
+    readme_lines = (root / "README.md").read_text(encoding="utf-8").splitlines()
+    expected_lines = render_readme_feature_table().splitlines()
+    header = expected_lines[0]
+    assert header in readme_lines
+    start = readme_lines.index(header)
+    actual_slice = readme_lines[start : start + len(expected_lines)]
+    assert actual_slice == expected_lines
+    data_rows = actual_slice[2:]
+    assert len(data_rows) == 60
+    for idx, (row, meta) in enumerate(zip(data_rows, REG_MAP.values(), strict=True), start=1):
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        assert int(cells[0]) == idx
+        assert cells[1] == f"`{meta.name}`"
+        assert cells[3] == meta.description
+        assert cells[4] == meta.unit
+
