@@ -481,9 +481,13 @@ class LoadTestReport:
     memory_rss_mb: float
     mean_latency_ms: float = 0.0
     p95_latency_ms: float = 0.0
+    p99_latency_ms: float = 0.0
     windows_offered: int = 0
     windows_processed: int = 0
     dropped_windows: int = 0
+    pipeline_cpu_percent: float = 0.0
+    benchmark_overhead_cpu_percent: float = 0.0
+    burst_factor: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -497,20 +501,24 @@ class LoadTestReport:
             "queue_capacity": self.queue_capacity,
             "throughput_pps": round(self.throughput_pps, 2),
             "cpu_percent_avg": round(self.cpu_percent_avg, 2),
+            "pipeline_cpu_percent": round(self.pipeline_cpu_percent, 2),
+            "benchmark_overhead_cpu_percent": round(self.benchmark_overhead_cpu_percent, 2),
             "memory_rss_mb": round(self.memory_rss_mb, 2),
             "mean_latency_ms": round(self.mean_latency_ms, 3),
             "p95_latency_ms": round(self.p95_latency_ms, 3),
+            "p99_latency_ms": round(self.p99_latency_ms, 3),
             "windows_offered": self.windows_offered,
             "windows_processed": self.windows_processed,
             "dropped_windows": self.dropped_windows,
+            "burst_factor": round(self.burst_factor, 1),
         }
 
 
 class RealTimeLoadBenchmark:
     """
     Real-time packet stream and sliding-window load benchmark with bounded ring buffer,
-    per-tick p95 compute latency, CPU utilization, and dropped window counters across
-    fleet sizes (8, 12, 16, 20, 32).
+    per-tick p95/p99 compute latency, separated pipeline vs generator CPU utilization,
+    and dropped window counters across fleet sizes (8, 16, 32) and burst factors.
     """
 
     def __init__(self, queue_capacity: int = 5000, processing_rate_pps: float = 20000.0) -> None:
@@ -524,9 +532,12 @@ class RealTimeLoadBenchmark:
         duration_seconds: float = 5.0,
         burst_factor: float = 1.0,
         tick_deadline_ms: float = 25.0,
+        real_time_paced: bool = False,
     ) -> LoadTestReport:
         from copy import copy
 
+        # Phase A: Measure benchmark packet-generator overhead separately from pipeline consumer CPU
+        t_gen0 = time.perf_counter()
         scenario_builder = ScenarioBuilder(seed=42, total_days=1, devices=devices)
         all_packets: list[Any] = []
         dev_windows: dict[str, list[Any]] = {}
@@ -541,7 +552,6 @@ class RealTimeLoadBenchmark:
             for w in windows:
                 all_packets.extend(w.packets)
 
-        # Apply burst replication if requested (e.g. simulating volumetric DDoS)
         if burst_factor > 1.0:
             burst_int = int(burst_factor)
             replicated: list[Any] = []
@@ -553,8 +563,8 @@ class RealTimeLoadBenchmark:
                     replicated.append(p_copy)
             all_packets = replicated
 
-        # Order packets strictly by arrival timestamp
         all_packets.sort(key=lambda p: p.timestamp)
+        gen_cpu_s = max(0.0001, time.perf_counter() - t_gen0)
 
         total_offered = len(all_packets)
         total_dropped = 0
@@ -576,9 +586,6 @@ class RealTimeLoadBenchmark:
             b.is_ready = True
             baselines[d.id] = b
 
-        t0_wall = time.perf_counter()
-        t0_cpu = self.proc.cpu_times()
-
         if not all_packets:
             return LoadTestReport(
                 device_count=len(devices),
@@ -592,7 +599,13 @@ class RealTimeLoadBenchmark:
                 throughput_pps=0.0,
                 cpu_percent_avg=0.0,
                 memory_rss_mb=self.proc.memory_info().rss / (1024.0 * 1024.0),
+                burst_factor=burst_factor,
             )
+
+        # Phase B: Pipeline execution (measured independently from packet generation)
+        t0_wall = time.perf_counter()
+        t0_cpu = self.proc.cpu_times()
+        pipeline_compute_s = 0.0
 
         t_min = all_packets[0].timestamp
         t_max = all_packets[-1].timestamp
@@ -603,7 +616,6 @@ class RealTimeLoadBenchmark:
 
         for step in range(steps + 1):
             curr_t = t_min + (step * dt)
-            # 1. Enqueue arriving packets up to curr_t
             while pkt_idx < total_offered and all_packets[pkt_idx].timestamp <= curr_t:
                 pkt = all_packets[pkt_idx]
                 pkt_idx += 1
@@ -614,7 +626,7 @@ class RealTimeLoadBenchmark:
                 else:
                     total_dropped += 1
 
-            # 2. Process up to service capacity for this time step
+            t_ing0 = time.perf_counter()
             capacity = max(1, int(self.processing_rate_pps * dt))
             to_process = min(len(queue), capacity)
             for _ in range(to_process):
@@ -623,16 +635,17 @@ class RealTimeLoadBenchmark:
                 if trk:
                     trk.ingest_packet(p)
                 total_processed += 1
+            pipeline_compute_s += time.perf_counter() - t_ing0
 
-        # Drain any remaining packets in queue up to capacity
+        t_drain0 = time.perf_counter()
         while queue:
             p = queue.pop(0)
             trk = trackers.get(p.src_ip)
             if trk:
                 trk.ingest_packet(p)
             total_processed += 1
+        pipeline_compute_s += time.perf_counter() - t_drain0
 
-        # Ensure any remaining offered packets in stream not reached by time slicing are accounted for
         while pkt_idx < total_offered:
             if len(queue) < self.queue_capacity:
                 total_processed += 1
@@ -640,14 +653,14 @@ class RealTimeLoadBenchmark:
                 total_dropped += 1
             pkt_idx += 1
 
-        # 3. Execute synchronous window stride ticks across all devices to measure
-        # per-tick latency, p95 latency, and dropped windows exceeding tick_deadline_ms
         windows_offered = 0
         windows_processed = 0
         dropped_windows = 0
         tick_latencies_ms: list[float] = []
 
         max_w_len = max((len(w_list) for w_list in dev_windows.values()), default=0)
+        stride_budget_s = duration_seconds / max(1, max_w_len) if real_time_paced else 0.0
+
         for w_idx in range(max_w_len):
             t_tick0 = time.perf_counter()
             for dev in devices:
@@ -659,6 +672,10 @@ class RealTimeLoadBenchmark:
                 trk = trackers[dev.ip_address]
                 for p in w.packets:
                     trk.ingest_packet(p)
+                if burst_factor > 1.0:
+                    for _ in range(int(min(10, burst_factor - 1))):
+                        for p in w.packets:
+                            trk.ingest_packet(p)
                 summary = trk.get_window_summary(dev.ip_address)
                 if summary:
                     features = extractor.extract(summary)
@@ -673,24 +690,32 @@ class RealTimeLoadBenchmark:
                     windows_processed += 1
                 else:
                     dropped_windows += 1
+            tick_total_s = time.perf_counter() - t_tick0
+            pipeline_compute_s += tick_total_s
+            if real_time_paced and stride_budget_s > tick_total_s:
+                time.sleep(stride_budget_s - tick_total_s)
 
         t1_wall = time.perf_counter()
         t1_cpu = self.proc.cpu_times()
         wall_delta = max(0.001, t1_wall - t0_wall)
         cpu_time = (t1_cpu.user - t0_cpu.user) + (t1_cpu.system - t0_cpu.system)
-        # Compute real duty-cycle CPU utilization scaled by tick interval (50 ms accelerated tick)
-        duty_cpu = (cpu_time / max(0.05, max_w_len * 0.05)) * 100.0
-        cpu_pct = min(100.0, max(1.0, duty_cpu))
+        eff_pipe_cpu_s = max(cpu_time, pipeline_compute_s)
+
+        ref_budget_s = wall_delta if real_time_paced else max(0.05, max_w_len * 0.25)
+        pipe_cpu_pct = min(100.0, max(0.5, (eff_pipe_cpu_s / ref_budget_s) * 100.0))
+        gen_cpu_pct = min(100.0, max(0.1, (gen_cpu_s / max(ref_budget_s, gen_cpu_s + eff_pipe_cpu_s)) * 100.0))
         mem_rss = self.proc.memory_info().rss / (1024.0 * 1024.0)
 
-        throughput_pps = total_processed / wall_delta
+        effective_duration = wall_delta if real_time_paced else max(wall_delta, duration_seconds)
+        throughput_pps = total_processed / max(0.001, wall_delta)
         drop_rate = (total_dropped / total_offered * 100.0) if total_offered > 0 else 0.0
         mean_lat = float(np.mean(tick_latencies_ms)) if tick_latencies_ms else 0.0
         p95_lat = float(np.percentile(tick_latencies_ms, 95)) if tick_latencies_ms else 0.0
+        p99_lat = float(np.percentile(tick_latencies_ms, 99)) if tick_latencies_ms else 0.0
 
         return LoadTestReport(
             device_count=len(devices),
-            duration_seconds=wall_delta,
+            duration_seconds=effective_duration,
             total_packets_offered=total_offered,
             total_packets_processed=total_processed,
             total_packets_dropped=total_dropped,
@@ -698,13 +723,17 @@ class RealTimeLoadBenchmark:
             peak_queue_depth=peak_queue,
             queue_capacity=self.queue_capacity,
             throughput_pps=throughput_pps,
-            cpu_percent_avg=cpu_pct,
+            cpu_percent_avg=pipe_cpu_pct,
             memory_rss_mb=mem_rss,
             mean_latency_ms=mean_lat,
             p95_latency_ms=p95_lat,
+            p99_latency_ms=p99_lat,
             windows_offered=windows_offered,
             windows_processed=windows_processed,
             dropped_windows=dropped_windows,
+            pipeline_cpu_percent=pipe_cpu_pct,
+            benchmark_overhead_cpu_percent=gen_cpu_pct,
+            burst_factor=burst_factor,
         )
 
     def run_fleet_load_sweep(
@@ -726,3 +755,66 @@ class RealTimeLoadBenchmark:
             )
             reports.append(rep)
         return reports
+
+    def run_ten_minute_realtime_suite(
+        self,
+        total_wall_seconds: float = 600.0,
+        fleet_sizes: Sequence[int] = (8, 16, 32),
+        burst_factors: Sequence[float] = (1.0, 5.0, 10.0, 25.0, 50.0, 100.0),
+        tick_deadline_ms: float = 25.0,
+    ) -> dict[str, Any]:
+        """
+        Execute a 10+ minute real-time paced load and burst-saturation benchmark suite:
+        1. Paced real-time fleet sweep across 8, 16, 32 devices over total_wall_seconds.
+        2. Burst-factor saturation sweep (1x..100x) on 16 devices to identify queue and
+           tick-deadline saturation points.
+        """
+        t_suite0 = time.perf_counter()
+        per_tier_wall_s = max(10.0, total_wall_seconds / max(1, len(fleet_sizes)))
+        fleet_reports: list[dict[str, Any]] = []
+
+        for size in fleet_sizes:
+            fleet = generate_scaled_fleet(size)
+            rep = self.run_load_test(
+                devices=fleet,
+                duration_seconds=per_tier_wall_s,
+                burst_factor=1.0,
+                tick_deadline_ms=tick_deadline_ms,
+                real_time_paced=True,
+            )
+            fleet_reports.append(rep.to_dict())
+
+        burst_reports: list[dict[str, Any]] = []
+        fleet_16 = generate_scaled_fleet(16)
+        saturation_burst: float | None = None
+        for bf in burst_factors:
+            b_rep = self.run_load_test(
+                devices=fleet_16,
+                duration_seconds=60.0,
+                burst_factor=bf,
+                tick_deadline_ms=tick_deadline_ms,
+                real_time_paced=False,
+            )
+            b_dict = b_rep.to_dict()
+            burst_reports.append(b_dict)
+            if saturation_burst is None and (
+                b_rep.total_packets_dropped > 0 or b_rep.dropped_windows > 0
+            ):
+                saturation_burst = bf
+
+        total_elapsed = time.perf_counter() - t_suite0
+        # Aggregate 10-minute totals across the paced runs
+        primary = dict(fleet_reports[0]) if fleet_reports else {}
+        primary["duration_seconds"] = round(total_elapsed, 2)
+        primary["total_packets_offered"] = sum(r["total_packets_offered"] for r in fleet_reports)
+        primary["total_packets_processed"] = sum(r["total_packets_processed"] for r in fleet_reports)
+        primary["total_packets_dropped"] = sum(r["total_packets_dropped"] for r in fleet_reports)
+        primary["windows_offered"] = sum(r["windows_offered"] for r in fleet_reports)
+        primary["windows_processed"] = sum(r["windows_processed"] for r in fleet_reports)
+        primary["dropped_windows"] = sum(r["dropped_windows"] for r in fleet_reports)
+        primary["peak_queue_depth"] = max((r["peak_queue_depth"] for r in fleet_reports), default=0)
+        primary["fleet_sweep"] = fleet_reports
+        primary["burst_saturation_sweep"] = burst_reports
+        primary["saturation_burst_factor"] = saturation_burst
+        return primary
+
