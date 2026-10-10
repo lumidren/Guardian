@@ -22,28 +22,42 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
-    - name: Install dependencies
+    - name: Install system packages (nftables, iproute2, ping)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nftables iproute2 iputils-ping
+
+    - name: Install dependencies (make setup)
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[dev]"
+        make setup
+        pip install playwright
+        playwright install --with-deps chromium
 
-    - name: Lint with Ruff
+    - name: Lint with Ruff (make lint)
       run: |
-        ruff check src tests
+        make lint
 
-    - name: Type check with Mypy
+    - name: Type check with Mypy (make type)
       run: |
-        mypy src/guardian
+        make type
 
-    - name: Run Tests with Coverage
+    - name: Run Tests (make test & cov)
       env:
         PYTHONPATH: src:.
       run: |
+        make test
         pytest --cov=src/guardian --cov-report=xml tests/
 
-    - name: Evaluation Battery Smoke Test
+    - name: Privileged Linux nftables & Playwright Dashboard E2E Verification
       run: |
-        python -m guardian.eval.report --quick
+        sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -v -s
+
+    - name: Evaluation Battery Demo (make demo)
+      env:
+        PYTHONPATH: src:.
+      run: |
+        make demo
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
