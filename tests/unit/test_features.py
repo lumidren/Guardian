@@ -228,3 +228,19 @@ def test_per_device_feature_variance_report() -> None:
     assert "pkt_count_10s" in d1["nonzero_variance_features"]
     assert "tcp_clock_skew_est" in d1["zero_variance_features"]
 
+
+def test_option_to_drop_zero_variance_features() -> None:
+    """Task 53: Verify StreamingNormalizer can drop zero-variance features when drop_zero_variance=True."""
+    norm = StreamingNormalizer(eps=1e-6, drop_zero_variance=True)
+    w1 = {name: 5.0 for name in FEATURE_NAMES}
+    w2 = {name: 5.0 for name in FEATURE_NAMES}
+    w1["pkt_count_10s"] = 10.0
+    w2["pkt_count_10s"] = 30.0
+    norm.update(w1)
+    norm.update(w2)
+    assert norm.active_features() == ["pkt_count_10s"]
+    out = norm.transform(w2)
+    assert list(out.keys()) == ["pkt_count_10s"]
+    out_all = norm.transform(w2, drop_zero_variance=False)
+    assert len(out_all) == 60
+
