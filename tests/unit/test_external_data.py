@@ -127,3 +127,34 @@ def test_external_attack_detection_report_labels_for_scoring_only(tmp_path: Path
     assert "PartOfAHorizontalPortScan" in rep["per_attack_family"]
     assert len(rep["tpr_ci_95"]) == 2
     assert len(rep["fpr_ci_95"]) == 2
+
+
+def test_external_track_never_uses_labels_for_training(tmp_path: Path) -> None:
+    """Task 44: Verify external track feature extraction and scoring never access ground-truth labels."""
+    import inspect
+    from dataclasses import replace
+
+    from guardian.eval.external import IoT23Adapter, IoT23Window, score_unlabeled_feature_windows
+
+    ext_src = inspect.getsource(IoT23Adapter.extract_features)
+    score_src = inspect.getsource(score_unlabeled_feature_windows)
+    for forbidden in (".label", ".detailed_label", ".is_malicious", ".has_attack", "eval_only_labels"):
+        assert forbidden not in ext_src, f"extract_features must never reference {forbidden}"
+        assert forbidden not in score_src, f"score_unlabeled_feature_windows must never reference {forbidden}"
+
+    log_file = tmp_path / "sample_conn.log"
+    log_file.write_text(SAMPLE_ZEEK_CONN_LOG, encoding="utf-8")
+    adapter = IoT23Adapter()
+    records = adapter.parse_file(log_file)
+    flipped_records = [
+        replace(r, label="Malicious" if r.label == "Benign" else "Benign", detailed_label="Flipped")
+        for r in records
+    ]
+    w_orig = IoT23Window(device_id="192.168.1.101", window_start=0.0, window_end=10.0, records=records, has_attack=False)
+    w_flip = IoT23Window(
+        device_id="192.168.1.101", window_start=0.0, window_end=10.0, records=flipped_records, has_attack=True
+    )
+    f_orig = adapter.extract_features(w_orig)
+    f_flip = adapter.extract_features(w_flip)
+    assert f_orig == f_flip
+    assert score_unlabeled_feature_windows([f_orig]) == score_unlabeled_feature_windows([f_flip])
