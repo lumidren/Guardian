@@ -178,3 +178,59 @@ def test_no_cross_table_cell_assignment_or_overwrite() -> None:
     bad_tree = ast.parse('ablation_rows[0]["tpr"] = detection_rows[0]["guardian_tpr"]\n')
     with pytest.raises(AssertionError, match="Forbidden post-hoc table cell overwrite"):
         _assert_ast_has_no_cross_table_copy(bad_tree)
+
+
+def test_readme_headline_equals_multi_seed_json() -> None:
+    """
+    Task 25: Verify that README.md headline badges, executive summary multi-seed numbers,
+    and Headline Multi-Seed Summary table match eval/results/multi_seed_summary.json and
+    eval/results/latest.json exactly, with no single-seed 0.0% FPR headline.
+    """
+    import json
+
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    readme_path = root_dir / "README.md"
+    ms_path = root_dir / "eval" / "results" / "multi_seed_summary.json"
+    latest_path = root_dir / "eval" / "results" / "latest.json"
+
+    assert readme_path.exists() and ms_path.exists() and latest_path.exists()
+
+    readme = readme_path.read_text(encoding="utf-8")
+    ms = json.loads(ms_path.read_text(encoding="utf-8"))
+    latest = json.loads(latest_path.read_text(encoding="utf-8"))
+
+    assert int(ms["n_seeds"]) >= 5
+    assert int(ms["total_episodes"]) == 4500
+
+    det_mean = float(ms["detection_rate_mean"]) * 100.0
+    det_lo = float(ms["detection_rate_ci_lower"]) * 100.0
+    det_hi = float(ms["detection_rate_ci_upper"]) * 100.0
+    fpr_mean = float(ms["fpr_mean"]) * 100.0
+    fpr_lo = float(ms["fpr_ci_lower"]) * 100.0
+    fpr_hi = float(ms["fpr_ci_upper"]) * 100.0
+    far_mean = float(ms["far_per_day"]["mean"])
+    far_lo = float(ms["far_per_day"]["ci_lower"])
+    far_hi = float(ms["far_per_day"]["ci_upper"])
+    ttd_mean = float(ms["ttd_mean"])
+    ttd_lo = float(ms["ttd_ci_lower"])
+    ttd_hi = float(ms["ttd_ci_upper"])
+
+    # 1. Verify top badges match multi_seed_summary.json
+    expected_tpr_badge = f"5--Seed%20Episode%20TPR-{det_mean:.2f}%25%20%5B{det_lo:.2f}%25%2C%20{det_hi:.2f}%25%5D"
+    expected_fpr_badge = f"5--Seed%20Operational%20FPR-{fpr_mean:.2f}%25%20({far_mean:.2f}%20FAR%2FDev%2FDay)"
+    assert expected_tpr_badge in readme, f"Missing expected multi-seed TPR badge: {expected_tpr_badge}"
+    assert expected_fpr_badge in readme, f"Missing expected multi-seed FPR badge: {expected_fpr_badge}"
+
+    # 2. Verify Headline Multi-Seed Summary table rows match multi_seed_summary.json
+    assert f"| **Episode Detection Rate (TPR)** | **{det_mean:.2f}%** | `[{det_lo:.2f}%, {det_hi:.2f}%]` |" in readme
+    assert f"| **Window False Positive Rate (FPR)** | **{fpr_mean:.2f}%** | `[{fpr_lo:.2f}%, {fpr_hi:.2f}%]` |" in readme
+    assert f"| **False Alerts / Device / Day** | **{far_mean:.2f}** | `[{far_lo:.2f}, {far_hi:.2f}]` |" in readme
+    assert f"| **Mean Time-to-Detect (TTD)** | **{ttd_mean:.2f} s** | `[{ttd_lo:.2f} s, {ttd_hi:.2f} s]` |" in readme
+
+    # 3. Verify HARD-tier breakdown in Executive Summary matches latest.json
+    hard_tier = latest["detection"]["tier_breakdown"]["HARD"]
+    hard_cells = [c["guardian_tpr"] for c in latest["detection"]["per_cell_rows"] if c["tier"] == "HARD"]
+    h_min = min(hard_cells)
+    h_max = max(hard_cells)
+    assert f"${h_min:.1f}\\%\\text{{--}}{h_max:.1f}\\%$" in readme
+    assert f"(`{hard_tier['tpr']:.1f}%` macro average, `[{hard_tier['tpr_ci_low']:.1f}%, {hard_tier['tpr_ci_high']:.1f}%]`)" in readme
