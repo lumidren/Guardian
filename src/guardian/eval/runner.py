@@ -300,6 +300,7 @@ class EvaluationRunner:
 
         false_alert_count = 0
         in_false_alarm_streak = False
+        window_records: list[dict[str, Any]] = []
 
         for w in windows:
             # Clear device buffer to ensure window contains precisely the packets in this stream window
@@ -319,6 +320,17 @@ class EvaluationRunner:
             ml_score, _ = model.score_sample(vec)
             # Detector 2: Statistical Baseline
             stat_score, _ = baseline.evaluate(features)
+
+            window_records.append(
+                {
+                    "end_time": w.end_time,
+                    "has_attack": w.has_attack,
+                    "active_episode_ids": w.active_episode_ids,
+                    "base_features": features,
+                    "base_ml_score": ml_score,
+                    "base_stat_score": stat_score,
+                }
+            )
 
             # Fusion through ThreatScorer
             assessment = self.threat_scorer.assess(
@@ -379,6 +391,8 @@ class EvaluationRunner:
                         in_false_alarm_streak = True
                 else:
                     in_false_alarm_streak = False
+
+        self._last_window_records = window_records
 
         # Calculate metrics
         binary_metrics = compute_binary_metrics(y_true_windows, y_pred_windows)
@@ -464,22 +478,64 @@ class EvaluationRunner:
             self._ensure_device_artifacts(dev)
 
         ep_results: list[dict[str, Any]] = []
+        precomputed_episode_windows: list[dict[str, Any]] = []
+
+        total_fp = 0
+        total_tn = 0
+        static_fp = 0
+        static_tn = 0
+        static_tp = 0
+        static_fn = 0
+        zscore_fp = 0
+        zscore_tn = 0
+        zscore_tp = 0
+        zscore_fn = 0
+        pooled_fp = 0
+        pooled_tn = 0
+        pooled_tp = 0
+        pooled_fn = 0
+        total_seconds = 0.0
 
         for ep in episodes:
             stride = self.scenario_builder.stride_s
             slice_start = max(0.0, float(np.floor((ep.start_time - pre_buffer_s) / stride) * stride))
             slice_end = ep.end_time + post_buffer_s
+            total_seconds += max(0.0, slice_end - slice_start)
             rep = self.evaluate_device_slice(
                 device_id=ep.device_id,
                 start_time=slice_start,
                 end_time=slice_end,
                 episodes=[ep],
             )
+            precomputed_episode_windows.append(
+                {
+                    "episode_id": ep.episode_id,
+                    "window_records": getattr(self, "_last_window_records", []),
+                }
+            )
             detected = rep.detected_episodes > 0
             ttd = rep.mean_time_to_detect_s if detected else None
             static_det = rep.baseline_metrics.get("static")
             zscore_det = rep.baseline_metrics.get("zscore")
             pooled_det = rep.baseline_metrics.get("pooled")
+
+            total_fp += rep.window_metrics.fp
+            total_tn += rep.window_metrics.tn
+            if static_det:
+                static_fp += static_det.fp
+                static_tn += static_det.tn
+                static_tp += static_det.tp
+                static_fn += static_det.fn
+            if zscore_det:
+                zscore_fp += zscore_det.fp
+                zscore_tn += zscore_det.tn
+                zscore_tp += zscore_det.tp
+                zscore_fn += zscore_det.fn
+            if pooled_det:
+                pooled_fp += pooled_det.fp
+                pooled_tn += pooled_det.tn
+                pooled_tp += pooled_det.tp
+                pooled_fn += pooled_det.fn
 
             ep_results.append({
                 "episode_id": ep.episode_id,
@@ -540,8 +596,37 @@ class EvaluationRunner:
                     "detected_episodes": t_det,
                 }
 
+        neg_total = max(1, total_fp + total_tn)
+        schedule_fpr = round((total_fp / neg_total) * 100.0, 1)
+        days_obs = max(1e-4, total_seconds / 86400.0)
+        schedule_far = round(
+            compute_false_alert_rate(
+                num_false_alerts=total_fp,
+                num_devices=max(1, len(self.devices)),
+                days_observed=days_obs,
+            ),
+            2,
+        )
+
+        def _f1_from_counts(tp_c: int, fp_c: int, fn_c: int) -> float:
+            denom = 2 * tp_c + fp_c + fn_c
+            return round((2.0 * tp_c) / denom, 4) if denom > 0 else 0.0
+
         return {
             "detection_rows": detection_rows,
             "tier_breakdown": tier_breakdown,
             "episode_results": ep_results,
+            "precomputed_episode_windows": precomputed_episode_windows,
+            "schedule_fpr": schedule_fpr,
+            "schedule_far": schedule_far,
+            "baseline_fprs": {
+                "pooled": round((pooled_fp / max(1, pooled_fp + pooled_tn)) * 100.0, 1),
+                "static": round((static_fp / max(1, static_fp + static_tn)) * 100.0, 1),
+                "zscore": round((zscore_fp / max(1, zscore_fp + zscore_tn)) * 100.0, 1),
+            },
+            "baseline_f1s": {
+                "pooled": _f1_from_counts(pooled_tp, pooled_fp, pooled_fn),
+                "static": _f1_from_counts(static_tp, static_fp, static_fn),
+                "zscore": _f1_from_counts(zscore_tp, zscore_fp, zscore_fn),
+            },
         }
