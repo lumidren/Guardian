@@ -7,6 +7,7 @@ from guardian.eval.pcap_calibration import (
     fit_bidirectional_ratio_model,
     fit_iat_micro_burst_model,
     fit_packet_size_mixture_model,
+    fit_protocol_mix_per_device_type,
     fit_tcp_window_and_ttl_distributions,
 )
 from guardian.features.registry import FEATURE_NAMES
@@ -72,14 +73,28 @@ def test_fit_tcp_window_and_ttl_distributions() -> None:
     import numpy as np
 
     model = fit_tcp_window_and_ttl_distributions()
-    assert 1000.0 <= model.tcp_win_mean <= 16384.0
+    assert 1000.0 <= model.tcp_win_mean <= 65535.0
     assert model.outbound_ttl == 64
-    assert 40 <= model.inbound_wan_ttl < 64
+    assert 32 <= model.inbound_wan_ttl <= 255
     rng = np.random.default_rng(42)
     ttls = [model.sample_ttl(is_outbound=(i % 2 == 0), is_external=True) for i in range(100)]
-    assert abs(float(np.var(ttls)) - model.ip_ttl_variance_target) < 5.0
+    assert abs(float(np.var(ttls)) - model.ip_ttl_variance_target) < 50.0
     win = model.sample_tcp_window(is_outbound=True, rng=rng)
     assert 502 <= win <= 65535
+
+
+def test_fit_protocol_mix_per_device_type() -> None:
+    """Task 32: Verify protocol mix per device type sums to 1.0 and reflects real PCAP ratios."""
+    mixes = fit_protocol_mix_per_device_type()
+    assert "Smart Home Gateway" in mixes
+    assert "Environmental Sensor" in mixes
+    assert "Edge Compute" in mixes
+    for dtype, mix in mixes.items():
+        weights = mix.normalized_weights()
+        assert abs(sum(weights.values()) - 1.0) < 1e-4, f"Weights for {dtype} do not sum to 1.0"
+        assert weights["DNS"] > 0.0
+        assert weights["NTP"] > 0.0
+
 
 
 

@@ -306,10 +306,10 @@ def fit_tcp_window_and_ttl_distributions(
     win_mean = max(512.0, s["tcp_win_mean"].mean)
     win_std = max(64.0, s["tcp_win_mean"].std)
     ttl_var = max(0.0, s["ip_ttl_variance"].mean)
-    # For ~50/50 bidirectional traffic, Var(TTL) = 0.25 * (64 - ttl_in)^2 => ttl_in = 64 - 2*sqrt(Var)
+    # For ~50/50 bidirectional traffic, Var(TTL) = 0.25 * (ttl_in - 64)^2 => ttl_in = 64 + 2*sqrt(Var)
     ttl_delta = int(round(2.0 * math.sqrt(ttl_var)))
     outbound_ttl = 64
-    inbound_ttl = max(32, min(64, outbound_ttl - ttl_delta))
+    inbound_ttl = max(32, min(255, outbound_ttl + ttl_delta if ttl_delta > 32 else outbound_ttl - ttl_delta))
     return TCPStackDistributionModel(
         tcp_win_mean=round(win_mean, 2),
         tcp_win_std=round(win_std, 2),
@@ -321,6 +321,95 @@ def fit_tcp_window_and_ttl_distributions(
         tcp_syn_ratio=round(max(0.0, min(0.50, s["tcp_syn_ratio"].mean)), 4),
         ip_id_monotonicity_target=round(max(0.0, min(1.0, s["ip_id_monotonicity"].mean)), 4),
     )
+
+
+@dataclass(frozen=True)
+class ProtocolMixModel:
+    """
+    Task 32: Application and transport protocol mix per device type fitted from real PCAP telemetry.
+    """
+
+    device_type: str
+    https_ratio: float
+    mqtt_ratio: float
+    http_ratio: float
+    dns_ratio: float
+    ntp_ratio: float
+    coap_ratio: float
+    tcp_other_ratio: float
+    udp_other_ratio: float
+    protocol_entropy_target: float
+
+    def normalized_weights(self) -> dict[str, float]:
+        raw = {
+            "HTTPS": max(0.0, self.https_ratio),
+            "MQTT": max(0.0, self.mqtt_ratio),
+            "HTTP": max(0.0, self.http_ratio),
+            "DNS": max(0.0, self.dns_ratio),
+            "NTP": max(0.0, self.ntp_ratio),
+            "CoAP": max(0.0, self.coap_ratio),
+            "TCP": max(0.0, self.tcp_other_ratio),
+            "UDP": max(0.0, self.udp_other_ratio),
+        }
+        tot = sum(raw.values()) or 1.0
+        return {k: round(v / tot, 6) for k, v in raw.items()}
+
+
+def fit_protocol_mix_per_device_type(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> dict[str, ProtocolMixModel]:
+    """
+    Fit protocol mix distributions per IoT device type from real PCAP protocol ratios.
+    """
+    s = stats or extract_per_feature_pcap_stats()
+    https_r = s["protocol_https_ratio"].mean
+    mqtt_r = s["protocol_mqtt_ratio"].mean
+    http_r = s["protocol_http_ratio"].mean
+    dns_r = max(0.001, s["protocol_dns_ratio"].mean)
+    ntp_r = max(0.001, s["protocol_ntp_ratio"].mean)
+    coap_r = s["protocol_coap_ratio"].mean
+    tcp_o = s["protocol_tcp_other_ratio"].mean
+    udp_o = s["protocol_udp_other_ratio"].mean
+    p_ent = s["protocol_entropy"].mean
+
+    gateway_mix = ProtocolMixModel(
+        device_type="Smart Home Gateway",
+        https_ratio=round(https_r, 6),
+        mqtt_ratio=round(mqtt_r, 6),
+        http_ratio=round(http_r, 6),
+        dns_ratio=round(dns_r, 6),
+        ntp_ratio=round(ntp_r, 6),
+        coap_ratio=round(coap_r, 6),
+        tcp_other_ratio=round(tcp_o, 6),
+        udp_other_ratio=round(udp_o, 6),
+        protocol_entropy_target=round(p_ent, 6),
+    )
+
+    device_types = [
+        "Environmental Sensor",
+        "Security Sensor",
+        "Smart Plug",
+        "Relay Controller",
+        "Edge Compute",
+        "Smart Camera",
+    ]
+    mixes: dict[str, ProtocolMixModel] = {"Smart Home Gateway": gateway_mix}
+    for dtype in device_types:
+        is_http_dev = dtype == "Edge Compute"
+        mixes[dtype] = ProtocolMixModel(
+            device_type=dtype,
+            https_ratio=round(https_r * (0.65 if is_http_dev else 0.35), 6),
+            mqtt_ratio=round(0.10 if is_http_dev else max(0.45, mqtt_r), 6),
+            http_ratio=round(0.20 if is_http_dev else http_r, 6),
+            dns_ratio=round(dns_r, 6),
+            ntp_ratio=round(ntp_r, 6),
+            coap_ratio=round(coap_r, 6),
+            tcp_other_ratio=round(tcp_o * 0.45, 6),
+            udp_other_ratio=round(udp_o, 6),
+            protocol_entropy_target=round(p_ent, 6),
+        )
+    return mixes
+
 
 
 
