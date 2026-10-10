@@ -322,3 +322,60 @@ class ExternalDatasetEvaluator:
             "f1": metrics.f1,
             "operating_threshold": self.operating_point.alert_threshold,
         }
+
+
+@dataclass(frozen=True)
+class LabeledIoT23CaptureDataset:
+    """
+    Task 42: Structured container for a labeled IoT-23 capture that strictly isolates
+    unlabeled detector inputs (features, timestamps, device IDs) from evaluation-only
+    ground-truth labels (`eval_only_labels`, `eval_only_attack_families`).
+    """
+
+    source_path: str
+    device_ids: tuple[str, ...]
+    window_starts: tuple[float, ...]
+    feature_dicts: tuple[dict[str, float], ...]
+    eval_only_labels: tuple[int, ...]
+    eval_only_attack_families: tuple[str, ...]
+
+
+def load_labeled_iot23_capture(
+    file_path: Path | str,
+    window_size_s: float = 10.0,
+    stride_s: float = 5.0,
+) -> LabeledIoT23CaptureDataset:
+    """
+    Task 42: Load a labeled IoT-23 Zeek conn.log capture into unlabeled feature windows
+    paired with evaluation-only ground-truth labels and malware family annotations.
+    """
+    adapter = IoT23Adapter()
+    records = adapter.parse_file(file_path)
+    windows = adapter.aggregate_to_windows(records, window_size_s=window_size_s, stride_s=stride_s)
+
+    device_ids: list[str] = []
+    window_starts: list[float] = []
+    feature_dicts: list[dict[str, float]] = []
+    eval_labels: list[int] = []
+    eval_families: list[str] = []
+
+    for w in windows:
+        device_ids.append(w.device_id)
+        window_starts.append(w.window_start)
+        feature_dicts.append(adapter.extract_features(w))
+        eval_labels.append(1 if w.has_attack else 0)
+        mal_recs = [r for r in w.records if r.is_malicious]
+        if mal_recs:
+            fam = next((r.detailed_label for r in mal_recs if r.detailed_label and r.detailed_label != "-"), mal_recs[0].label)
+            eval_families.append(fam)
+        else:
+            eval_families.append("Benign")
+
+    return LabeledIoT23CaptureDataset(
+        source_path=str(file_path),
+        device_ids=tuple(device_ids),
+        window_starts=tuple(window_starts),
+        feature_dicts=tuple(feature_dicts),
+        eval_only_labels=tuple(eval_labels),
+        eval_only_attack_families=tuple(eval_families),
+    )

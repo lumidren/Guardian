@@ -94,3 +94,17 @@ def test_external_dataset_evaluator_execution(tmp_path: Path) -> None:
     assert "f1" in report
     assert 0.0 <= report["tpr"] <= 1.0
     assert 0.0 <= report["fpr"] <= 1.0
+
+
+def test_load_labeled_iot23_capture(tmp_path: Path) -> None:
+    """Task 42: Verify labeled IoT-23 capture loader separates unlabeled feature windows from evaluation-only labels."""
+    from guardian.eval.external import load_labeled_iot23_capture
+
+    log_file = tmp_path / "sample_conn.log"
+    log_file.write_text(SAMPLE_ZEEK_CONN_LOG, encoding="utf-8")
+    ds = load_labeled_iot23_capture(log_file, window_size_s=5.0, stride_s=5.0)
+    assert len(ds.feature_dicts) == len(ds.eval_only_labels)
+    assert len(ds.feature_dicts) >= 2
+    assert 0 in ds.eval_only_labels and 1 in ds.eval_only_labels
+    assert "PartOfAHorizontalPortScan" in ds.eval_only_attack_families
+    assert all("label" not in f and "is_malicious" not in f for f in ds.feature_dicts)
