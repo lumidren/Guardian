@@ -66,3 +66,20 @@ def test_db_tables_for_rules_and_decisions() -> None:
     decisions = store.get_decisions("dev_01_temp")
     assert len(decisions) == 1
     assert decisions[0]["mode"] == "always"
+
+
+def test_learn_destination_allowlist_from_baseline() -> None:
+    """Task 57: Verify learn_destination_allowlist extracts unique benign destinations."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_destination_allowlist,
+    )
+
+    obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=10.0, dst_ips=("192.168.1.1", "54.210.10.45")),
+        BaselineWindowObservation(device_id="dev_01", timestamp=20.0, dst_ips=("192.168.1.1",)),
+    ]
+    rule = learn_destination_allowlist("dev_01", obs, created_at=100.0)
+    assert rule.kind == RuleKind.DESTINATION_ALLOWLIST
+    assert rule.parameters["allowed_ips"] == ["192.168.1.1", "54.210.10.45"]
+    assert rule.parameters["window_count"] == 2
