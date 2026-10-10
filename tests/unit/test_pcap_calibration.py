@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from guardian.eval.pcap_calibration import extract_per_feature_pcap_stats
+from guardian.eval.pcap_calibration import (
+    extract_per_feature_pcap_stats,
+    fit_packet_size_mixture_model,
+)
 from guardian.features.registry import FEATURE_NAMES
 
 
@@ -16,3 +19,19 @@ def test_extract_per_feature_pcap_stats() -> None:
     assert pkt_cnt.std > 0.0
     assert pkt_cnt.p95 >= pkt_cnt.median
     assert pkt_cnt.nonzero_variance_both is True
+
+
+def test_fit_packet_size_mixture_model() -> None:
+    """Task 28: Verify bimodal packet-size mixture model fits ACK and payload modes."""
+    import numpy as np
+
+    model = fit_packet_size_mixture_model()
+    assert 0.15 <= model.w_ack <= 0.85
+    assert model.mu_payload > model.mu_ack
+    assert model.max_bytes > model.min_bytes >= 40
+    rng = np.random.default_rng(42)
+    samples = [model.sample(rng) for _ in range(200)]
+    assert min(samples) >= model.min_bytes
+    assert max(samples) <= model.max_bytes
+    assert np.std(samples) > 10.0
+

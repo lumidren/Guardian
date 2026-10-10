@@ -107,3 +107,56 @@ def extract_per_feature_pcap_stats(
             nonzero_variance_both=(r_std > 0.0 and s_std > 0.0),
         )
     return stats_map
+
+
+@dataclass(frozen=True)
+class PacketSizeMixtureModel:
+    """
+    Task 28: Two-component bimodal packet-size mixture model fitted from real PCAP stats:
+    - Component 1 (ACK / small control frames): weight w_ack, mean mu_ack, std sigma_ack
+    - Component 2 (TLS / application payload frames): weight (1 - w_ack), mean mu_payload, std sigma_payload
+    """
+
+    w_ack: float
+    mu_ack: float
+    sigma_ack: float
+    mu_payload: float
+    sigma_payload: float
+    min_bytes: int
+    max_bytes: int
+
+    def sample(self, rng: np.random.Generator | None = None) -> int:
+        gen = rng or np.random.default_rng()
+        if float(gen.random()) < self.w_ack:
+            val = float(gen.normal(self.mu_ack, self.sigma_ack))
+        else:
+            val = float(gen.normal(self.mu_payload, self.sigma_payload))
+        return int(max(self.min_bytes, min(self.max_bytes, round(val))))
+
+
+def fit_packet_size_mixture_model(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> PacketSizeMixtureModel:
+    """
+    Fit a bimodal packet-size mixture model directly from extracted real PCAP feature statistics.
+    """
+    s = stats or extract_per_feature_pcap_stats()
+    mean_len = s["pkt_len_mean"].mean
+    std_len = s["pkt_len_std"].mean
+    min_len = max(40.0, s["pkt_len_min"].mean)
+    max_len = max(min_len + 20.0, s["pkt_len_max"].p95)
+    w_ack = max(0.15, min(0.85, s["small_pkt_ratio"].mean if s["small_pkt_ratio"].mean > 0 else 0.52))
+    mu_ack = min_len + 6.0
+    mu_payload = max(mu_ack + 20.0, (mean_len - w_ack * mu_ack) / max(0.15, 1.0 - w_ack))
+    sigma_ack = 4.0
+    sigma_payload = max(12.0, std_len * 0.75)
+    return PacketSizeMixtureModel(
+        w_ack=round(w_ack, 4),
+        mu_ack=round(mu_ack, 2),
+        sigma_ack=round(sigma_ack, 2),
+        mu_payload=round(mu_payload, 2),
+        sigma_payload=round(sigma_payload, 2),
+        min_bytes=int(round(min_len)),
+        max_bytes=int(round(max_len)),
+    )
+
