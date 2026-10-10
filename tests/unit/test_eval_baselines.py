@@ -278,3 +278,23 @@ def test_repro_pooled_if_zero_tpr_bug_and_resolution() -> None:
     assert attack_scaled >= 52.0
 
 
+def test_pooled_if_tpr_positive_on_easy_attacks() -> None:
+    """
+    Task 3: Verify that Pooled Isolation Forest achieves TPR > 0 across EASY attacks
+    both in standalone evaluate_device_slice and in evaluate_ground_truth_schedule.
+    """
+    from guardian.eval.runner import EvaluationRunner
+    from guardian.eval.scenario import DifficultyTier
+
+    runner = EvaluationRunner(seed=42, total_days=14, devices=DEFAULT_FLEET_SPECS[:2])
+    op = runner.calibrate_operating_point(target_fpr=0.05, duration_per_device_s=20.0)
+    assert 35.0 <= op.baseline_thresholds["pooled"] <= 95.0
+
+    episodes = runner.scenario_builder.generate_ground_truth_schedule(
+        tiers=[DifficultyTier.EASY],
+        episodes_per_tier=1,
+    )
+    res = runner.evaluate_ground_truth_schedule(episodes[:3], pre_buffer_s=10.0, post_buffer_s=5.0)
+    pooled_stats = res["detector_confusion_summary"]["pooled"]
+    assert pooled_stats["episode_tpr"] > 0.0
+    assert pooled_stats["window_tpr"] > 0.0
