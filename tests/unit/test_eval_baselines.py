@@ -198,3 +198,41 @@ def test_local_outlier_factor_baseline() -> None:
     assert score_out > score_in
     assert score_out >= 60.0
 
+
+def test_tpr_positive_and_fpr_zero_implies_f1_positive() -> None:
+    """
+    Verify that:
+    1) Any confusion matrix with TPR > 0 and FPR == 0 strictly produces F1 > 0.
+    2) In the real evaluation schedule, Pooled Isolation Forest produces TPR > 0,
+       and every baseline with TPR > 0 (including Static Threshold Rules with FPR == 0)
+       has F1 > 0 computed from the same confusion counts.
+    """
+    from guardian.eval.metrics import compute_binary_metrics
+    from guardian.eval.runner import EvaluationRunner
+    from guardian.eval.scenario import DifficultyTier
+
+    # Direct mathematical check: TPR > 0 and FPR == 0 => F1 > 0
+    y_true = [0, 0, 0, 0, 1, 1, 1, 1]
+    y_pred = [0, 0, 0, 0, 1, 0, 0, 0]  # TP=1, FP=0, TN=4, FN=3 -> TPR=0.25 > 0, FPR=0.0
+    m = compute_binary_metrics(y_true, y_pred)
+    assert m.tpr > 0.0
+    assert m.fpr == 0.0
+    assert m.f1 > 0.0
+
+    # Schedule-level baseline confusion check
+    runner = EvaluationRunner(seed=42, total_days=14, devices=DEFAULT_FLEET_SPECS[:2])
+    runner.calibrate_operating_point(target_fpr=0.05, duration_per_device_s=20.0)
+    episodes = runner.scenario_builder.generate_ground_truth_schedule(
+        tiers=[DifficultyTier.EASY],
+        episodes_per_tier=1,
+    )
+    res = runner.evaluate_ground_truth_schedule(episodes[:2], pre_buffer_s=10.0, post_buffer_s=5.0)
+    summary = res["detector_confusion_summary"]
+
+    assert summary["pooled"]["episode_tpr"] > 0.0 or summary["pooled"]["window_tpr"] > 0.0
+    for det_name, stats in summary.items():
+        if stats["episode_tpr"] > 0.0 or stats["window_tpr"] > 0.0:
+            assert stats["f1"] > 0.0, f"Baseline {det_name} has TPR > 0 but F1 == 0.0: {stats}"
+        if stats["window_tpr"] > 0.0 and stats["fpr"] == 0.0:
+            assert stats["f1"] > 0.0, f"Baseline {det_name} has TPR > 0 and FPR == 0 but F1 == 0.0"
+
