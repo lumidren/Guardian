@@ -207,6 +207,66 @@ class IoTFleetEmulator:
 
         return packets
 
+    def generate_bidirectional_window_packets(
+        self,
+        device: IoTDeviceSpec,
+        window_duration: float = 10.0,
+        current_time: float | None = None,
+        upstream_pkt_ratio: float = 0.4851,
+        outbound_ttl: int = 64,
+        inbound_wan_ttl: int = 171,
+    ) -> list[ParsedPacket]:
+        """Generate calibrated bidirectional (outbound + inbound response) packets for a 10s window."""
+        now = current_time or time.time()
+        start_time = now - window_duration
+        pkt_count = max(4, int(round(device.normal_packet_rate * 2.0)))
+        timestamps = sorted([random.uniform(start_time, now) for _ in range(pkt_count)])
+        peer_ip = device.normal_destinations[0]
+        is_mqtt = device.primary_protocol == "MQTT"
+        service_port = 1883 if is_mqtt else (443 if device.primary_protocol == "HTTPS" else 80)
+        client_port = random.randint(49152, 65535)
+
+        n_outbound = max(1, min(pkt_count - 1, int(round(pkt_count * upstream_pkt_ratio))))
+        directions = [True] * n_outbound + [False] * (pkt_count - n_outbound)
+        random.shuffle(directions)
+
+        packets: list[ParsedPacket] = []
+        for ts, is_outbound in zip(timestamps, directions, strict=True):
+            if is_outbound:
+                src_ip, dst_ip = device.ip_address, peer_ip
+                src_mac, dst_mac = device.mac_address, "B8:27:EB:AA:BB:CC"
+                src_port, dst_port = client_port, service_port
+                ttl = outbound_ttl
+                length = random.randint(device.normal_byte_range[0], device.normal_byte_range[1])
+            else:
+                src_ip, dst_ip = peer_ip, device.ip_address
+                src_mac, dst_mac = "B8:27:EB:AA:BB:CC", device.mac_address
+                src_port, dst_port = service_port, client_port
+                ttl = inbound_wan_ttl
+                length = max(66, int(random.randint(device.normal_byte_range[0], device.normal_byte_range[1]) * 1.12))
+
+            packets.append(
+                ParsedPacket(
+                    timestamp=ts,
+                    src_ip=src_ip,
+                    dst_ip=dst_ip,
+                    src_mac=src_mac,
+                    dst_mac=dst_mac,
+                    src_port=src_port,
+                    dst_port=dst_port,
+                    protocol="TCP",
+                    app_protocol=device.primary_protocol,
+                    length=length,
+                    ttl=ttl,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags={"SYN": False, "ACK": True, "PSH": random.random() < 0.53, "RST": False, "FIN": False, "URG": False},
+                    tcp_window=37166,
+                    tcp_timestamp=int(ts * 1000) % 4294967295,
+                    is_outbound=is_outbound,
+                )
+            )
+        return packets
+
     def generate_hard_negative_packets(
         self,
         device: IoTDeviceSpec,

@@ -96,6 +96,16 @@ def test_fit_protocol_mix_per_device_type() -> None:
         assert weights["NTP"] > 0.0
 
 
+def test_bidirectional_traffic_generation() -> None:
+    """Task 33: Verify calibrated bidirectional traffic generates both outbound and inbound responses."""
+    from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
 
-
-
+    emulator = IoTFleetEmulator()
+    device = DEFAULT_FLEET_SPECS[0]
+    pkts = emulator.generate_bidirectional_window_packets(device, current_time=1000.0)
+    outbound = [p for p in pkts if p.is_outbound]
+    inbound = [p for p in pkts if not p.is_outbound]
+    assert len(outbound) > 0
+    assert len(inbound) > 0
+    assert all(p.src_ip == device.ip_address and p.ttl == 64 for p in outbound)
+    assert all(p.dst_ip == device.ip_address and p.ttl == 171 for p in inbound)
