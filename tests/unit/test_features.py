@@ -244,3 +244,17 @@ def test_option_to_drop_zero_variance_features() -> None:
     out_all = norm.transform(w2, drop_zero_variance=False)
     assert len(out_all) == 60
 
+
+def test_mqtt_topic_features_vs_payload_inspection_claim() -> None:
+    """Task 54: Verify MQTT topic features vs header-only ('no payload inspection') policy is documented and tested."""
+    from guardian.features.registry import get_mqtt_payload_inspection_policy
+
+    pol = get_mqtt_payload_inspection_policy()
+    assert pol["canonical_features_require_payload_bytes"] is False
+    assert pol["capture_snaplen_bytes"] == 96
+    assert pol["tls_8883_compatible"] is True
+    excluded = pol["excluded_payload_features"]
+    assert isinstance(excluded, dict)
+    assert "mqtt_topic_count" in excluded and "mqtt_new_topic" in excluded
+    assert "Layer-7" in str(pol["scope_note"])
+

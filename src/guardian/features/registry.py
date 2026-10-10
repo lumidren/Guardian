@@ -361,3 +361,26 @@ def compute_per_device_feature_variance_report(
         "total_canonical_features": len(FEATURE_NAMES),
         "devices": per_device,
     }
+
+
+def get_mqtt_payload_inspection_policy() -> dict[str, object]:
+    """
+    Task 54: Return structured explanation of where MQTT topic features require Layer-7
+    payload bytes and how excluding them from the 60-feature registry upholds the
+    header-only ('no payload inspection') privacy guarantee.
+    """
+    return {
+        "canonical_features_require_payload_bytes": any(
+            m.requires_payload_bytes for m in FEATURE_REGISTRY.values()
+        ),
+        "excluded_payload_features": dict(EXCLUDED_PAYLOAD_FEATURES),
+        "header_only_mqtt_proxies": [
+            "protocol_mqtt_ratio",
+            "pkt_len_mean",
+            "pkt_len_std",
+            "pkt_len_entropy",
+        ],
+        "capture_snaplen_bytes": 96,
+        "tls_8883_compatible": True,
+        "scope_note": MQTT_PAYLOAD_SCOPE_NOTE,
+    }
