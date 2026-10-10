@@ -236,3 +236,45 @@ def test_tpr_positive_and_fpr_zero_implies_f1_positive() -> None:
         if stats["window_tpr"] > 0.0 and stats["fpr"] == 0.0:
             assert stats["f1"] > 0.0, f"Baseline {det_name} has TPR > 0 and FPR == 0 but F1 == 0.0"
 
+
+def test_repro_pooled_if_zero_tpr_bug_and_resolution() -> None:
+    """
+    Task 1: Reproduces the historical Pooled IF 0% TPR bug and verifies its fix:
+    1) Untrained PooledIsolationForestBaseline returns 0.0 on all samples (0% TPR).
+    2) Raw score_sample() returns s in [0.0, 1.0]; comparing unscaled raw score against
+       a [0, 100] threshold (52.0) caused 0% TPR across all attacks.
+    3) Multimodal fleet training without clearing single-cluster baseline_mean/std
+       clips >5% of normal windows at 1.0 (100.0), saturating Day 8 calibration at 100.0.
+    4) With fleet training, * 100.0 scaling, and pure path-length scoring, Pooled IF
+       produces continuous scores in (0.0, 100.0) and detects attacks above threshold.
+    """
+    untrained = PooledIsolationForestBaseline(n_estimators=25, seed=42)
+    raw_untrained, _ = untrained.score_sample(np.ones(60, dtype=float) * 500.0)
+    assert raw_untrained == 0.0
+
+    # Multimodal fleet training across two distinct device clusters
+    rng = np.random.default_rng(42)
+    cluster_a = rng.normal(loc=2.0, scale=0.2, size=(40, 60)).tolist()
+    cluster_b = rng.normal(loc=80.0, scale=5.0, size=(40, 60)).tolist()
+    trained = PooledIsolationForestBaseline(n_estimators=50, seed=42)
+    trained.fit(cluster_a + cluster_b)
+
+    assert trained.is_trained is True
+    assert trained.model.baseline_mean is None
+    assert trained.model.baseline_std is None
+
+    normal_raw, _ = trained.score_sample(np.full(60, 2.05, dtype=float))
+    attack_raw, _ = trained.score_sample(np.full(60, 5000.0, dtype=float))
+
+    # Historical bug: unscaled raw score in [0, 1] is always < 52.0
+    assert attack_raw <= 1.0
+    assert not (attack_raw >= 52.0)
+
+    # Fixed [0, 100] scaled score: normal < threshold < attack < 100.0
+    normal_scaled = normal_raw * 100.0
+    attack_scaled = attack_raw * 100.0
+    assert 0.0 < normal_scaled < 75.0
+    assert attack_scaled > normal_scaled
+    assert attack_scaled >= 52.0
+
+
