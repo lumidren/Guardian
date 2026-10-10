@@ -111,7 +111,42 @@ class PlausibilityGuard:
                         "Degenerate never-alert detector detected: TPR is 0.0% across all evaluated attack classes."
                     )
 
-                # Check 1d: Implausible perfection on hard or adversarial
+                # Check 1d: Hard tier perfection check (99%+ TPR on HARD requires an evidence note)
+                for r in rows:
+                    r_tier = str(r.get("tier", "")).upper()
+                    r_tpr = float(r.get("guardian_tpr", r.get("tpr", 0.0)))
+                    r_tpr_pct = r_tpr if r_tpr > 1.0 else (r_tpr * 100.0)
+                    if (r_tier == "HARD" or "HARD" in str(r.get("attack", "")).upper()) and r_tpr_pct >= 99.0:
+                        ev_note = (
+                            r.get("evidence_note")
+                            or report.get("evidence_notes", {}).get(r.get("attack"))
+                            or report.get("evidence_note")
+                        )
+                        if not ev_note:
+                            violations.append(
+                                f"Implausible perfection on HARD tier: attack '{r.get('attack')}' scored {r_tpr_pct:.1f}% TPR (>= 99.0%) "
+                                "on HARD difficulty tier without a documented evidence note justifying complete separability."
+                            )
+
+                # Check tier_breakdown if present
+                det_tier_breakdown = det.get("tier_breakdown") or report.get("tier_breakdown")
+                if isinstance(det_tier_breakdown, dict) and "HARD" in det_tier_breakdown:
+                    hard_info = det_tier_breakdown["HARD"]
+                    hard_tpr = float(hard_info.get("tpr", 0.0))
+                    hard_tpr_pct = hard_tpr if hard_tpr > 1.0 else (hard_tpr * 100.0)
+                    if hard_tpr_pct >= 99.0:
+                        ev_note = (
+                            hard_info.get("evidence_note")
+                            or report.get("evidence_notes", {}).get("HARD")
+                            or report.get("evidence_note")
+                        )
+                        if not ev_note:
+                            violations.append(
+                                f"Implausible perfection on HARD tier: overall HARD tier scored {hard_tpr_pct:.1f}% TPR (>= 99.0%) "
+                                "without a documented evidence note justifying complete separability."
+                            )
+
+                # Check 1e: Adversarial evasion perfection
                 adv = report.get("adversarial")
                 if isinstance(adv, dict) and "rows" in adv:
                     adv_rows = adv["rows"]
@@ -126,18 +161,41 @@ class PlausibilityGuard:
                             "Verify evasion realism."
                         )
 
-        # 2. Check Baselines (Always-Alert & Random-Score Detection)
+        # 2. Check Baselines vs Control Detectors (replaces fixed 50% FPR ceiling)
+        ctrls = report.get("controls")
+        always_ctrl_fpr = 100.0
+        shuffled_ctrl_fpr = 50.0
+        if isinstance(ctrls, dict):
+            if "always_alert" in ctrls:
+                aa_val = ctrls["always_alert"].get("fpr", 100.0)
+                always_ctrl_fpr = float(aa_val) if float(aa_val) > 1.0 else (float(aa_val) * 100.0)
+            if "shuffled_labels" in ctrls:
+                sh_val = ctrls["shuffled_labels"].get("fpr", 50.0)
+                shuffled_ctrl_fpr = float(sh_val) if float(sh_val) > 1.0 else (float(sh_val) * 100.0)
+
         base = report.get("baselines")
         if isinstance(base, dict) and "methods" in base:
             for b in base["methods"]:
                 b_name = str(b.get("name", ""))
                 if b_name.startswith("GUARDIAN"):
                     b_fpr = float(b.get("fpr", 0.0))
+                    b_tpr = float(b.get("tpr", 100.0))
                     b_f1 = float(b.get("f1", 1.0))
-                    if b_fpr >= 50.0:
+
+                    # Comparison against control detectors:
+                    # 1) Indistinguishable from always-alert control detector
+                    if abs(b_fpr - always_ctrl_fpr) < 15.0 or b_fpr >= (always_ctrl_fpr * 0.75):
                         violations.append(
-                            f"Degenerate always-alert detector detected: FPR={b_fpr:.1f}% exceeds 50.0% operational ceiling."
+                            f"Degenerate always-alert detector detected: FPR={b_fpr:.1f}% fails separation against "
+                            f"the always-alert control detector (control FPR={always_ctrl_fpr:.1f}%)."
                         )
+                    # 2) Indistinguishable from shuffled/random label control (FPR exceeds shuffled control floor or no margin over random)
+                    elif b_fpr >= shuffled_ctrl_fpr or (b_fpr > 25.0 and (b_tpr - b_fpr) < 15.0):
+                        violations.append(
+                            f"Degenerate detector detected: FPR={b_fpr:.1f}% fails separation against "
+                            f"the shuffled-label control detector (control FPR={shuffled_ctrl_fpr:.1f}%)."
+                        )
+
                     if b_f1 < 0.25:
                         warnings.append(
                             f"Implausibly poor F1 score ({b_f1:.4f}) indicates uncalibrated or random scoring."
