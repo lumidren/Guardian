@@ -50,7 +50,8 @@ jobs:
 
     - name: Privileged Linux nftables & Playwright Dashboard E2E Verification
       run: |
-        sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -v -s
+        sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "nftables" -v -s
+        PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "playwright" -v -s
 
     - name: Evaluation Battery Demo (make demo)
       env:
