@@ -379,3 +379,81 @@ def load_labeled_iot23_capture(
         eval_only_labels=tuple(eval_labels),
         eval_only_attack_families=tuple(eval_families),
     )
+
+
+def score_unlabeled_feature_windows(
+    feature_dicts: Sequence[dict[str, float]],
+    alert_threshold: float = 40.0,
+) -> tuple[list[int], list[float]]:
+    """
+    Score unlabeled external feature windows without access to any ground-truth label fields.
+    """
+    scorer = ThreatScorer()
+    op = OperatingPoint(alert_threshold=alert_threshold, frozen=True)
+    y_pred: list[int] = []
+    raw_scores: list[float] = []
+    for feats in feature_dicts:
+        assessment = scorer.assess(
+            ml_score=0.5,
+            statistical_score=0.5,
+            features=feats,
+            is_cold_start=True,
+        )
+        sc = float(assessment.threat_score)
+        y_pred.append(1 if op.is_alert(sc) else 0)
+        raw_scores.append(sc / 100.0)
+    return y_pred, raw_scores
+
+
+def generate_external_attack_detection_report(
+    dataset: LabeledIoT23CaptureDataset,
+    alert_threshold: float = 40.0,
+) -> dict[str, Any]:
+    """
+    Task 43: Evaluate external IoT-23 attack detection where ground-truth labels are used
+    strictly for post-hoc evaluation scoring (never during feature extraction or scoring).
+    """
+    from .metrics import wilson_score_ci
+
+    y_pred, _ = score_unlabeled_feature_windows(dataset.feature_dicts, alert_threshold=alert_threshold)
+    y_true = list(dataset.eval_only_labels)
+    metrics = compute_binary_metrics(y_true, y_pred)
+
+    n_pos = metrics.tp + metrics.fn
+    n_neg = metrics.fp + metrics.tn
+    tpr_ci = wilson_score_ci(metrics.tp, max(1, n_pos), scale_100=False)
+    fpr_ci = wilson_score_ci(metrics.fp, max(1, n_neg), scale_100=False)
+
+    per_family: dict[str, dict[str, Any]] = {}
+    for fam, yt, yp in zip(dataset.eval_only_attack_families, y_true, y_pred, strict=True):
+        if yt == 0:
+            continue
+        bucket = per_family.setdefault(fam, {"total": 0, "detected": 0})
+        bucket["total"] += 1
+        bucket["detected"] += int(yp == 1)
+
+    for bucket in per_family.values():
+        tot = bucket["total"]
+        det = bucket["detected"]
+        ci = wilson_score_ci(det, max(1, tot), scale_100=False)
+        bucket["tpr"] = round(det / max(1, tot), 4)
+        bucket["tpr_ci_95"] = [round(ci.ci_lower, 4), round(ci.ci_upper, 4)]
+
+    return {
+        "source_path": dataset.source_path,
+        "labels_used_for_training": False,
+        "total_windows": len(y_true),
+        "malicious_windows": n_pos,
+        "benign_windows": n_neg,
+        "tp": metrics.tp,
+        "fp": metrics.fp,
+        "tn": metrics.tn,
+        "fn": metrics.fn,
+        "tpr": round(metrics.tpr, 4),
+        "tpr_ci_95": [round(tpr_ci.ci_lower, 4), round(tpr_ci.ci_upper, 4)],
+        "fpr": round(metrics.fpr, 4),
+        "fpr_ci_95": [round(fpr_ci.ci_lower, 4), round(fpr_ci.ci_upper, 4)],
+        "false_alerts_per_device_day": round(metrics.fpr * 8640.0, 2),
+        "f1": round(metrics.f1, 4),
+        "per_attack_family": per_family,
+    }

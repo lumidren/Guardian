@@ -108,3 +108,22 @@ def test_load_labeled_iot23_capture(tmp_path: Path) -> None:
     assert 0 in ds.eval_only_labels and 1 in ds.eval_only_labels
     assert "PartOfAHorizontalPortScan" in ds.eval_only_attack_families
     assert all("label" not in f and "is_malicious" not in f for f in ds.feature_dicts)
+
+
+def test_external_attack_detection_report_labels_for_scoring_only(tmp_path: Path) -> None:
+    """Task 43: Verify external attack detection report computes CIs and per-family TPR using labels only at scoring time."""
+    from guardian.eval.external import (
+        generate_external_attack_detection_report,
+        load_labeled_iot23_capture,
+    )
+
+    log_file = tmp_path / "sample_conn.log"
+    log_file.write_text(SAMPLE_ZEEK_CONN_LOG, encoding="utf-8")
+    ds = load_labeled_iot23_capture(log_file, window_size_s=5.0, stride_s=5.0)
+    rep = generate_external_attack_detection_report(ds, alert_threshold=35.0)
+    assert rep["labels_used_for_training"] is False
+    assert rep["malicious_windows"] >= 1
+    assert rep["benign_windows"] >= 1
+    assert "PartOfAHorizontalPortScan" in rep["per_attack_family"]
+    assert len(rep["tpr_ci_95"]) == 2
+    assert len(rep["fpr_ci_95"]) == 2
