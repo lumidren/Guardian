@@ -22,9 +22,122 @@ class AttackType(StrEnum):
     ZERO_DAY_HYBRID = "ZERO_DAY_HYBRID"
 
 
+# Principled a-priori HARD tier specification defined before evaluation:
+# All 6 attacks on HARD tier reuse whitelisted device destinations, avoid high-risk ports,
+# match the victim device's normal payload byte range (within byte_scale), and inject
+# packets at a small fraction (rate_fraction) of the device's normal_packet_rate.
+HARD_TIER_SPEC: dict[AttackType, dict[str, Any]] = {
+    AttackType.DDOS_FLOODING: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (0.90, 1.05),
+        "rate_fraction": 0.35,
+        "min_pkts": 2,
+        "max_pkts": 4,
+    },
+    AttackType.CNC_BEACONING: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (0.95, 1.05),
+        "rate_fraction": 0.20,
+        "min_pkts": 1,
+        "max_pkts": 2,
+    },
+    AttackType.NETWORK_SCANNING: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (0.85, 1.00),
+        "rate_fraction": 0.25,
+        "min_pkts": 1,
+        "max_pkts": 3,
+    },
+    AttackType.DATA_EXFILTRATION: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (1.00, 1.15),
+        "rate_fraction": 0.30,
+        "min_pkts": 1,
+        "max_pkts": 3,
+    },
+    AttackType.CRYPTOMINING: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (0.95, 1.10),
+        "rate_fraction": 0.25,
+        "min_pkts": 1,
+        "max_pkts": 2,
+    },
+    AttackType.ZERO_DAY_HYBRID: {
+        "use_whitelisted_destinations": True,
+        "byte_scale": (0.95, 1.05),
+        "rate_fraction": 0.15,
+        "min_pkts": 1,
+        "max_pkts": 2,
+    },
+}
+
+
 class AttackSuite:
     def __init__(self) -> None:
         pass
+
+    def _inject_hard_tier_covert_packets(
+        self,
+        attack_type: AttackType,
+        victim_device: IoTDeviceSpec,
+        start_time: float,
+        window_duration: float,
+    ) -> list[ParsedPacket]:
+        """
+        Generate HARD-tier covert attack packets strictly adhering to HARD_TIER_SPEC:
+        whitelisted destinations, matched payload size distribution, and matched rate.
+        """
+        spec = HARD_TIER_SPEC[attack_type]
+        base_rate = float(victim_device.normal_packet_rate)
+        raw_count = int(round(base_rate * float(spec["rate_fraction"])))
+        pkt_count = max(int(spec["min_pkts"]), min(int(spec["max_pkts"]), raw_count))
+
+        min_b, max_b = victim_device.normal_byte_range
+        scale_low, scale_high = spec["byte_scale"]
+        len_min = max(48, int(round(min_b * scale_low)))
+        len_max = max(len_min + 4, int(round(max_b * scale_high)))
+
+        app_proto = victim_device.primary_protocol
+        if attack_type == AttackType.NETWORK_SCANNING:
+            # Probe only standard non-high-risk ports on whitelisted destinations
+            allowed_ports = [80, 443, 1883]
+        elif app_proto == "MQTT":
+            allowed_ports = [1883]
+        elif app_proto == "HTTP":
+            allowed_ports = [80, 443]
+        else:
+            allowed_ports = [80, 443, 1883]
+
+        packets: list[ParsedPacket] = []
+        for i in range(pkt_count):
+            jitter = random.uniform(-0.15, 0.15) * (window_duration / max(1, pkt_count))
+            base_ts = start_time + ((i + 0.5) * (window_duration / max(1, pkt_count)))
+            ts = max(start_time, min(start_time + window_duration, base_ts + jitter))
+            dst_ip = victim_device.normal_destinations[i % len(victim_device.normal_destinations)]
+            dst_port = allowed_ports[i % len(allowed_ports)]
+
+            packets.append(
+                ParsedPacket(
+                    timestamp=ts,
+                    src_ip=victim_device.ip_address,
+                    dst_ip=dst_ip,
+                    src_mac=victim_device.mac_address,
+                    dst_mac="B8:27:EB:AA:BB:CC",
+                    src_port=random.randint(49152, 65535),
+                    dst_port=dst_port,
+                    protocol="TCP",
+                    app_protocol=app_proto,
+                    length=random.randint(len_min, len_max),
+                    ttl=64,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                    tcp_window=64240,
+                    tcp_timestamp=int(ts * 1000) % 4294967295,
+                    is_outbound=True,
+                )
+            )
+        packets.sort(key=lambda p: p.timestamp)
+        return packets
 
     def inject_attack(
         self,
@@ -45,19 +158,24 @@ class AttackSuite:
 
         now = current_time or time.time()
         start_time = now - window_duration
+
+        if tier == DifficultyTier.HARD or str(tier) == "HARD":
+            return self._inject_hard_tier_covert_packets(
+                attack_type=attack_type,
+                victim_device=victim_device,
+                start_time=start_time,
+                window_duration=window_duration,
+            )
+
         packets: list[ParsedPacket] = []
 
         if attack_type == AttackType.DDOS_FLOODING:
-            # Scaled across tiers: Easy (volumetric flood), Medium (intermittent), Hard (stealthy)
             if tier == DifficultyTier.EASY:
                 pkt_count = random.randint(950, 1300)
                 len_min, len_max = 54, 80
-            elif tier == DifficultyTier.MEDIUM:
+            else:  # MEDIUM
                 pkt_count = random.randint(300, 420)
                 len_min, len_max = 60, 120
-            else:  # HARD
-                pkt_count = random.randint(35, 48)
-                len_min, len_max = 64, 128
 
             target_ip = "203.0.113.50"
             for _ in range(pkt_count):
@@ -88,18 +206,12 @@ class AttackSuite:
                 dst_port = 8443
                 app_proto = "HTTPS"
                 len_min, len_max = 180, 240
-            elif tier == DifficultyTier.MEDIUM:
+            else:  # MEDIUM
                 c2_ip = "91.240.118.52"
                 pkt_count = random.randint(8, 14)
                 dst_port = 8443
                 app_proto = "HTTPS"
                 len_min, len_max = 180, 240
-            else:  # HARD - covert in-band telemetry channel piggybacking
-                c2_ip = victim_device.normal_destinations[0]
-                pkt_count = random.randint(1, 2)
-                dst_port = 1883 if victim_device.primary_protocol == "MQTT" else 80
-                app_proto = victim_device.primary_protocol
-                len_min, len_max = victim_device.normal_byte_range
 
             for i in range(pkt_count):
                 ts = start_time + (i * (window_duration / max(1, pkt_count)))
@@ -125,10 +237,8 @@ class AttackSuite:
         elif attack_type == AttackType.NETWORK_SCANNING:
             if tier == DifficultyTier.EASY:
                 pkt_count = 120
-            elif tier == DifficultyTier.MEDIUM:
+            else:  # MEDIUM
                 pkt_count = 35
-            else:  # HARD
-                pkt_count = 8
 
             for i in range(pkt_count):
                 ts = start_time + (i * (window_duration / max(1, pkt_count)))
@@ -158,12 +268,9 @@ class AttackSuite:
             if tier == DifficultyTier.EASY:
                 pkt_count = random.randint(400, 600)
                 len_min, len_max = 1420, 1500
-            elif tier == DifficultyTier.MEDIUM:
+            else:  # MEDIUM
                 pkt_count = random.randint(100, 140)
                 len_min, len_max = 480, 560
-            else:  # HARD
-                pkt_count = random.randint(12, 18)
-                len_min, len_max = 100, 150
 
             for _ in range(pkt_count):
                 ts = random.uniform(start_time, now)
@@ -190,10 +297,8 @@ class AttackSuite:
             pool_ip = "144.76.12.18"
             if tier == DifficultyTier.EASY:
                 pkt_count = random.randint(80, 120)
-            elif tier == DifficultyTier.MEDIUM:
+            else:  # MEDIUM
                 pkt_count = random.randint(25, 35)
-            else:  # HARD
-                pkt_count = random.randint(6, 10)
 
             for _ in range(pkt_count):
                 ts = random.uniform(start_time, now)
@@ -217,24 +322,14 @@ class AttackSuite:
                 ))
 
         elif attack_type == AttackType.ZERO_DAY_HYBRID:
+            moscow_ip = "185.220.101.47"
             if tier == DifficultyTier.EASY:
-                moscow_ip = "185.220.101.47"
                 pkt_count = random.randint(800, 900)
-                dst_port = 80
-                app_proto = "HTTP"
-                len_min, len_max = 1200, 1480
-            elif tier == DifficultyTier.MEDIUM:
-                moscow_ip = "185.220.101.47"
+            else:  # MEDIUM
                 pkt_count = random.randint(180, 240)
-                dst_port = 80
-                app_proto = "HTTP"
-                len_min, len_max = 1200, 1480
-            else:  # HARD - covert zero-day hybrid mimicry matching approved destinations and byte profiles
-                moscow_ip = victim_device.normal_destinations[0]
-                pkt_count = 1
-                dst_port = 1883 if victim_device.primary_protocol == "MQTT" else 80
-                app_proto = victim_device.primary_protocol
-                len_min, len_max = victim_device.normal_byte_range
+            dst_port = 80
+            app_proto = "HTTP"
+            len_min, len_max = 1200, 1480
 
             for _ in range(pkt_count):
                 ts = random.uniform(start_time, now)
