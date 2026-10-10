@@ -136,6 +136,10 @@ class PooledIsolationForestBaseline:
     def fit(self, pooled_samples: Sequence[Sequence[float]]) -> None:
         arr = np.asarray(pooled_samples, dtype=float)
         self.model.fit(arr, device_id="pooled_fleet_model")
+        # Pooled fleet distribution is multimodal across device types; use pure
+        # Liu et al. (2008) path-length score without single-cluster z-clipping
+        self.model.baseline_mean = None
+        self.model.baseline_std = None
 
     def score_sample(self, vec: np.ndarray) -> tuple[float, dict[str, float]]:
         return self.model.score_sample(vec)
