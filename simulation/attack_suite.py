@@ -43,10 +43,10 @@ HARD_TIER_SPEC: dict[AttackType, dict[str, Any]] = {
     },
     AttackType.NETWORK_SCANNING: {
         "use_whitelisted_destinations": True,
-        "byte_scale": (0.85, 1.00),
-        "rate_fraction": 0.25,
+        "byte_scale": (0.95, 1.05),
+        "rate_fraction": 0.20,
         "min_pkts": 1,
-        "max_pkts": 3,
+        "max_pkts": 2,
     },
     AttackType.DATA_EXFILTRATION: {
         "use_whitelisted_destinations": True,
@@ -70,6 +70,20 @@ HARD_TIER_SPEC: dict[AttackType, dict[str, Any]] = {
         "max_pkts": 2,
     },
 }
+
+
+def _whitelisted_ports_for_device(victim_device: IoTDeviceSpec) -> list[int]:
+    """Return the legitimate protocol ports for the victim device to avoid port-allowlist triggers."""
+    app_proto = victim_device.primary_protocol
+    if app_proto == "MQTT":
+        return [1883]
+    if app_proto == "HTTP":
+        return [80, 443]
+    if app_proto == "RTSP":
+        return [554]
+    if app_proto == "CoAP":
+        return [5683]
+    return [80, 443, 1883]
 
 
 class AttackSuite:
@@ -98,15 +112,7 @@ class AttackSuite:
         len_max = max(len_min + 4, int(round(max_b * scale_high)))
 
         app_proto = victim_device.primary_protocol
-        if attack_type == AttackType.NETWORK_SCANNING:
-            # Probe only standard non-high-risk ports on whitelisted destinations
-            allowed_ports = [80, 443, 1883]
-        elif app_proto == "MQTT":
-            allowed_ports = [1883]
-        elif app_proto == "HTTP":
-            allowed_ports = [80, 443]
-        else:
-            allowed_ports = [80, 443, 1883]
+        allowed_ports = _whitelisted_ports_for_device(victim_device)
 
         packets: list[ParsedPacket] = []
         for i in range(pkt_count):
@@ -363,7 +369,8 @@ class AttackSuite:
         reuse_destinations: bool = True,
     ) -> list[ParsedPacket]:
         """
-        Inject traffic matching legitimate device byte distribution and timing.
+        Inject hardened mimicry traffic matching legitimate device byte distribution,
+        whitelisted destinations, protocol ports, and covert fractional packet rate.
         - reuse_destinations: sends only to known authorized device destinations.
         - novel_destinations: sends to novel external IP while matching packet sizes and rates.
         """
@@ -371,20 +378,21 @@ class AttackSuite:
         start_time = now - window_duration
         packets: list[ParsedPacket] = []
 
-        base_rate = victim_device.normal_packet_rate
-        pkt_count = max(2, int(random.gauss(base_rate, max(1.0, base_rate * 0.15))))
-        timestamps = sorted([random.uniform(start_time, now) for _ in range(pkt_count)])
+        base_rate = float(victim_device.normal_packet_rate)
+        pkt_count = max(1, min(2, int(round(base_rate * 0.20))))
+        allowed_ports = _whitelisted_ports_for_device(victim_device)
+        min_b, max_b = victim_device.normal_byte_range
 
-        if reuse_destinations:
-            dst_ip = random.choice(victim_device.normal_destinations)
-        else:
-            dst_ip = "198.51.100.77"
-
-        is_mqtt = victim_device.primary_protocol == "MQTT"
-        dst_port = 1883 if is_mqtt else (80 if victim_device.primary_protocol == "HTTP" else 53)
-
-        for ts in timestamps:
-            length = random.randint(victim_device.normal_byte_range[0], victim_device.normal_byte_range[1])
+        for i in range(pkt_count):
+            jitter = random.uniform(-0.10, 0.10) * (window_duration / max(1, pkt_count))
+            base_ts = start_time + ((i + 0.5) * (window_duration / max(1, pkt_count)))
+            ts = max(start_time, min(now, base_ts + jitter))
+            if reuse_destinations:
+                dst_ip = victim_device.normal_destinations[i % len(victim_device.normal_destinations)]
+            else:
+                dst_ip = "198.51.100.77"
+            dst_port = allowed_ports[i % len(allowed_ports)]
+            length = random.randint(min_b, max_b)
             pkt = ParsedPacket(
                 timestamp=ts,
                 src_ip=victim_device.ip_address,
@@ -404,6 +412,7 @@ class AttackSuite:
                 is_outbound=True,
             )
             packets.append(pkt)
+        packets.sort(key=lambda p: p.timestamp)
         return packets
 
     def inject_low_and_slow_attack(
