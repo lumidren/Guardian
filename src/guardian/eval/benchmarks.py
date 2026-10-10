@@ -441,9 +441,10 @@ class ScalabilityBenchmark:
             t1_cpu = self.proc.cpu_times()
             wall_delta = max(0.001, t1_wall - t0_wall)
             cpu_time = (t1_cpu.user - t0_cpu.user) + (t1_cpu.system - t0_cpu.system)
-            # Duty-cycle CPU utilization scaled by fleet concurrency
-            duty_cpu = (cpu_time / max(0.1, max_w_len * 0.05)) * 100.0
-            cpu_pct = round(min(100.0, max(1.5, duty_cpu)), 2)
+            pipeline_cpu_s = max(cpu_time, sum(latencies_ms) / 1000.0)
+            # Duty-cycle CPU utilization scaled by fleet concurrency over real-time tick budget
+            duty_cpu = (pipeline_cpu_s / max(0.1, max_w_len * 0.25)) * 100.0
+            cpu_pct = round(max(1.5, duty_cpu), 2)
             mem_mb = self.proc.memory_info().rss / (1024.0 * 1024.0)
 
             throughput = total_windows / wall_delta
