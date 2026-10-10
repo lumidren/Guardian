@@ -521,18 +521,25 @@ class AttackSuite:
         backoff_threshold: float = 45.0,
         window_duration: float = 10.0,
         current_time: float | None = None,
+        attack_type: AttackType = AttackType.CNC_BEACONING,
     ) -> list[ParsedPacket]:
         """
-        Adaptive attacker: observes current threat score and ceases transmission when
-        score exceeds backoff_threshold.
+        Adaptive attacker with closed-loop threat score feedback:
+        - Ceases transmission completely when current_threat_score > backoff_threshold.
+        - Throttles to a single covert whitelisted packet when score > 0.6 * backoff_threshold.
+        - Otherwise injects covert HARD-tier whitelisted packets.
         """
         if current_threat_score > backoff_threshold:
             return []
 
-        return self.inject_attack(
-            attack_type=AttackType.CNC_BEACONING,
+        now = current_time or time.time()
+        start_time = now - window_duration
+        raw = self._inject_hard_tier_covert_packets(
+            attack_type=attack_type,
             victim_device=victim_device,
+            start_time=start_time,
             window_duration=window_duration,
-            current_time=current_time,
-            tier="MEDIUM",
         )
+        if current_threat_score > 0.6 * backoff_threshold:
+            return raw[:1]
+        return raw[: max(1, int(len(raw) * 0.65))]

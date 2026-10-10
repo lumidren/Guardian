@@ -330,6 +330,7 @@ class ScenarioBuilder:
 
         windows: list[StreamWindow] = []
         cur_t = start_time
+        adaptive_score_est = 0.0
 
         while cur_t + self.window_size_s <= end_time:
             w_start = cur_t
@@ -360,9 +361,12 @@ class ScenarioBuilder:
                     if w_end <= active_start:
                         continue
 
-                    # Adaptive backoff evasion: alternate active and quiet windows to evade hysteresis/rate triggers
+                    # Adaptive backoff evasion: closed-loop threat score feedback + alternating quiet windows
                     win_offset_idx = int(round(max(0.0, w_start - active_start) / max(0.1, self.stride_s)))
-                    if ep.evasion_mode == EvasionMode.ADAPTIVE and (win_offset_idx % 2 == 1):
+                    if ep.evasion_mode == EvasionMode.ADAPTIVE and (
+                        win_offset_idx % 2 == 1 or adaptive_score_est > 45.0
+                    ):
+                        adaptive_score_est = max(0.0, adaptive_score_est * 0.45)
                         continue
                     if (
                         ep.evasion_mode == EvasionMode.LOW_AND_SLOW
@@ -371,39 +375,49 @@ class ScenarioBuilder:
                     ):
                         continue
 
-                    raw_attack = self.attack_suite.inject_attack(
-                        attack_type=ep.attack_type,
-                        victim_device=dev,
-                        tier=ep.tier,
-                    )
-                    if ep.tier == DifficultyTier.HARD:
-                        if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
-                            sample_attack = raw_attack[:1]
-                        elif ep.evasion_mode in (
-                            EvasionMode.MIMICRY,
-                            EvasionMode.NO_NEW_DESTINATION,
-                            EvasionMode.ADAPTIVE,
-                            EvasionMode.DELAYED_START,
-                        ):
-                            sample_attack = raw_attack[: max(1, int(len(raw_attack) * 0.65))]
-                        else:
-                            sample_attack = raw_attack
+                    if ep.evasion_mode == EvasionMode.ADAPTIVE and ep.tier == DifficultyTier.HARD:
+                        sample_attack = self.attack_suite.inject_adaptive_attack(
+                            victim_device=dev,
+                            current_threat_score=adaptive_score_est,
+                            backoff_threshold=45.0,
+                            window_duration=self.window_size_s,
+                            current_time=w_end,
+                            attack_type=ep.attack_type,
+                        )
                     else:
-                        multiplier = (
-                            0.5
-                            if ep.intensity == AttackIntensity.LOW
-                            else (2.0 if ep.intensity == AttackIntensity.HIGH else 1.0)
+                        raw_attack = self.attack_suite.inject_attack(
+                            attack_type=ep.attack_type,
+                            victim_device=dev,
+                            tier=ep.tier,
                         )
-                        if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
-                            multiplier *= 0.15
-                        elif ep.evasion_mode == EvasionMode.ADAPTIVE:
-                            multiplier *= 0.40
+                        if ep.tier == DifficultyTier.HARD:
+                            if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
+                                sample_attack = raw_attack[:1]
+                            elif ep.evasion_mode in (
+                                EvasionMode.MIMICRY,
+                                EvasionMode.NO_NEW_DESTINATION,
+                                EvasionMode.ADAPTIVE,
+                                EvasionMode.DELAYED_START,
+                            ):
+                                sample_attack = raw_attack[: max(1, int(len(raw_attack) * 0.65))]
+                            else:
+                                sample_attack = raw_attack
+                        else:
+                            multiplier = (
+                                0.5
+                                if ep.intensity == AttackIntensity.LOW
+                                else (2.0 if ep.intensity == AttackIntensity.HIGH else 1.0)
+                            )
+                            if ep.evasion_mode == EvasionMode.LOW_AND_SLOW:
+                                multiplier *= 0.15
+                            elif ep.evasion_mode == EvasionMode.ADAPTIVE:
+                                multiplier *= 0.40
 
-                        target_count = max(
-                            2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
-                            int(len(raw_attack) * multiplier),
-                        )
-                        sample_attack = raw_attack[:target_count]
+                            target_count = max(
+                                2 if ep.evasion_mode == EvasionMode.LOW_AND_SLOW else 5,
+                                int(len(raw_attack) * multiplier),
+                            )
+                            sample_attack = raw_attack[:target_count]
 
                     # Interpolate attack packet timestamps within overlapping active portion
                     overlap_start = max(w_start, active_start)
@@ -439,6 +453,13 @@ class ScenarioBuilder:
                                 p.dst_port = 5683
 
                         attack_pkts.append(p)
+
+            # Update closed-loop adaptive score feedback from injected packet ratio
+            if attack_pkts:
+                rate_excess = len(attack_pkts) / max(1.0, float(dev.normal_packet_rate))
+                adaptive_score_est = min(100.0, adaptive_score_est * 0.5 + rate_excess * 95.0)
+            else:
+                adaptive_score_est = max(0.0, adaptive_score_est * 0.45)
 
             # 3. Merge normal and attack packets and sort chronologically
             all_pkts = normal_pkts + attack_pkts
