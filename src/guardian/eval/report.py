@@ -110,23 +110,17 @@ def generate_full_evaluation_report(
     macro_guardian_f1 = round(sum(r["f1"] for r in detection_rows) / len(detection_rows), 4)
     print(f"[{time.strftime('%H:%M:%S')}] Macro Average TPR={macro_guardian:.2f}%, F1={macro_guardian_f1:.4f} (elapsed={time.time() - t_start:.2f}s)", flush=True)
 
-    # Clean background slice for empirical false alarm metrics
-    clean_rep = runner.evaluate_device_slice(
-        device_id=fleet[0].id,
-        start_time=0.0,
-        end_time=slice_duration_s,
-        episodes=[],
-    )
-    macro_guardian_fpr = round(clean_rep.window_metrics.fpr * 100.0, 1)
-    macro_pooled_fpr = round(clean_rep.baseline_metrics["pooled"].fpr * 100.0, 1)
-    macro_static_fpr = round(clean_rep.baseline_metrics["static"].fpr * 100.0, 1)
-    macro_zscore_fpr = round(clean_rep.baseline_metrics["zscore"].fpr * 100.0, 1)
+    # Empirical false alarm metrics across Days 9-14 test schedule (no 40s/70s Day 1 slice)
+    macro_guardian_fpr = float(sched_res["schedule_fpr"])
+    macro_pooled_fpr = float(sched_res["baseline_fprs"]["pooled"])
+    macro_static_fpr = float(sched_res["baseline_fprs"]["static"])
+    macro_zscore_fpr = float(sched_res["baseline_fprs"]["zscore"])
 
-    macro_pooled_f1 = round(clean_rep.baseline_metrics["pooled"].f1, 4)
-    macro_static_f1 = round(clean_rep.baseline_metrics["static"].f1, 4)
-    macro_zscore_f1 = round(clean_rep.baseline_metrics["zscore"].f1, 4)
+    macro_pooled_f1 = float(sched_res["baseline_f1s"]["pooled"])
+    macro_static_f1 = float(sched_res["baseline_f1s"]["static"])
+    macro_zscore_f1 = float(sched_res["baseline_f1s"]["zscore"])
 
-    macro_guardian_far = round(clean_rep.false_alert_rate_per_device_day, 2)
+    macro_guardian_far = float(sched_res["schedule_far"])
 
     detection_data = {
         "rows": detection_rows,
@@ -179,37 +173,30 @@ def generate_full_evaluation_report(
         ]
     }
 
-    # 3. Ablation Battery
-    print(f"[{time.strftime('%H:%M:%S')}] Step 4/9: Running 8-configuration Ablation Battery...", flush=True)
-    ablation_runner = AblationRunner(seed=seed, devices=fleet[:2])
-    test_ep = runner.scenario_builder.create_offset_episode(
-        episode_id=f"ep_abl_{seed}",
-        device_id=fleet[0].id,
-        attack_type=AttackType.CNC_BEACONING,
-        base_start_time=10.0,
-        duration_seconds=20.0,
-        intensity=AttackIntensity.MEDIUM,
-        evasion_mode=EvasionMode.NONE,
-        tier=DifficultyTier.MEDIUM,
+    # 3. Ablation Battery (executed inside full protocol: same splits, schedule, and calibrated threshold)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 4/9: Running 8-configuration Ablation Battery across protocol schedule...", flush=True)
+    ablation_runner = AblationRunner(
+        seed=seed,
+        devices=fleet,
+        total_days=14,
+        operating_point=calibrated_op,
+        models=runner._models,
+        baselines=runner._baselines,
     )
-    ablation_results = ablation_runner.run_battery(
-        device_id=fleet[0].id,
-        start_time=0.0,
-        end_time=slice_duration_s,
-        episodes=[test_ep],
+    ablation_results = ablation_runner.run_protocol_schedule_battery(
+        episodes=episodes,
+        operating_point=calibrated_op,
+        precomputed_episode_windows=sched_res.get("precomputed_episode_windows"),
     )
     ablation_dict_list = [r.to_dict() for r in ablation_results]
-    # Mathematically align Full GUARDIAN row with main evaluation
-    ablation_dict_list[0]["tpr"] = round(macro_guardian / 100.0, 4)
-    ablation_dict_list[0]["fpr"] = round(macro_guardian_fpr / 100.0, 4)
-    ablation_dict_list[0]["f1"] = macro_guardian_f1
     ablations_data = {"results": ablation_dict_list}
 
     # Cross-table consistency check (Guards G2 and G3)
+    ablation_full_fpr = round(ablation_dict_list[0]["fpr"] * 100.0, 1)
     is_valid, msg = check_evaluation_cross_table_consistency(
         main_table_rows=detection_rows,
         main_fpr=macro_guardian_fpr,
-        ablation_fpr=macro_guardian_fpr,
+        ablation_fpr=ablation_full_fpr,
     )
     if not is_valid:
         raise ValueError(f"Cross-table consistency check failed: {msg}")
@@ -255,6 +242,16 @@ def generate_full_evaluation_report(
 
     # 6. Three Distinct Latencies
     print(f"[{time.strftime('%H:%M:%S')}] Step 7/9: Measuring 3 Distinct Latencies (Compute, Enforcement, TTD)...", flush=True)
+    test_ep = runner.scenario_builder.create_offset_episode(
+        episode_id=f"ep_lat_{seed}",
+        device_id=fleet[0].id,
+        attack_type=AttackType.CNC_BEACONING,
+        base_start_time=10.0,
+        duration_seconds=20.0,
+        intensity=AttackIntensity.MEDIUM,
+        evasion_mode=EvasionMode.NONE,
+        tier=DifficultyTier.MEDIUM,
+    )
     lat_bench = LatencyBenchmark()
     lat_report = lat_bench.measure_latencies(
         devices=fleet[:2],
@@ -321,6 +318,7 @@ def generate_multi_seed_evaluation_report(
     Executes evaluation across multiple random seeds and aggregates results with 95% bootstrap CIs.
     Enforces Milestone P3-3 sample size policy (N_seeds >= 5).
     Parallelizes seed evaluations across available CPU cores and reports total runtime.
+    Aggregates all 8 ablation configurations across the multi-seed protocol runs.
     """
     t_start = time.time()
     seed_runs: list[dict[str, Any]] = []
@@ -352,9 +350,46 @@ def generate_multi_seed_evaluation_report(
             }
         )
 
+    assert base_report is not None
+    n_seeds = len(seed_reports)
+    if n_seeds > 1 and "ablations" in base_report and "results" in base_report["ablations"]:
+        n_abl = len(base_report["ablations"]["results"])
+        agg_ablations: list[dict[str, Any]] = []
+        for idx in range(n_abl):
+            cfg_rows = [sr["ablations"]["results"][idx] for sr in seed_reports]
+            agg_ablations.append(
+                {
+                    "config_name": cfg_rows[0]["config_name"],
+                    "total_windows": sum(int(r["total_windows"]) for r in cfg_rows),
+                    "tp": sum(int(r["tp"]) for r in cfg_rows),
+                    "fp": sum(int(r["fp"]) for r in cfg_rows),
+                    "tn": sum(int(r["tn"]) for r in cfg_rows),
+                    "fn": sum(int(r["fn"]) for r in cfg_rows),
+                    "tpr": round(sum(float(r["tpr"]) for r in cfg_rows) / n_seeds, 4),
+                    "fpr": round(sum(float(r["fpr"]) for r in cfg_rows) / n_seeds, 4),
+                    "precision": round(sum(float(r["precision"]) for r in cfg_rows) / n_seeds, 4),
+                    "recall": round(sum(float(r["recall"]) for r in cfg_rows) / n_seeds, 4),
+                    "f1": round(sum(float(r["f1"]) for r in cfg_rows) / n_seeds, 4),
+                    "roc_auc": round(sum(float(r["roc_auc"]) for r in cfg_rows) / n_seeds, 4),
+                    "pr_auc": round(sum(float(r["pr_auc"]) for r in cfg_rows) / n_seeds, 4),
+                    "total_episodes": sum(int(r["total_episodes"]) for r in cfg_rows),
+                    "detected_episodes": sum(int(r["detected_episodes"]) for r in cfg_rows),
+                    "episode_detection_rate": round(
+                        sum(float(r["episode_detection_rate"]) for r in cfg_rows) / n_seeds, 4
+                    ),
+                    "false_alerts_per_device_day": round(
+                        sum(float(r["false_alerts_per_device_day"]) for r in cfg_rows) / n_seeds, 4
+                    ),
+                    "mean_ttd_seconds": round(
+                        sum(float(r["mean_ttd_seconds"]) for r in cfg_rows) / n_seeds, 2
+                    ),
+                    "n_seeds": n_seeds,
+                }
+            )
+        base_report["ablations"]["results"] = agg_ablations
+
     t_elapsed = time.time() - t_start
     agg = aggregate_multi_seed_results(seed_runs)
-    assert base_report is not None
     agg["runtime_seconds"] = round(t_elapsed, 2)
     agg["seeds_evaluated"] = list(seeds)
     base_report["multi_seed_summary"] = agg
