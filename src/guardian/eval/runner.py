@@ -900,11 +900,13 @@ class EvaluationRunner:
         }
 
         # Operating curves across thresholds for all detectors
-        curve_thresholds = [30.0, 40.0, 50.0, 55.0, 60.0, 65.0, 68.65, 72.0, 75.0, 80.0, 85.0, 90.0, 95.0, 99.0]
-        operating_curves: dict[str, list[dict[str, Any]]] = {
-            k: [_evaluate_detector_at_threshold(k, t) for t in curve_thresholds]
-            for k in ("guardian", "zscore", "pooled", "static")
-        }
+        operating_curves = compute_detector_operating_curves(
+            normal_window_scores=normal_window_scores,
+            attack_window_scores=attack_window_scores,
+            episode_peak_scores=episode_peak_scores,
+            num_devices=n_devs,
+            days_observed=days_obs,
+        )
 
         # Equal False-Alarm Rate comparison (target <= 1.0 false alert/device/day, or closest achievable FAR)
         equal_far_comparison = compute_equal_far_comparison(
@@ -1045,5 +1047,46 @@ def compute_equal_far_comparison(
             best_pt = min(pts, key=lambda p: (p["far_per_day"], -p["episode_tpr"]))
         equal_far_comparison[k] = best_pt
     return equal_far_comparison
+
+
+def compute_detector_operating_curves(
+    normal_window_scores: Mapping[str, Sequence[float]],
+    attack_window_scores: Mapping[str, Sequence[float]],
+    episode_peak_scores: Mapping[str, Sequence[float]],
+    num_devices: int = 8,
+    days_observed: float = 6.0,
+    thresholds: Sequence[float] = (
+        30.0,
+        40.0,
+        50.0,
+        55.0,
+        60.0,
+        65.0,
+        68.65,
+        72.0,
+        75.0,
+        80.0,
+        85.0,
+        90.0,
+        95.0,
+        99.0,
+    ),
+    detector_keys: Sequence[str] = ("guardian", "zscore", "pooled", "static"),
+) -> dict[str, list[dict[str, Any]]]:
+    """Compute multi-threshold operating curves (TPR, FPR, F1, FAR/day) for each detector."""
+    return {
+        k: [
+            evaluate_detector_point_at_threshold(
+                normal_scores=normal_window_scores.get(k, []),
+                attack_scores=attack_window_scores.get(k, []),
+                episode_scores=episode_peak_scores.get(k, []),
+                threshold=t,
+                num_devices=num_devices,
+                days_observed=days_observed,
+            )
+            for t in thresholds
+        ]
+        for k in detector_keys
+    }
 
 
