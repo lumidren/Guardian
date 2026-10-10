@@ -425,9 +425,18 @@ class ScenarioBuilder:
                             if ep.tier == DifficultyTier.HARD:
                                 p.dst_ip = dev.normal_destinations[j % len(dev.normal_destinations)]
 
-                        # Evasion Mode: No New Destination (exploit legitimate approved endpoints)
+                        # Evasion Mode: No New Destination (exploit legitimate approved endpoints and ports)
                         if ep.evasion_mode in (EvasionMode.NO_NEW_DESTINATION, EvasionMode.ADAPTIVE):
                             p.dst_ip = dev.normal_destinations[j % len(dev.normal_destinations)]
+                            p.app_protocol = dev.primary_protocol
+                            if dev.primary_protocol == "MQTT":
+                                p.dst_port = 1883
+                            elif dev.primary_protocol == "HTTP":
+                                p.dst_port = 80 if j % 2 == 0 else 443
+                            elif dev.primary_protocol == "RTSP":
+                                p.dst_port = 554
+                            elif dev.primary_protocol == "CoAP":
+                                p.dst_port = 5683
 
                         attack_pkts.append(p)
 

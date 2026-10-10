@@ -487,6 +487,33 @@ class AttackSuite:
         )
         return raw[: max(1, int(len(raw) * 0.65))]
 
+    def inject_no_new_destination_attack(
+        self,
+        attack_type: AttackType,
+        victim_device: IoTDeviceSpec,
+        window_duration: float = 10.0,
+        current_time: float | None = None,
+    ) -> list[ParsedPacket]:
+        """
+        Inject hardened no-new-destination attack: strictly reuses pre-approved
+        victim_device.normal_destinations and whitelisted protocol ports with matched
+        payload sizes so new_dst_ip_flag == 0 and high_risk_port_flag == 0.
+        """
+        now = current_time or time.time()
+        start_time = now - window_duration
+        raw = self._inject_hard_tier_covert_packets(
+            attack_type=attack_type,
+            victim_device=victim_device,
+            start_time=start_time,
+            window_duration=window_duration,
+        )
+        allowed_ports = _whitelisted_ports_for_device(victim_device)
+        for idx, p in enumerate(raw):
+            p.dst_ip = victim_device.normal_destinations[idx % len(victim_device.normal_destinations)]
+            p.dst_port = allowed_ports[idx % len(allowed_ports)]
+            p.app_protocol = victim_device.primary_protocol
+        return raw[: max(1, int(len(raw) * 0.65))]
+
     def inject_adaptive_attack(
         self,
         victim_device: IoTDeviceSpec,
