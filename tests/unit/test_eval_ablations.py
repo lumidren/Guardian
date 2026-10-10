@@ -109,3 +109,42 @@ def test_ablation_battery_execution() -> None:
         assert r.f1 >= 0.0
         assert r.roc_auc >= 0.0
         assert r.false_alerts_per_device_day >= 0.0
+
+
+def test_no_ablation_row_has_zero_tpr_with_high_auc() -> None:
+    """
+    Verify that no ablation row exhibits the contradictory combination of
+    TPR == 0.0 and ROC-AUC > 0.9 in the same row across protocol schedule execution.
+    """
+    from guardian.eval.runner import EvaluationRunner
+    from guardian.eval.scenario import DifficultyTier
+
+    devices = DEFAULT_FLEET_SPECS[:2]
+    eval_runner = EvaluationRunner(seed=42, total_days=14, devices=devices)
+    op = eval_runner.calibrate_operating_point(target_fpr=0.05, duration_per_device_s=20.0)
+    episodes = eval_runner.scenario_builder.generate_ground_truth_schedule(
+        tiers=[DifficultyTier.EASY, DifficultyTier.MEDIUM],
+        episodes_per_tier=1,
+    )
+    ablation_runner = AblationRunner(
+        seed=42,
+        devices=devices,
+        total_days=14,
+        operating_point=op,
+        models=eval_runner._models,
+        baselines=eval_runner._baselines,
+    )
+    results = ablation_runner.run_protocol_schedule_battery(
+        episodes=episodes[:4],
+        operating_point=op,
+        pre_buffer_s=10.0,
+        post_buffer_s=5.0,
+    )
+    assert len(results) == 8
+    for r in results:
+        assert not (r.tpr == 0.0 and r.roc_auc > 0.9), (
+            f"Contradictory ablation row {r.config_name}: TPR={r.tpr} == 0.0 while ROC-AUC={r.roc_auc} > 0.9"
+        )
+        assert not (r.recall == 0.0 and r.roc_auc > 0.9), (
+            f"Contradictory ablation row {r.config_name}: Recall={r.recall} == 0.0 while ROC-AUC={r.roc_auc} > 0.9"
+        )
