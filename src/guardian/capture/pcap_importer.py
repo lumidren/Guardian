@@ -6,7 +6,7 @@ streaming directly into FlowTracker, sliding-window aggregation, and feature ext
 
 import socket
 import struct
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,75 @@ class PCAPImporter:
     MAGIC_NANO_LE = 0xA1B23C4D
     MAGIC_NANO_BE = 0x4D3CB2A1
 
+    def iter_pcap(
+        self,
+        filepath: str | Path,
+        target_ips: Sequence[str] | None = None,
+    ) -> Iterator[ParsedPacket]:
+        """
+        Streams standard binary PCAP records directly from disk into ParsedPacket objects
+        with O(1) memory overhead per frame.
+        """
+        path = Path(filepath)
+        if not path.exists():
+            raise FileNotFoundError(f"PCAP file not found: {path}")
+
+        target_set = set(target_ips) if target_ips is not None else None
+
+        with path.open("rb") as f:
+            hdr_bytes = f.read(24)
+            if len(hdr_bytes) < 24:
+                raise InvalidPCAPError(
+                    f"Invalid PCAP file header: expected at least 24 bytes, got {len(hdr_bytes)} bytes in {path.name}"
+                )
+
+            magic = struct.unpack("<I", hdr_bytes[:4])[0]
+            endian = "<"
+            is_nano = False
+
+            if magic == self.MAGIC_MICRO_LE:
+                endian = "<"
+                is_nano = False
+            elif magic == self.MAGIC_MICRO_BE:
+                endian = ">"
+                is_nano = False
+            elif magic == self.MAGIC_NANO_LE:
+                endian = "<"
+                is_nano = True
+            elif magic == self.MAGIC_NANO_BE:
+                endian = ">"
+                is_nano = True
+            else:
+                raise InvalidPCAPError(
+                    f"Unsupported PCAP magic number: 0x{magic:08X} in {path.name}"
+                )
+
+            hdr_fmt = f"{endian}IHHiIII"
+            _, ver_major, ver_minor, _, _, snaplen, linktype = struct.unpack(hdr_fmt, hdr_bytes)
+
+            rec_hdr_fmt = f"{endian}IIII"
+            rec_hdr_size = 16
+            time_divisor = 1e9 if is_nano else 1e6
+
+            while True:
+                rec_hdr = f.read(rec_hdr_size)
+                if len(rec_hdr) < rec_hdr_size:
+                    break
+
+                ts_sec, ts_usec, incl_len, orig_len = struct.unpack(rec_hdr_fmt, rec_hdr)
+                if incl_len > 262144:
+                    break
+
+                raw_frame = f.read(incl_len)
+                if len(raw_frame) < incl_len:
+                    break  # Truncated trailing record
+
+                timestamp = float(ts_sec) + (float(ts_usec) / time_divisor)
+                pkt = self._parse_frame(raw_frame, timestamp, linktype)
+                if pkt is not None:
+                    if target_set is None or pkt.src_ip in target_set or pkt.dst_ip in target_set:
+                        yield pkt
+
     def import_pcap(
         self,
         filepath: str | Path,
@@ -37,66 +106,7 @@ class PCAPImporter:
         """
         Parses standard binary PCAP file into a list of chronologically ordered ParsedPacket objects.
         """
-        path = Path(filepath)
-        if not path.exists():
-            raise FileNotFoundError(f"PCAP file not found: {path}")
-
-        data = path.read_bytes()
-        if len(data) < 24:
-            raise InvalidPCAPError(
-                f"Invalid PCAP file header: expected at least 24 bytes, got {len(data)} bytes in {path.name}"
-            )
-
-        # Parse 24-byte global header
-        magic = struct.unpack("<I", data[:4])[0]
-        endian = "<"
-        is_nano = False
-
-        if magic == self.MAGIC_MICRO_LE:
-            endian = "<"
-            is_nano = False
-        elif magic == self.MAGIC_MICRO_BE:
-            endian = ">"
-            is_nano = False
-        elif magic == self.MAGIC_NANO_LE:
-            endian = "<"
-            is_nano = True
-        elif magic == self.MAGIC_NANO_BE:
-            endian = ">"
-            is_nano = True
-        else:
-            raise InvalidPCAPError(
-                f"Unsupported PCAP magic number: 0x{magic:08X} in {path.name}"
-            )
-
-        hdr_fmt = f"{endian}IHHiIII"
-        _, ver_major, ver_minor, _, _, snaplen, linktype = struct.unpack(hdr_fmt, data[:24])
-
-        parsed_packets: list[ParsedPacket] = []
-        offset = 24
-        rec_hdr_fmt = f"{endian}IIII"
-        rec_hdr_size = 16
-
-        while offset + rec_hdr_size <= len(data):
-            ts_sec, ts_usec, incl_len, orig_len = struct.unpack(
-                rec_hdr_fmt, data[offset : offset + rec_hdr_size]
-            )
-            offset += rec_hdr_size
-
-            if offset + incl_len > len(data):
-                break  # Truncated trailing record
-
-            raw_frame = data[offset : offset + incl_len]
-            offset += incl_len
-
-            timestamp = float(ts_sec) + (float(ts_usec) / (1e9 if is_nano else 1e6))
-
-            pkt = self._parse_frame(raw_frame, timestamp, linktype)
-            if pkt:
-                if target_ips is None or pkt.src_ip in target_ips or pkt.dst_ip in target_ips:
-                    parsed_packets.append(pkt)
-
-        return parsed_packets
+        return list(self.iter_pcap(filepath, target_ips=target_ips))
 
     def replay_to_tracker(
         self,
@@ -109,10 +119,11 @@ class PCAPImporter:
         Returns the number of matching ingested packets.
         """
         targets = [target_ip] if target_ip else None
-        packets = self.import_pcap(pcap_path, target_ips=targets)
-        for pkt in packets:
+        count = 0
+        for pkt in self.iter_pcap(pcap_path, target_ips=targets):
             tracker.ingest_packet(pkt)
-        return len(packets)
+            count += 1
+        return count
 
     def _parse_frame(
         self,
