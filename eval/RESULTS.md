@@ -1,12 +1,12 @@
-# GUARDIAN Empirical Evaluation Results (Run ID: `eval_1791651793_42_f106807`)
+# GUARDIAN Empirical Evaluation Results (Run ID: `eval_1791657740_42_7d6854c`)
 
-- **Timestamp**: 2026-10-10T17:07:52.158824+00:00
-- **Git Commit**: `f106807`
+- **Timestamp**: 2026-10-10T19:02:59.195723+00:00
+- **Git Commit**: `7d6854c`
 - **Seeds Evaluated ($N_{\text{seeds}} = 5$)**: `[42, 43, 44, 45, 46]`
 - **Total Protocol Attack Episodes Evaluated**: `4,500` (`6` attacks $\times$ `3` tiers $\times$ `50` episodes/seed $\times$ `5` seeds)
 - **Time-Ordered Split**: Train `Days 1-7` (clean) $\to$ Calibration `Day 8` (clean) $\to$ Test `Days 9-14` (attack + benign operational bursts)
 - **Execution Environment**: Software Emulation on Host (Simulated IoT Network Telemetry)
-- **Wall-Clock Evaluation Runtime**: `283.86 s`
+- **Wall-Clock Evaluation Runtime**: `1269.32 s`
 
 > [!IMPORTANT]
 > **Headline Multi-Seed Reporting Policy**: Multi-seed protocol numbers ($N_{\text{seeds}} = 5$ seeds `[42, 43, 44, 45, 46]`, `4,500` main attack episodes + `1,500` adversarial episodes) are the sole headline. Single-seed clean-slice FPR (`0.0%`) is removed as a headline; every TPR table below reports the multi-seed operational **Window FPR (`9.29%`)** and **False Alerts / Device / Day (`1.14`)** alongside binomial **95% Wilson Score Confidence Intervals**.
@@ -15,10 +15,10 @@
 
 | Headline Metric | Multi-Seed Mean | 95% Bootstrap CI across Seeds | Per-Tier Breakdown (`EASY` / `MEDIUM` / `HARD`) |
 | :--- | :---: | :---: | :--- |
-| **Episode Detection Rate (TPR)** | **96.13%** | `[95.56%, 96.74%]` | `EASY`: **100.0%** `[99.7%, 100.0%]` \| `MEDIUM`: **100.0%** `[99.7%, 100.0%]` \| `HARD`: **88.4%** `[86.7%, 89.9%]` |
+| **Episode Detection Rate (TPR)** | **95.04%** | `[94.33%, 95.69%]` | `EASY`: **100.0%** `[99.7%, 100.0%]` \| `MEDIUM`: **100.0%** `[99.7%, 100.0%]` \| `HARD`: **85.1%** `[83.2%, 86.8%]` |
 | **Window False Positive Rate (FPR)** | **9.29%** | `[8.73%, 9.83%]` | Evaluated across Days 9–14 clean + 6 benign operational burst classes |
 | **False Alerts / Device / Day** | **1.14** | `[1.07, 1.21]` | Post-hysteresis ($k=2$ of $n=3$) false alerts per device per day |
-| **Mean Time-to-Detect (TTD)** | **2.43 s** | `[2.33 s, 2.52 s]` | Continuous sub-window episode start offsets (`calculate_sub_window_offset`) |
+| **Mean Time-to-Detect (TTD)** | **2.78 s** | `[2.72 s, 2.84 s]` | Continuous sub-window episode start offsets (`calculate_sub_window_offset`) |
 
 ---
 
@@ -36,7 +36,7 @@
 | **CNC_BEACONING** | `HARD` | 250 | 201 | **80.4%** | `[75.0%, 84.8%]` | 17.2% | 0.0% | 97.2% | 8.49 s | 9.29% | 1.14 |
 | **NETWORK_SCANNING** | `EASY` | 250 | 250 | **100.0%** | `[98.5%, 100.0%]` | 100.0% | 100.0% | 100.0% | 1.08 s | 9.29% | 1.14 |
 | **NETWORK_SCANNING** | `MEDIUM` | 250 | 250 | **100.0%** | `[98.5%, 100.0%]` | 99.2% | 100.0% | 100.0% | 0.98 s | 9.29% | 1.14 |
-| **NETWORK_SCANNING** | `HARD` | 250 | 250 | **100.0%** | `[98.5%, 100.0%]` | 14.8% | 76.0% | 100.0% | 1.04 s | 9.29% | 1.14 |
+| **NETWORK_SCANNING** | `HARD` | 250 | 201 | **80.4%** | `[75.0%, 84.8%]` | 16.0% | 0.0% | 96.4% | 8.32 s | 9.29% | 1.14 |
 | **DATA_EXFILTRATION** | `EASY` | 250 | 250 | **100.0%** | `[98.5%, 100.0%]` | 100.0% | 100.0% | 100.0% | 1.02 s | 9.29% | 1.14 |
 | **DATA_EXFILTRATION** | `MEDIUM` | 250 | 250 | **100.0%** | `[98.5%, 100.0%]` | 100.0% | 100.0% | 100.0% | 1.01 s | 9.29% | 1.14 |
 | **DATA_EXFILTRATION** | `HARD` | 250 | 244 | **97.6%** | `[94.9%, 98.9%]` | 16.4% | 0.0% | 100.0% | 5.98 s | 9.29% | 1.14 |
@@ -53,14 +53,14 @@
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **DDOS_FLOODING** | 750 | **97.6%** | `[96.2%, 98.5%]` | 70.8% | 66.7% | 99.9% | 0.8780 | 2.17 s | 9.29% | 1.14 |
 | **CNC_BEACONING** | 750 | **93.5%** | `[91.5%, 95.0%]` | 51.3% | 66.7% | 99.1% | 0.8233 | 3.13 s | 9.29% | 1.14 |
-| **NETWORK_SCANNING** | 750 | **100.0%** | `[99.5%, 100.0%]` | 71.3% | 92.0% | 100.0% | 0.9950 | 1.03 s | 9.29% | 1.14 |
+| **NETWORK_SCANNING** | 750 | **93.5%** | `[91.5%, 95.0%]` | 71.7% | 66.7% | 98.8% | 0.8252 | 3.13 s | 9.29% | 1.14 |
 | **DATA_EXFILTRATION** | 750 | **99.2%** | `[98.3%, 99.6%]` | 72.1% | 66.7% | 100.0% | 0.8747 | 2.64 s | 9.29% | 1.14 |
 | **CRYPTOMINING** | 750 | **93.6%** | `[91.6%, 95.1%]` | 71.3% | 66.7% | 99.5% | 0.8517 | 2.48 s | 9.29% | 1.14 |
 | **ZERO_DAY_HYBRID** | 750 | **92.9%** | `[90.9%, 94.6%]` | 72.0% | 64.4% | 99.4% | 0.8261 | 3.10 s | 9.29% | 1.14 |
-| **Macro Average** | 4500 | **96.1%** | - | 68.1% | 70.5% | 99.7% | 0.9173 | - | 9.29% | 1.14 |
+| **Macro Average** | 4500 | **95.0%** | - | 68.2% | 66.3% | 99.5% | 0.8992 | - | 9.29% | 1.14 |
 
 > [!NOTE]
-> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 576.8%, mean = **96.1%**.
+> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 570.3%, mean = **95.0%**.
 
 ---
 
@@ -70,10 +70,10 @@
 
 | Detection System | Threshold | TP | FP | TN | FN | Episode TPR (%) | Window TPR (%) | Window FPR (%) | F1 Score | False Alerts / Dev / Day |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **GUARDIAN (Multi-Layer Ensemble)** | 66.15 | 135513 | 2730 | 26670 | 21717 | **96.1%** | 86.19% | 9.29% | 0.9173 | 1.14 |
-| **Pooled Isolation Forest** | 72.61 | 93257 | 1745 | 27655 | 63973 | **68.2%** | 59.31% | 5.94% | 0.7395 | 0.73 |
-| **Static Threshold Rules** | 60.00 | 111079 | 2 | 29398 | 46151 | **70.5%** | 70.65% | 0.01% | 0.8280 | 0.00 |
-| **Robust Z-Score Only (L1)** | 60.00 | 138690 | 4841 | 24559 | 18540 | **99.6%** | 88.21% | 16.46% | 0.9223 | 2.02 |
+| **GUARDIAN (Multi-Layer Ensemble)** | 66.15 | 130657 | 2730 | 26670 | 26573 | **95.0%** | 83.10% | 9.29% | 0.8992 | 1.14 |
+| **Pooled Isolation Forest** | 72.61 | 93256 | 1745 | 27655 | 63974 | **68.2%** | 59.31% | 5.94% | 0.7394 | 0.73 |
+| **Static Threshold Rules** | 60.00 | 104614 | 2 | 29398 | 52616 | **66.3%** | 66.54% | 0.01% | 0.7990 | 0.00 |
+| **Robust Z-Score Only (L1)** | 60.00 | 134258 | 4841 | 24559 | 22972 | **99.4%** | 85.39% | 16.46% | 0.9061 | 2.02 |
 
 ### 2.2 Equal False-Alarm Rate Comparison (Target $\text{FAR} \le 1.00$ False Alert / Device / Day)
 
@@ -81,20 +81,20 @@ To compare detectors on an equal operational footing, every baseline is evaluate
 
 | Detection System | Equal-FAR Threshold | Episode TPR at $\text{FAR} \le 1.0$ (%) | Window TPR (%) | Window FPR (%) | F1 Score | Achieved False Alerts / Dev / Day |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **GUARDIAN (Multi-Layer Ensemble)** | 74.87 | **93.47%** | 81.11% | 8.15% | 0.8882 | 1.00 |
-| **Pooled Isolation Forest** | 70.05 | **71.67%** | 62.06% | 7.95% | 0.7589 | 0.98 |
-| **Static Threshold Rules** | 22.21 | **79.22%** | 79.38% | 1.44% | 0.8837 | 0.18 |
-| **Robust Z-Score Only (L1)** | 94.47 | **93.78%** | 86.69% | 8.01% | 0.9213 | 0.98 |
+| **GUARDIAN (Multi-Layer Ensemble)** | 74.87 | **91.58%** | 78.40% | 8.15% | 0.8715 | 1.00 |
+| **Pooled Isolation Forest** | 70.05 | **71.82%** | 62.07% | 7.95% | 0.7590 | 0.98 |
+| **Static Threshold Rules** | 22.92 | **75.00%** | 75.25% | 1.43% | 0.8575 | 0.18 |
+| **Robust Z-Score Only (L1)** | 94.47 | **92.20%** | 83.66% | 8.01% | 0.9037 | 0.98 |
 
 ### 2.3 Why Uncalibrated `Robust Z-Score Only` Has Higher Raw TPR Than `GUARDIAN` — and Why `GUARDIAN` Wins at Equal FAR
 
-1. **Why Raw Uncalibrated `Robust Z-Score Only` Has Higher Raw Episode TPR (`99.6%` vs. `96.1%`)**:
+1. **Why Raw Uncalibrated `Robust Z-Score Only` Has Higher Raw Episode TPR (`99.4%` vs. `95.0%`)**:
    - `RobustZScoreOnlyBaseline` computes the **maximum single-feature absolute $Z$-score** across all 60 features ($z_{\max} = \max_{j \in \{1..60\}} |Z_j|$) and maps any $z_{\max} \ge 3.51$ to score $\ge 60.0$ (clipping at $100.0$ for $z_{\max} \ge 5.61$).
-   - Even a 1-packet covert `HARD`-tier injection perturbs at least one ratio or inter-arrival feature beyond $3.51\sigma$, allowing `Robust Z-Score Only` at its uncalibrated threshold (`60.00`) to flag `99.6%` of episodes.
+   - Even a 1-packet covert `HARD`-tier injection perturbs at least one ratio or inter-arrival feature beyond $3.51\sigma$, allowing `Robust Z-Score Only` at its uncalibrated threshold (`60.00`) to flag `99.4%` of episodes.
    - **The Operational Cost**: Taking the raw maximum across 60 heavy-tailed network features makes `Robust Z-Score Only` hypersensitive to benign operational bursts (`USER_TOGGLING`, `DNS_RETRY_STORM`, `MQTT_RECONNECT_FLOOD`, `CAMERA_MOTION_BURST`, `ROUTER_REBOOT`, `DST_CHANGE`). At threshold `60.00`, it suffers **`16.46%` window FPR (`2.02` false alerts/device/day)**—substantially higher false alarms than calibrated `GUARDIAN` (`9.29%` window FPR, `1.14` false alerts/device/day at threshold `66.15`).
 2. **Why `GUARDIAN` Beats `Robust Z-Score Only` at Equal False-Alarm Rate and Low-FPR Operating Points**:
    - `GUARDIAN` averages top-$K$ ($K=5$) statistical deviations ($S_{\text{stat}}$) and fuses them with the 60-feature per-device Isolation Forest score ($S_{\text{ML}}$) plus topology priors ($S_{\text{net}}$), calibrated on Day 8 clean traffic.
-   - At the equal false-alarm rate operating point ($\text{FAR} \le 1.00$ false alert/device/day in Table 2.2), `GUARDIAN` achieves **`93.47%` episode TPR** (`1.00` FAR/day, F1 `0.8882` at threshold `74.87`) vs. `Robust Z-Score Only` at **`93.78%` episode TPR** (`0.98` FAR/day, F1 `0.9213` at threshold `94.47`).
+   - At the equal false-alarm rate operating point ($\text{FAR} \le 1.00$ false alert/device/day in Table 2.2), `GUARDIAN` achieves **`91.58%` episode TPR** (`1.00` FAR/day, F1 `0.8715` at threshold `74.87`) vs. `Robust Z-Score Only` at **`92.20%` episode TPR** (`0.98` FAR/day, F1 `0.9037` at threshold `94.47`).
    - Furthermore, because `Robust Z-Score Only` clips at `100.0` whenever any single feature exceeds $5.61\sigma$, benign operational windows saturate at `100.0` (`FAR = 0.91`, `FPR = 7.43%` even at `threshold = 99.00`), making it **impossible** for `Robust Z-Score Only` to reach zero false alarms without collapsing to `0.0%` TPR (`threshold > 100.0`). In contrast, `GUARDIAN`'s fused ensemble score remains continuous up to `99.00`, achieving **`66.67%` episode TPR at `0.00` false alerts/device/day (`0.00%` FPR)**.
 
 #### Operating Curves (`GUARDIAN` vs. `Robust Z-Score Only` vs. `Pooled IF` Across Thresholds)
@@ -102,19 +102,19 @@ To compare detectors on an equal operational footing, every baseline is evaluate
 | Alert Threshold | GUARDIAN Ep TPR (%) | GUARDIAN Win FPR (%) | GUARDIAN FAR/Day | Robust Z-Score Ep TPR (%) | Robust Z-Score Win FPR (%) | Robust Z-Score FAR/Day | Pooled IF Ep TPR (%) | Pooled IF Win FPR (%) | Pooled IF FAR/Day |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **30.00** | 100.00% | 34.45% | 4.22 | 100.00% | 32.38% | 3.97 | 100.00% | 100.00% | 12.25 |
-| **40.00** | 99.93% | 18.37% | 2.25 | 100.00% | 32.38% | 3.97 | 100.00% | 99.40% | 12.18 |
-| **50.00** | 99.22% | 13.45% | 1.65 | 99.91% | 21.40% | 2.62 | 99.53% | 69.63% | 8.53 |
-| **55.00** | 98.69% | 11.68% | 1.43 | 99.89% | 19.07% | 2.34 | 96.60% | 40.91% | 5.01 |
-| **60.00** | 97.44% | 10.39% | 1.27 | 99.65% | 16.46% | 2.02 | 88.75% | 23.04% | 2.82 |
-| **65.00** | 96.25% | 9.45% | 1.16 | 99.35% | 14.53% | 1.78 | 79.00% | 13.52% | 1.66 |
-| **68.65** | 95.87% | 8.88% | 1.09 | 99.13% | 13.37% | 1.64 | 72.87% | 9.26% | 1.13 |
-| **72.00** | 95.40% | 8.55% | 1.05 | 98.38% | 12.33% | 1.51 | 68.31% | 6.37% | 0.78 |
-| **75.00** | 93.42% | 8.24% | 1.01 | 97.93% | 11.55% | 1.42 | 63.89% | 4.22% | 0.52 |
-| **80.00** | 91.33% | 7.49% | 0.92 | 97.31% | 10.50% | 1.28 | 56.33% | 2.25% | 0.27 |
-| **85.00** | 66.67% | 0.00% | 0.00 | 96.02% | 9.31% | 1.14 | 37.33% | 0.75% | 0.09 |
-| **90.00** | 66.67% | 0.00% | 0.00 | 95.55% | 8.64% | 1.06 | 0.96% | 0.00% | 0.00 |
-| **95.00** | 66.67% | 0.00% | 0.00 | 93.33% | 7.95% | 0.97 | 0.00% | 0.00% | 0.00 |
-| **99.00** | 66.67% | 0.00% | 0.00 | 92.91% | 7.43% | 0.91 | 0.00% | 0.00% | 0.00 |
+| **40.00** | 99.91% | 18.37% | 2.25 | 100.00% | 32.38% | 3.97 | 100.00% | 99.40% | 12.18 |
+| **50.00** | 98.95% | 13.45% | 1.65 | 99.85% | 21.40% | 2.62 | 99.58% | 69.63% | 8.53 |
+| **55.00** | 98.29% | 11.68% | 1.43 | 99.82% | 19.07% | 2.34 | 96.56% | 40.91% | 5.01 |
+| **60.00** | 96.73% | 10.39% | 1.27 | 99.45% | 16.46% | 2.02 | 88.71% | 23.04% | 2.82 |
+| **65.00** | 95.18% | 9.45% | 1.16 | 99.11% | 14.53% | 1.78 | 78.89% | 13.52% | 1.66 |
+| **68.65** | 94.64% | 8.88% | 1.09 | 98.82% | 13.37% | 1.64 | 72.93% | 9.26% | 1.13 |
+| **72.00** | 94.13% | 8.55% | 1.05 | 97.95% | 12.33% | 1.51 | 68.42% | 6.37% | 0.78 |
+| **75.00** | 91.53% | 8.24% | 1.01 | 97.38% | 11.55% | 1.42 | 64.07% | 4.22% | 0.52 |
+| **80.00** | 89.09% | 7.49% | 0.92 | 96.62% | 10.50% | 1.28 | 56.40% | 2.25% | 0.27 |
+| **85.00** | 66.67% | 0.00% | 0.00 | 94.87% | 9.31% | 1.14 | 37.33% | 0.75% | 0.09 |
+| **90.00** | 66.67% | 0.00% | 0.00 | 94.31% | 8.64% | 1.06 | 0.96% | 0.00% | 0.00 |
+| **95.00** | 66.67% | 0.00% | 0.00 | 91.71% | 7.95% | 0.97 | 0.00% | 0.00% | 0.00 |
+| **99.00** | 66.67% | 0.00% | 0.00 | 91.22% | 7.43% | 0.91 | 0.00% | 0.00% | 0.00 |
 
 ---
 
@@ -122,14 +122,14 @@ To compare detectors on an equal operational footing, every baseline is evaluate
 
 | Ablation Configuration | Episode TPR (%) | Window TPR (%) | Window FPR (%) | False Alerts / Dev / Day | Precision | Recall | F1 Score | ROC-AUC | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Full GUARDIAN** | **96.1%** | 86.2% | 9.3% | 27.63 | 0.9803 | 0.8619 | 0.9173 | 0.9319 | 2.41 s |
-| **Statistical Detector Only (No ML)** | **95.5%** | 83.2% | 9.8% | 31.54 | 0.9784 | 0.8324 | 0.8995 | 0.9202 | 2.98 s |
-| **Isolation Forest Only (No Stat)** | **96.2%** | 86.0% | 9.4% | 28.69 | 0.9799 | 0.8596 | 0.9158 | 0.9359 | 2.52 s |
-| **No Layer 1 (Volumetric Dynamics)** | **94.3%** | 81.7% | 12.7% | 42.90 | 0.9718 | 0.8173 | 0.8879 | 0.8831 | 2.96 s |
-| **No Layer 2 (Network Graph)** | **96.8%** | 81.7% | 16.2% | 74.88 | 0.9642 | 0.8168 | 0.8844 | 0.8578 | 2.71 s |
-| **No Layer 3 (Temporal/App)** | **97.1%** | 87.3% | 9.9% | 32.03 | 0.9793 | 0.8730 | 0.9231 | 0.9348 | 2.45 s |
-| **No Hysteresis (Instantaneous)** | **98.0%** | 87.5% | 11.4% | 88.41 | 0.9763 | 0.8755 | 0.9231 | 0.9319 | 2.52 s |
-| **Uncalibrated (Fixed Threshold)** | **97.4%** | 87.4% | 10.4% | 35.02 | 0.9782 | 0.8735 | 0.9229 | 0.9319 | 2.49 s |
+| **Full GUARDIAN** | **95.0%** | 83.1% | 9.3% | 27.63 | 0.9795 | 0.8310 | 0.8992 | 0.9189 | 2.78 s |
+| **Statistical Detector Only (No ML)** | **94.1%** | 79.6% | 9.8% | 31.54 | 0.9774 | 0.7959 | 0.8774 | 0.9032 | 3.44 s |
+| **Isolation Forest Only (No Stat)** | **95.2%** | 83.3% | 9.4% | 28.69 | 0.9793 | 0.8327 | 0.9001 | 0.9235 | 2.88 s |
+| **No Layer 1 (Volumetric Dynamics)** | **94.1%** | 81.3% | 12.7% | 42.90 | 0.9717 | 0.8133 | 0.8855 | 0.8801 | 3.03 s |
+| **No Layer 2 (Network Graph)** | **96.1%** | 79.4% | 16.2% | 74.88 | 0.9632 | 0.7942 | 0.8705 | 0.8419 | 3.14 s |
+| **No Layer 3 (Temporal/App)** | **96.3%** | 84.3% | 9.9% | 32.03 | 0.9786 | 0.8434 | 0.9060 | 0.9216 | 2.82 s |
+| **No Hysteresis (Instantaneous)** | **97.5%** | 84.6% | 11.4% | 88.41 | 0.9755 | 0.8462 | 0.9063 | 0.9189 | 2.89 s |
+| **Uncalibrated (Fixed Threshold)** | **96.7%** | 84.4% | 10.4% | 35.02 | 0.9775 | 0.8440 | 0.9059 | 0.9189 | 2.86 s |
 
 ---
 
@@ -137,27 +137,27 @@ To compare detectors on an equal operational footing, every baseline is evaluate
 
 | Adversarial Evasion Tactic | Episodes ($n$) | Detected | Episode TPR (%) | 95% Wilson CI | Window FPR (%) | False Alerts / Dev / Day | F1 Score | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **NONE** | 250 | 241 | **96.4%** | `[93.3%, 98.1%]` | 2.33% | 185.18 | 0.9247 | 2.31 s |
-| **MIMICRY** | 250 | 144 | **57.6%** | `[51.4%, 63.6%]` | 2.47% | 193.20 | 0.5193 | 9.91 s |
-| **LOW_AND_SLOW** | 250 | 116 | **46.4%** | `[40.3%, 52.6%]` | 2.05% | 395.95 | 0.4016 | 9.13 s |
-| **DELAYED_START** | 250 | 141 | **56.4%** | `[50.2%, 62.4%]` | 2.46% | 475.89 | 0.5287 | 23.12 s |
-| **NO_NEW_DESTINATION** | 250 | 150 | **60.0%** | `[53.8%, 65.9%]` | 2.47% | 192.28 | 0.5100 | 9.08 s |
-| **ADAPTIVE** | 250 | 133 | **53.2%** | `[47.0%, 59.3%]` | 2.05% | 395.17 | 0.4866 | 6.88 s |
+| **NONE** | 250 | 228 | **91.2%** | `[87.0%, 94.1%]` | 2.33% | 185.18 | 0.8675 | 3.47 s |
+| **MIMICRY** | 250 | 104 | **41.6%** | `[35.7%, 47.8%]` | 2.47% | 193.20 | 0.1839 | 17.04 s |
+| **LOW_AND_SLOW** | 250 | 68 | **27.2%** | `[22.1%, 33.0%]` | 2.00% | 385.59 | 0.0465 | 18.08 s |
+| **DELAYED_START** | 250 | 84 | **33.6%** | `[28.0%, 39.7%]` | 2.46% | 475.89 | 0.2102 | 27.12 s |
+| **NO_NEW_DESTINATION** | 250 | 102 | **40.8%** | `[34.9%, 47.0%]` | 2.47% | 192.28 | 0.1844 | 16.44 s |
+| **ADAPTIVE** | 250 | 84 | **33.6%** | `[28.0%, 39.7%]` | 1.95% | 379.40 | 0.1791 | 12.78 s |
 
 ---
 
 ## 5. System Resource Overhead & Latency Disaggregation
 
-- **CPU Usage**: Avg 50.48%, Peak 104.20% (Status: `FAIL`)
-- **Resident Memory**: Avg 141.84 MB, Peak 141.84 MB (Status: `PASS`)
+- **CPU Usage**: Avg 97.95%, Peak 120.20% (Status: `FAIL`)
+- **Resident Memory**: Avg 36.04 MB, Peak 36.07 MB (Status: `PASS`)
 - **Overall Resource Gate**: `FAIL`
 
 ### Distinct Latency Measurements (F12)
 
 | Latency Metric | Mean | 95th Percentile | Max | Operational Target |
 | :--- | :---: | :---: | :---: | :---: |
-| **Compute Latency** (Feature Extraction + Scoring) | 1.575 ms | 2.936 ms | 3.579 ms | $< 50\text{ ms}$ |
-| **Enforcement Latency** (Firewall Rule Application) | 0.013 ms | 0.019 ms | 0.024 ms | $< 300\text{ ms}$ |
+| **Compute Latency** (Feature Extraction + Scoring) | 8.197 ms | 10.105 ms | 10.494 ms | $< 50\text{ ms}$ |
+| **Enforcement Latency** (Firewall Rule Application) | 0.053 ms | 0.067 ms | 0.071 ms | $< 300\text{ ms}$ |
 | **Time-to-Detect** (Attack Onset $\to$ Alert) | 1.05 s | - | 1.05 s | $< 60\text{ s}$ |
 
 ---
@@ -166,10 +166,10 @@ To compare detectors on an equal operational footing, every baseline is evaluate
 
 | Fleet Size | Throughput (Windows/s) | Compute Latency (ms) | CPU (%) | Memory RSS (MB) |
 | :---: | :---: | :---: | :---: | :---: |
-| **8 Devices** | 740.98 | 1.324 ms | 4.2% | 141.8 MB |
-| **12 Devices** | 792.46 | 1.240 ms | 6.2% | 141.8 MB |
-| **16 Devices** | 815.70 | 1.205 ms | 7.7% | 141.8 MB |
-| **20 Devices** | 914.35 | 1.075 ms | 8.6% | 141.8 MB |
+| **8 Devices** | 134.44 | 7.358 ms | 23.5% | 36.4 MB |
+| **12 Devices** | 121.99 | 8.110 ms | 38.9% | 36.5 MB |
+| **16 Devices** | 118.31 | 8.373 ms | 53.6% | 36.5 MB |
+| **20 Devices** | 184.49 | 5.361 ms | 42.9% | 36.7 MB |
 
 ---
 

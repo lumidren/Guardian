@@ -83,9 +83,81 @@ def _evaluate_adversarial_schedule(
     )
 
 
+def _run_system_and_load_benchmarks(
+    runner: EvaluationRunner,
+    fleet: Sequence[Any],
+    seed: int,
+    quick_mode: bool,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Run Steps 6-9 (System Resources, Latencies, Scalability, Load Benchmark)."""
+    # 5. System Resources (psutil)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 6/9: Measuring System Resource Overhead (psutil CPU/RAM)...", flush=True)
+    res_bench = SystemResourceBenchmark()
+    res_report = res_bench.measure_pipeline_run(
+        devices=fleet[: 4 if quick_mode else 8],
+        duration_seconds=5.0 if quick_mode else 20.0,
+    )
+    resources_data = res_report.to_dict()
+
+    # 6. Three Distinct Latencies
+    print(
+        f"[{time.strftime('%H:%M:%S')}] Step 7/9: Measuring 3 Distinct Latencies (Compute, Enforcement, TTD)...",
+        flush=True,
+    )
+    test_ep = runner.scenario_builder.create_offset_episode(
+        episode_id=f"ep_lat_{seed}",
+        device_id=fleet[0].id,
+        attack_type=AttackType.CNC_BEACONING,
+        base_start_time=10.0,
+        duration_seconds=20.0,
+        intensity=AttackIntensity.MEDIUM,
+        evasion_mode=EvasionMode.NONE,
+        tier=DifficultyTier.MEDIUM,
+    )
+    lat_bench = LatencyBenchmark()
+    lat_report = lat_bench.measure_latencies(
+        devices=fleet[:2],
+        episodes=[test_ep],
+        start_time=0.0,
+        end_time=40.0,
+    )
+    latencies_data = lat_report.to_dict()
+
+    # 7. Scalability Sweep
+    scale_counts = [8, 12] if quick_mode else [8, 12, 16, 20]
+    print(
+        f"[{time.strftime('%H:%M:%S')}] Step 8/9: Running Fleet Scalability Sweep across {scale_counts} devices...",
+        flush=True,
+    )
+    scale_bench = ScalabilityBenchmark(device_counts=scale_counts)
+    scale_report = scale_bench.run_scalability_sweep(duration_per_tier_s=5.0 if quick_mode else 20.0)
+    scalability_data = scale_report.to_dict()
+
+    # 8. Real-Time Packet Stream & 10-Minute Load Benchmark (Review Fix 6)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 9/9: Loading/Running Real-Time Load & Drop Benchmark...", flush=True)
+    if not quick_mode and TEN_MIN_LOAD_JSON.exists():
+        load_data = json.loads(TEN_MIN_LOAD_JSON.read_text(encoding="utf-8"))
+    else:
+        load_bench = RealTimeLoadBenchmark(queue_capacity=5000, processing_rate_pps=20000.0)
+        if quick_mode:
+            load_report = load_bench.run_load_test(devices=fleet[:4], duration_seconds=5.0, burst_factor=1.0)
+            load_data = load_report.to_dict()
+        else:
+            load_data = load_bench.run_ten_minute_realtime_suite(
+                total_wall_seconds=600.0,
+                fleet_sizes=(8, 16, 32),
+                burst_factors=(1.0, 5.0, 10.0, 25.0, 50.0, 100.0),
+            )
+            TEN_MIN_LOAD_JSON.parent.mkdir(parents=True, exist_ok=True)
+            TEN_MIN_LOAD_JSON.write_text(json.dumps(load_data, indent=2), encoding="utf-8")
+
+    return resources_data, latencies_data, scalability_data, load_data
+
+
 def generate_full_evaluation_report(
     seed: int = 42,
     quick_mode: bool = False,
+    run_system_benchmarks: bool = True,
 ) -> dict[str, Any]:
     """
     Executes the full GUARDIAN evaluation suite for a single seed and returns a structured report.
@@ -311,66 +383,15 @@ def generate_full_evaluation_report(
         episodes_per_mode=adv_eps_per_mode,
     )
 
-    # 5. System Resources (psutil)
-    print(f"[{time.strftime('%H:%M:%S')}] Step 6/9: Measuring System Resource Overhead (psutil CPU/RAM)...", flush=True)
-    res_bench = SystemResourceBenchmark()
-    res_report = res_bench.measure_pipeline_run(
-        devices=fleet[: 4 if quick_mode else 8],
-        duration_seconds=5.0 if quick_mode else 20.0,
-    )
-    resources_data = res_report.to_dict()
-
-    # 6. Three Distinct Latencies
-    print(
-        f"[{time.strftime('%H:%M:%S')}] Step 7/9: Measuring 3 Distinct Latencies (Compute, Enforcement, TTD)...",
-        flush=True,
-    )
-    test_ep = runner.scenario_builder.create_offset_episode(
-        episode_id=f"ep_lat_{seed}",
-        device_id=fleet[0].id,
-        attack_type=AttackType.CNC_BEACONING,
-        base_start_time=10.0,
-        duration_seconds=20.0,
-        intensity=AttackIntensity.MEDIUM,
-        evasion_mode=EvasionMode.NONE,
-        tier=DifficultyTier.MEDIUM,
-    )
-    lat_bench = LatencyBenchmark()
-    lat_report = lat_bench.measure_latencies(
-        devices=fleet[:2],
-        episodes=[test_ep],
-        start_time=0.0,
-        end_time=40.0,
-    )
-    latencies_data = lat_report.to_dict()
-
-    # 7. Scalability Sweep
-    scale_counts = [8, 12] if quick_mode else [8, 12, 16, 20]
-    print(
-        f"[{time.strftime('%H:%M:%S')}] Step 8/9: Running Fleet Scalability Sweep across {scale_counts} devices...",
-        flush=True,
-    )
-    scale_bench = ScalabilityBenchmark(device_counts=scale_counts)
-    scale_report = scale_bench.run_scalability_sweep(duration_per_tier_s=5.0 if quick_mode else 20.0)
-    scalability_data = scale_report.to_dict()
-
-    # 8. Real-Time Packet Stream & 10-Minute Load Benchmark (Review Fix 6)
-    print(f"[{time.strftime('%H:%M:%S')}] Step 9/9: Loading/Running Real-Time Load & Drop Benchmark...", flush=True)
-    if not quick_mode and TEN_MIN_LOAD_JSON.exists():
-        load_data = json.loads(TEN_MIN_LOAD_JSON.read_text(encoding="utf-8"))
+    if run_system_benchmarks:
+        resources_data, latencies_data, scalability_data, load_data = _run_system_and_load_benchmarks(
+            runner=runner,
+            fleet=fleet,
+            seed=seed,
+            quick_mode=quick_mode,
+        )
     else:
-        load_bench = RealTimeLoadBenchmark(queue_capacity=5000, processing_rate_pps=20000.0)
-        if quick_mode:
-            load_report = load_bench.run_load_test(devices=fleet[:4], duration_seconds=5.0, burst_factor=1.0)
-            load_data = load_report.to_dict()
-        else:
-            load_data = load_bench.run_ten_minute_realtime_suite(
-                total_wall_seconds=600.0,
-                fleet_sizes=(8, 16, 32),
-                burst_factors=(1.0, 5.0, 10.0, 25.0, 50.0, 100.0),
-            )
-            TEN_MIN_LOAD_JSON.parent.mkdir(parents=True, exist_ok=True)
-            TEN_MIN_LOAD_JSON.write_text(json.dumps(load_data, indent=2), encoding="utf-8")
+        resources_data, latencies_data, scalability_data, load_data = {}, {}, {}, {}
 
     runtime_seconds = round(time.time() - t_start, 2)
     report_data: dict[str, Any] = {
@@ -391,24 +412,34 @@ def generate_full_evaluation_report(
         "load_benchmark": load_data,
     }
 
-    # 9. Plausibility Guard Verification (Milestone P3-7)
-    guard = PlausibilityGuard()
-    plausibility_res = guard.validate(report_data)
-    report_data["plausibility"] = plausibility_res.to_dict()
-    if not plausibility_res.is_plausible:
-        raise ValueError(f"Plausibility guard failed: {plausibility_res.violations}")
-    print(
-        f"[{time.strftime('%H:%M:%S')}] Completed evaluation run_id={run_id} in {runtime_seconds:.2f}s "
-        "(Plausibility Guard: PASS)",
-        flush=True,
-    )
+    if run_system_benchmarks:
+        # 9. Plausibility Guard Verification (Milestone P3-7)
+        guard = PlausibilityGuard()
+        plausibility_res = guard.validate(report_data)
+        report_data["plausibility"] = plausibility_res.to_dict()
+        if not plausibility_res.is_plausible:
+            raise ValueError(f"Plausibility guard failed: {plausibility_res.violations}")
+        print(
+            f"[{time.strftime('%H:%M:%S')}] Completed evaluation run_id={run_id} in {runtime_seconds:.2f}s "
+            "(Plausibility Guard: PASS)",
+            flush=True,
+        )
+    else:
+        print(
+            f"[{time.strftime('%H:%M:%S')}] Completed seed={seed} worker in {runtime_seconds:.2f}s",
+            flush=True,
+        )
 
     return report_data
 
 
 def _evaluate_single_seed_worker(seed: int, quick_mode: bool) -> dict[str, Any]:
     """Module-level worker function for parallel multi-seed evaluation."""
-    return generate_full_evaluation_report(seed=seed, quick_mode=quick_mode)
+    return generate_full_evaluation_report(
+        seed=seed,
+        quick_mode=quick_mode,
+        run_system_benchmarks=False,
+    )
 
 
 def generate_multi_seed_evaluation_report(
@@ -428,7 +459,10 @@ def generate_multi_seed_evaluation_report(
     workers = max_workers or min(len(seeds), os.cpu_count() or 4)
 
     if quick_mode or workers <= 1 or len(seeds) <= 1:
-        seed_reports = [generate_full_evaluation_report(s, quick_mode=quick_mode) for s in seeds]
+        seed_reports = [
+            generate_full_evaluation_report(s, quick_mode=quick_mode, run_system_benchmarks=(idx == 0))
+            for idx, s in enumerate(seeds)
+        ]
     else:
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             futures = [
@@ -436,6 +470,23 @@ def generate_multi_seed_evaluation_report(
                 for s in seeds
             ]
             seed_reports = [f.result() for f in futures]
+        fleet = generate_scaled_fleet(8)
+        runner0 = EvaluationRunner(seed=seeds[0], total_days=14, devices=fleet)
+        res_d, lat_d, scale_d, load_d = _run_system_and_load_benchmarks(
+            runner=runner0,
+            fleet=fleet,
+            seed=seeds[0],
+            quick_mode=quick_mode,
+        )
+        seed_reports[0]["resources"] = res_d
+        seed_reports[0]["latencies"] = lat_d
+        seed_reports[0]["scalability"] = scale_d
+        seed_reports[0]["load_benchmark"] = load_d
+        guard = PlausibilityGuard()
+        plaus_res = guard.validate(seed_reports[0])
+        seed_reports[0]["plausibility"] = plaus_res.to_dict()
+        if not plaus_res.is_plausible:
+            raise ValueError(f"Plausibility guard failed: {plaus_res.violations}")
 
     for rep in seed_reports:
         if base_report is None:
@@ -1185,6 +1236,149 @@ def export_paper_assets(report: dict[str, Any], output_dir: Path) -> None:
     (output_dir / "table_scalability.tex").write_text("\n".join(scale_tex), encoding="utf-8")
 
 
+def sync_readme_with_results_report(
+    report: dict[str, Any],
+    results_md: str,
+    readme_path: Path,
+) -> None:
+    """
+    Synchronize README.md headline badges, executive summary multi-seed numbers,
+    and <!-- BEGIN RESULTS --> ... <!-- END RESULTS --> section with the multi-seed
+    evaluation report (eval/RESULTS.md and eval/results/multi_seed_summary.json).
+    """
+    import re
+
+    if not readme_path.exists():
+        return
+
+    content = readme_path.read_text(encoding="utf-8")
+    ms = report.get("multi_seed_summary", {})
+    det = report["detection"]
+    sched_fpr = float(det.get("schedule_fpr", report["baselines"]["methods"][0]["fpr"]))
+    sched_far = float(det.get("schedule_far_per_day", report["baselines"]["methods"][0]["far_per_day"]))
+
+    det_mean = float(ms.get("detection_rate_mean", det["macro_average_tpr"] / 100.0))
+    if det_mean <= 1.0:
+        det_mean *= 100.0
+    det_lo = float(ms.get("detection_rate_ci_lower", det_mean / 100.0))
+    if det_lo <= 1.0:
+        det_lo *= 100.0
+    det_hi = float(ms.get("detection_rate_ci_upper", det_mean / 100.0))
+    if det_hi <= 1.0:
+        det_hi *= 100.0
+
+    # 1. Update 5-Seed Episode TPR and Operational FPR badges
+    content = re.sub(
+        r"5--Seed%20Episode%20TPR-[0-9.]+%25%20%5B[0-9.]+%25%2C%20[0-9.]+%25%5D",
+        f"5--Seed%20Episode%20TPR-{det_mean:.2f}%25%20%5B{det_lo:.2f}%25%2C%20{det_hi:.2f}%25%5D",
+        content,
+    )
+    content = re.sub(
+        r"5--Seed%20Operational%20FPR-[0-9.]+%25%20\([0-9.]+%20FAR%2FDev%2FDay\)",
+        f"5--Seed%20Operational%20FPR-{sched_fpr:.2f}%25%20({sched_far:.2f}%20FAR%2FDev%2FDay)",
+        content,
+    )
+
+    # 2. Update Executive Summary HARD-tier range and multi-seed FPR/FAR
+    hard_cells = [c["guardian_tpr"] for c in det.get("per_cell_rows", []) if c["tier"] == "HARD"]
+    hard_tier_info = det.get("tier_breakdown", {}).get("HARD", {})
+    if hard_cells and hard_tier_info:
+        h_min = min(hard_cells)
+        h_max = max(hard_cells)
+        h_mean = float(hard_tier_info.get("tpr", sum(hard_cells) / len(hard_cells)))
+        h_lo = float(hard_tier_info.get("tpr_ci_low", h_mean))
+        h_hi = float(hard_tier_info.get("tpr_ci_high", h_mean))
+        repl_hard = (
+            f"reduce `HARD`-tier recall to **${h_min:.1f}\\%\\text{{--}}{h_max:.1f}\\%$ "
+            f"(`{h_mean:.1f}%` macro average, `[{h_lo:.1f}%, {h_hi:.1f}%]`)** "
+            f"at a multi-seed operational window FPR of **${sched_fpr:.2f}\\%$ "
+            f"(`{sched_far:.2f}` false alerts/device/day)**"
+        )
+        content = re.sub(
+            r"reduce `HARD`-tier recall to \*\*\$[0-9.]+\\?%\s*(?:\\text|\s*ext)\{--\}\s*[0-9.]+\\?%\$\s*\(`[0-9.]+%` macro average, `\[[0-9.]+%, [0-9.]+%\]`\)\*\* at a multi-seed operational window FPR of \*\*\$[0-9.]+\\?%\$\s*\(`[0-9.]+` false alerts/device/day\)\*\*",
+            lambda _: repl_hard,
+            content,
+        )
+
+    # 3. Replace <!-- BEGIN RESULTS --> ... <!-- END RESULTS --> with exact multi-seed results_md
+    begin_marker = "<!-- BEGIN RESULTS -->"
+    end_marker = "<!-- END RESULTS -->"
+    if begin_marker in content and end_marker in content:
+        b_idx = content.index(begin_marker) + len(begin_marker)
+        e_idx = content.index(end_marker)
+        content = content[:b_idx] + "\n" + results_md.strip() + "\n" + content[e_idx:]
+
+    # 4. Sync Ablation Hypotheses (H1, H2, H3) and Adversarial Mermaid diagram numbers
+    abl_by_name = {a["config_name"]: a for a in report.get("ablations", {}).get("results", [])}
+    if "Full GUARDIAN" in abl_by_name and "No Layer 2 (Network Graph)" in abl_by_name:
+        full_a = abl_by_name["Full GUARDIAN"]
+        no_l2 = abl_by_name["No Layer 2 (Network Graph)"]
+        repl_h1 = (
+            f"degrades ROC-AUC (`{full_a['roc_auc']:.4f}` $\\to$ `{no_l2['roc_auc']:.4f}`) "
+            f"and increases false alarms (`{full_a['false_alerts_per_device_day']:.2f}` $\\to$ "
+            f"`{no_l2['false_alerts_per_device_day']:.2f}` FAR/day)"
+        )
+        content = re.sub(
+            r"degrades ROC-AUC \(`[0-9.]+` \$(?:\\to|\s*o)\$ `[0-9.]+`\) and increases false alarms \(`[0-9.]+` \$(?:\\to|\s*o)\$ `[0-9.]+` FAR/day\)",
+            lambda _: repl_h1,
+            content,
+        )
+    if (
+        "Full GUARDIAN" in abl_by_name
+        and "Statistical Detector Only (No ML)" in abl_by_name
+        and "Isolation Forest Only (No Stat)" in abl_by_name
+    ):
+        full_a = abl_by_name["Full GUARDIAN"]
+        stat_a = abl_by_name["Statistical Detector Only (No ML)"]
+        if_a = abl_by_name["Isolation Forest Only (No Stat)"]
+        content = re.sub(
+            r"\(`F1 = [0-9.]+` vs `[0-9.]+` Stat-Only and `[0-9.]+` IF-Only\)",
+            lambda _: f"(`F1 = {full_a['f1']:.4f}` vs `{stat_a['f1']:.4f}` Stat-Only and `{if_a['f1']:.4f}` IF-Only)",
+            content,
+        )
+    if "Full GUARDIAN" in abl_by_name and "No Hysteresis (Instantaneous)" in abl_by_name:
+        full_a = abl_by_name["Full GUARDIAN"]
+        no_hyst = abl_by_name["No Hysteresis (Instantaneous)"]
+        ratio = no_hyst["false_alerts_per_device_day"] / max(0.01, full_a["false_alerts_per_device_day"])
+        repl_h3 = (
+            f"cuts post-hysteresis false alerts from `{no_hyst['false_alerts_per_device_day']:.2f}` to "
+            f"`{full_a['false_alerts_per_device_day']:.2f}` false alerts/device/day (${ratio:.1f}\\times$ reduction)"
+        )
+        content = re.sub(
+            r"cuts post-hysteresis false alerts from `[0-9.]+` to `[0-9.]+` false alerts/device/day \(\$[0-9.]+(?:\\times|\s*imes)\$ reduction\)",
+            lambda _: repl_h3,
+            content,
+        )
+
+    adv_by_mode = {r["evasion_mode"]: r for r in report.get("adversarial", {}).get("rows", [])}
+    if "MIMICRY" in adv_by_mode:
+        content = re.sub(
+            r'D1\["Partially Mitigated by IAT Skew & Port Entropy \([0-9.]+% TPR\)"\]',
+            f'D1["Partially Mitigated by IAT Skew & Port Entropy ({adv_by_mode["MIMICRY"]["tpr"]:.1f}% TPR)"]',
+            content,
+        )
+    if "LOW_AND_SLOW" in adv_by_mode:
+        content = re.sub(
+            r'D2\["Partially Mitigated by Multi-Window Accumulators \([0-9.]+% TPR\)"\]',
+            f'D2["Partially Mitigated by Multi-Window Accumulators ({adv_by_mode["LOW_AND_SLOW"]["tpr"]:.1f}% TPR)"]',
+            content,
+        )
+    if "DELAYED_START" in adv_by_mode:
+        content = re.sub(
+            r'D3\["Mitigated Post-Dormancy by Idle Ratio Shift \([0-9.]+% TPR, [0-9.]+s TTD\)"\]',
+            f'D3["Mitigated Post-Dormancy by Idle Ratio Shift ({adv_by_mode["DELAYED_START"]["tpr"]:.1f}% TPR, {adv_by_mode["DELAYED_START"]["detection_latency_s"]:.2f}s TTD)"]',
+            content,
+        )
+    if "NO_NEW_DESTINATION" in adv_by_mode:
+        content = re.sub(
+            r'D4\["Partially Mitigated by Packet Length & Timing Shifts \([0-9.]+% TPR\)"\]',
+            f'D4["Partially Mitigated by Packet Length & Timing Shifts ({adv_by_mode["NO_NEW_DESTINATION"]["tpr"]:.1f}% TPR)"]',
+            content,
+        )
+
+    readme_path.write_text(content, encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="GUARDIAN Phase 2 & 3 Report & Paper Assets Generator")
     parser.add_argument("--seed", type=int, default=42, help="Evaluation random seed (when --single-seed is used)")
@@ -1225,6 +1419,10 @@ def main() -> int:
             json.dumps(report["multi_seed_summary"], indent=2),
             encoding="utf-8",
         )
+
+    readme_path = Path("README.md")
+    if out_dir == Path("eval") and readme_path.exists():
+        sync_readme_with_results_report(report, md_content, readme_path)
 
     print(f"\n[Success] Generated comprehensive results report: {results_path}")
 

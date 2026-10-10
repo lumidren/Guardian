@@ -1,16 +1,16 @@
 {
   "n_seeds": 5,
   "total_episodes": 4500,
-  "detection_rate_mean": 0.9613400000000001,
-  "detection_rate_ci_lower": 0.9555735000000001,
-  "detection_rate_ci_upper": 0.96736,
-  "ttd_mean": 2.4263333333333335,
-  "ttd_ci_lower": 2.328333333333333,
-  "ttd_ci_upper": 2.5203333333333333,
+  "detection_rate_mean": 0.9504400000000001,
+  "detection_rate_ci_lower": 0.9433400000000001,
+  "detection_rate_ci_upper": 0.9569000000000001,
+  "ttd_mean": 2.7766666666666664,
+  "ttd_ci_lower": 2.7153333333333327,
+  "ttd_ci_upper": 2.838,
   "fpr_mean": 0.09286,
   "fpr_ci_lower": 0.0872755,
   "fpr_ci_upper": 0.09832,
-  "runtime_seconds": 283.86,
+  "runtime_seconds": 1269.32,
   "seeds_evaluated": [
     42,
     43,
@@ -24,8 +24,8 @@
     "ci_upper": 1.208
   },
   "f1": {
-    "mean": 0.9173,
-    "ci_lower": 0.9126,
-    "ci_upper": 0.9213
+    "mean": 0.8992,
+    "ci_lower": 0.8946,
+    "ci_upper": 0.9033
   }
 }
