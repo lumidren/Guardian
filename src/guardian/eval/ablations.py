@@ -21,7 +21,7 @@ from ..features.extractor import FeatureExtractor
 from ..ml.isolation_forest import IsolationForestDetector
 from ..ml.statistical_baseline import StatisticalBaseline
 from ..ml.threat_scorer import ThreatScorer
-from .calibration import OperatingPoint
+from .calibration import Calibrator, OperatingPoint
 from .metrics import (
     compute_binary_metrics,
     compute_false_alert_rate,
@@ -320,27 +320,64 @@ class AblationRunner:
         self._baselines: dict[str, StatisticalBaseline] = dict(baselines) if baselines else {}
 
     def _ensure_artifacts(self, dev: IoTDeviceSpec) -> None:
-        if dev.id not in self._models:
-            m_path = guardian_config.MODELS_DIR / f"{dev.id}_iforest.json"
-            if m_path.exists():
-                self._models[dev.id] = IsolationForestDetector.load(m_path)
-            else:
-                m = IsolationForestDetector(n_estimators=20, random_seed=self.seed)
-                m.is_trained = True
+        need_model = dev.id not in self._models
+        need_base = dev.id not in self._baselines
+        if not need_model and not need_base:
+            return
+
+        m_path = guardian_config.MODELS_DIR / f"{dev.id}_iforest.json"
+        b_path = guardian_config.DATA_DIR / f"{dev.id}_baseline.json"
+
+        if need_model and m_path.exists():
+            self._models[dev.id] = IsolationForestDetector.load(m_path)
+            need_model = False
+
+        if need_base and b_path.exists():
+            with open(b_path, encoding="utf-8") as f:
+                data = json.load(f)
+            b = StatisticalBaseline()
+            b.means = data.get("means", {})
+            b.stds = data.get("stds", {})
+            b.is_ready = True
+            self._baselines[dev.id] = b
+            need_base = False
+
+        if need_model or need_base:
+            clean_wins = self.scenario_builder.generate_device_stream_windows(
+                device_id=dev.id,
+                start_time=0.0,
+                end_time=40.0,
+                episodes=[],
+            )
+            ft = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+            for dst in dev.normal_destinations:
+                ft.register_known_destination(dev.ip_address, dst)
+            vecs: list[np.ndarray] = []
+            feat_dicts: list[dict[str, float]] = []
+            for w in clean_wins:
+                ft.device_buffers[dev.ip_address].clear()
+                for p in w.packets:
+                    ft.ingest_packet(p)
+                s = ft.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
+                if s:
+                    vecs.append(self.extractor.extract_vector(s))
+                    feat_dicts.append(self.extractor.extract(s))
+
+            if need_model:
+                m = IsolationForestDetector(n_estimators=25, random_seed=self.seed)
+                if len(vecs) >= 2:
+                    m.fit(np.asarray(vecs, dtype=float), device_id=dev.id)
+                else:
+                    m.is_trained = True
                 self._models[dev.id] = m
 
-        if dev.id not in self._baselines:
-            b_path = guardian_config.DATA_DIR / f"{dev.id}_baseline.json"
-            if b_path.exists():
-                with open(b_path, encoding="utf-8") as f:
-                    data = json.load(f)
+            if need_base:
                 b = StatisticalBaseline()
-                b.means = data.get("means", {})
-                b.stds = data.get("stds", {})
-                b.is_ready = True
-                self._baselines[dev.id] = b
-            else:
-                b = StatisticalBaseline()
+                if feat_dicts:
+                    for k in feat_dicts[0]:
+                        vals = [fd[k] for fd in feat_dicts]
+                        b.means[k] = float(np.mean(vals))
+                        b.stds[k] = max(1e-3, float(np.std(vals)))
                 b.is_ready = True
                 self._baselines[dev.id] = b
 
@@ -614,6 +651,75 @@ class AblationRunner:
             results.append(res)
         return results
 
+    def _calibrate_battery_on_day8(
+        self,
+        battery: Sequence[AblationConfig],
+        full_guardian_op: OperatingPoint,
+        target_fpr: float = 0.05,
+        duration_per_device_s: float = 60.0,
+    ) -> list[OperatingPoint]:
+        """
+        Calibrate each ablation configuration on Day 8 clean background traffic using the
+        exact same Calibrator(target_fpr) threshold procedure as Full GUARDIAN.
+        """
+        cal_start = 7.0 * self.scenario_builder.SECONDS_PER_DAY
+        threat_scorer = ThreatScorer()
+        scores_by_cfg: list[list[float]] = [[] for _ in battery]
+
+        for dev in self.devices:
+            self._ensure_artifacts(dev)
+            model = self._models[dev.id]
+            baseline = self._baselines[dev.id]
+
+            cal_windows = self.scenario_builder.generate_device_stream_windows(
+                device_id=dev.id,
+                start_time=cal_start,
+                end_time=cal_start + duration_per_device_s,
+                episodes=[],
+            )
+            flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+            for dst in dev.normal_destinations:
+                flow_tracker.register_known_destination(dev.ip_address, dst)
+
+            for w in cal_windows:
+                flow_tracker.device_buffers[dev.ip_address].clear()
+                for p in w.packets:
+                    flow_tracker.ingest_packet(p)
+                summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
+                if not summary:
+                    continue
+                base_features = self.extractor.extract(summary)
+                base_vec = self.extractor.extract_vector(summary)
+                base_ml_score, _ = model.score_sample(base_vec)
+                base_stat_score, _ = baseline.evaluate(base_features)
+
+                for idx, cfg in enumerate(battery):
+                    if idx == 0:
+                        continue
+                    raw_score, _ = self._score_window_for_config(
+                        config=cfg,
+                        base_features=base_features,
+                        base_ml_score=base_ml_score,
+                        base_stat_score=base_stat_score,
+                        model=model,
+                        baseline=baseline,
+                        threat_scorer=threat_scorer,
+                        calibrated_op=full_guardian_op,
+                    )
+                    scores_by_cfg[idx].append(raw_score)
+
+        ops: list[OperatingPoint] = []
+        for idx, cfg in enumerate(battery):
+            if idx == 0:
+                ops.append(full_guardian_op)
+            elif not cfg.enable_calibration:
+                ops.append(OperatingPoint(alert_threshold=60.0, frozen=True))
+            elif scores_by_cfg[idx]:
+                ops.append(Calibrator(target_fpr=target_fpr).calibrate_from_scores(scores_by_cfg[idx]))
+            else:
+                ops.append(full_guardian_op)
+        return ops
+
     def run_protocol_schedule_battery(
         self,
         episodes: Sequence[GroundTruthEpisode],
@@ -624,7 +730,7 @@ class AblationRunner:
     ) -> list[AblationResult]:
         """
         Execute all 8 standard ablation configurations inside the full time-ordered protocol
-        using the exact same Days 1-7 models/baselines, Day 8 calibrated threshold, and
+        using the exact same Days 1-7 models/baselines, Day 8 calibrated threshold procedure, and
         Days 9-14 ground-truth episode schedule. Extracts base window features once per window.
         """
         import random
@@ -636,6 +742,11 @@ class AblationRunner:
         n_cfg = len(battery)
         threat_scorer = ThreatScorer()
         stride = self.scenario_builder.stride_s
+        calibrated_ops = self._calibrate_battery_on_day8(
+            battery=battery,
+            full_guardian_op=operating_point,
+            target_fpr=0.05,
+        )
 
         y_true_by_cfg: list[list[int]] = [[] for _ in range(n_cfg)]
         y_pred_by_cfg: list[list[int]] = [[] for _ in range(n_cfg)]
@@ -720,7 +831,7 @@ class AblationRunner:
                         model=model,
                         baseline=baseline,
                         threat_scorer=threat_scorer,
-                        calibrated_op=operating_point,
+                        calibrated_op=calibrated_ops[idx],
                     )
                     y_true_by_cfg[idx].append(is_attack_window)
                     y_pred_by_cfg[idx].append(1 if is_alert else 0)
