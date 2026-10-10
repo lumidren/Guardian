@@ -324,3 +324,40 @@ def verify_model_registry_sidecar(sidecar_path: object) -> bool:
         raw.get("registry_sha256") == compute_registry_sha256()
         and raw.get("feature_names") == list(FEATURE_NAMES)
     )
+
+
+def compute_per_device_feature_variance_report(
+    device_windows: dict[str, list[dict[str, float]]],
+    eps: float = 1e-12,
+) -> dict[str, object]:
+    """
+    Task 52: Compute per-device, per-feature variance report and classify zero-variance
+    vs nonzero-variance features for each device.
+    """
+    import numpy as np
+
+    per_device: dict[str, dict[str, object]] = {}
+    for dev_id, windows in device_windows.items():
+        variances: dict[str, float] = {}
+        nonzero_features: list[str] = []
+        zero_features: list[str] = []
+        for fname in FEATURE_NAMES:
+            vals = np.array([float(w.get(fname, 0.0)) for w in windows], dtype=np.float64)
+            var = float(np.var(vals)) if vals.size > 1 else 0.0
+            variances[fname] = round(var, 8)
+            if var > eps:
+                nonzero_features.append(fname)
+            else:
+                zero_features.append(fname)
+        per_device[dev_id] = {
+            "window_count": len(windows),
+            "nonzero_variance_count": len(nonzero_features),
+            "zero_variance_count": len(zero_features),
+            "nonzero_variance_features": nonzero_features,
+            "zero_variance_features": zero_features,
+            "variances": variances,
+        }
+    return {
+        "total_canonical_features": len(FEATURE_NAMES),
+        "devices": per_device,
+    }

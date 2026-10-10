@@ -207,3 +207,24 @@ def test_store_registry_hash_in_model_sidecar(tmp_path: object) -> None:
     assert sidecar.exists()
     assert verify_model_registry_sidecar(sidecar) is True
 
+
+def test_per_device_feature_variance_report() -> None:
+    """Task 52: Verify per-device feature variance report identifies nonzero and zero-variance features."""
+    from guardian.features.registry import compute_per_device_feature_variance_report
+
+    w1 = {name: 0.0 for name in FEATURE_NAMES}
+    w2 = {name: 0.0 for name in FEATURE_NAMES}
+    w1["pkt_count_10s"] = 10.0
+    w2["pkt_count_10s"] = 20.0
+    w1["byte_count_10s"] = 800.0
+    w2["byte_count_10s"] = 1600.0
+
+    rep = compute_per_device_feature_variance_report({"dev_01": [w1, w2]})
+    devices = rep["devices"]
+    assert isinstance(devices, dict)
+    d1 = devices["dev_01"]
+    assert d1["nonzero_variance_count"] == 2
+    assert d1["zero_variance_count"] == 58
+    assert "pkt_count_10s" in d1["nonzero_variance_features"]
+    assert "tcp_clock_skew_est" in d1["zero_variance_features"]
+
