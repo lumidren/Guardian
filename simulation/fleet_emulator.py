@@ -265,6 +265,36 @@ class IoTFleetEmulator:
                     is_outbound=is_outbound,
                 )
             )
+        return self.apply_ack_psh_pattern(packets)
+
+    def apply_ack_psh_pattern(
+        self,
+        packets: list[ParsedPacket],
+        psh_ratio: float = 0.5325,
+        ack_mean_bytes: float = 66.0,
+        psh_mean_bytes: float = 140.5,
+    ) -> list[ParsedPacket]:
+        """Assign calibrated ACK-only vs PSH-ACK flags and bimodal packet lengths to TCP packets."""
+        tcp_indices = [i for i, p in enumerate(packets) if p.protocol == "TCP"]
+        if not tcp_indices:
+            return packets
+        n_psh = max(1, min(len(tcp_indices), int(round(len(tcp_indices) * psh_ratio))))
+        psh_flags = [True] * n_psh + [False] * (len(tcp_indices) - n_psh)
+        random.shuffle(psh_flags)
+        for idx, is_psh in zip(tcp_indices, psh_flags, strict=True):
+            pkt = packets[idx]
+            pkt.tcp_flags = {
+                "SYN": False,
+                "ACK": True,
+                "PSH": is_psh,
+                "RST": False,
+                "FIN": False,
+                "URG": False,
+            }
+            if is_psh:
+                pkt.length = max(72, int(round(random.gauss(psh_mean_bytes, 14.0))))
+            else:
+                pkt.length = max(54, min(74, int(round(random.gauss(ack_mean_bytes, 2.0)))))
         return packets
 
     def generate_hard_negative_packets(

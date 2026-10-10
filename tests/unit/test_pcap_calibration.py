@@ -109,3 +109,17 @@ def test_bidirectional_traffic_generation() -> None:
     assert len(inbound) > 0
     assert all(p.src_ip == device.ip_address and p.ttl == 64 for p in outbound)
     assert all(p.dst_ip == device.ip_address and p.ttl == 171 for p in inbound)
+
+
+def test_ack_psh_packet_patterns() -> None:
+    """Task 34: Verify ACK/PSH packet pattern separates bare ACK control frames from PSH payload frames."""
+    from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
+
+    emulator = IoTFleetEmulator()
+    device = DEFAULT_FLEET_SPECS[0]
+    pkts = emulator.generate_bidirectional_window_packets(device, current_time=1000.0)
+    psh_pkts = [p for p in pkts if p.tcp_flags.get("PSH")]
+    ack_only = [p for p in pkts if not p.tcp_flags.get("PSH")]
+    assert len(psh_pkts) > 0 and len(ack_only) > 0
+    assert all(p.length >= 72 for p in psh_pkts)
+    assert all(54 <= p.length <= 74 for p in ack_only)
