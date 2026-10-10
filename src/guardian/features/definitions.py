@@ -10,7 +10,9 @@ from .registry import (
     MQTT_PAYLOAD_SCOPE_NOTE,
     FeatureMetadata,
     LayerType,
+    get_canonical_feature_registry,
     render_readme_feature_table,
+    validate_registry_invariants,
 )
 
 __all__ = [
@@ -21,5 +23,7 @@ __all__ = [
     "MQTT_PAYLOAD_SCOPE_NOTE",
     "FeatureMetadata",
     "LayerType",
+    "get_canonical_feature_registry",
     "render_readme_feature_table",
+    "validate_registry_invariants",
 ]

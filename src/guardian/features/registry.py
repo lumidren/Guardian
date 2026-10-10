@@ -204,3 +204,18 @@ def render_readme_feature_table() -> str:
             f"| {idx_1} | `{meta.name}` | {layer_str} | {meta.description} | {meta.unit} | {trend} |"
         )
     return "\n".join(lines)
+
+
+def get_canonical_feature_registry() -> dict[str, FeatureMetadata]:
+    """Return a read-only copy of the canonical 60-feature registry."""
+    return dict(FEATURE_REGISTRY)
+
+
+def validate_registry_invariants() -> bool:
+    """Validate that indices 0..59 are contiguous and all 60 features are header-only."""
+    if len(FEATURE_REGISTRY) != 60 or len(FEATURE_NAMES) != 60:
+        return False
+    for expected_idx, (fname, meta) in enumerate(FEATURE_REGISTRY.items()):
+        if meta.name != fname or meta.index != expected_idx or meta.requires_payload_bytes:
+            return False
+    return True

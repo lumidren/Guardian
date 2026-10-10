@@ -81,9 +81,13 @@ def test_registry_is_single_source_of_truth_for_readme_code_and_docs() -> None:
 
     from guardian.features.registry import (
         EXCLUDED_PAYLOAD_FEATURES,
-        FEATURE_NAMES as REG_NAMES,
-        FEATURE_REGISTRY as REG_MAP,
         render_readme_feature_table,
+    )
+    from guardian.features.registry import (
+        FEATURE_NAMES as REG_NAMES,
+    )
+    from guardian.features.registry import (
+        FEATURE_REGISTRY as REG_MAP,
     )
 
     assert REG_NAMES == FEATURE_NAMES
@@ -108,4 +112,17 @@ def test_registry_is_single_source_of_truth_for_readme_code_and_docs() -> None:
         assert f"`{feat_name}`" in real_doc_text, (
             f"Feature {feat_name} from registry.py missing in docs/REAL_DATA_VALIDATION.md"
         )
+
+
+def test_single_registry_source_of_truth_invariants() -> None:
+    """Task 47: Verify registry.py is the single source of truth across definitions, config, and extractor."""
+    from guardian.features.definitions import (
+        get_canonical_feature_registry,
+        validate_registry_invariants,
+    )
+
+    assert validate_registry_invariants() is True
+    canonical = get_canonical_feature_registry()
+    assert len(canonical) == 60
+    assert list(canonical.keys()) == FEATURE_NAMES
 
