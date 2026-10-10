@@ -83,3 +83,20 @@ def test_learn_destination_allowlist_from_baseline() -> None:
     assert rule.kind == RuleKind.DESTINATION_ALLOWLIST
     assert rule.parameters["allowed_ips"] == ["192.168.1.1", "54.210.10.45"]
     assert rule.parameters["window_count"] == 2
+
+
+def test_learn_port_and_protocol_allowlist() -> None:
+    """Task 58: Verify learn_port_and_protocol_allowlist extracts benign ports and transport/app protocols."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_port_and_protocol_allowlist,
+    )
+
+    obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=10.0, dst_ports=(1883, 53), protocols=("MQTT", "DNS")),
+        BaselineWindowObservation(device_id="dev_01", timestamp=20.0, dst_ports=(1883, 123), protocols=("MQTT", "NTP")),
+    ]
+    rule = learn_port_and_protocol_allowlist("dev_01", obs, created_at=100.0)
+    assert rule.kind == RuleKind.PORT_PROTOCOL_ALLOWLIST
+    assert rule.parameters["allowed_ports"] == [53, 123, 1883]
+    assert rule.parameters["allowed_protocols"] == ["DNS", "MQTT", "NTP"]
