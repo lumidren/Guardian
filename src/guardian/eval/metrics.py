@@ -194,6 +194,41 @@ def bootstrap_ci(
     )
 
 
+def wilson_score_ci(
+    successes: int,
+    total: int,
+    ci: float = 0.95,
+    scale_100: bool = True,
+) -> BootstrapCI:
+    """
+    Compute Wilson score confidence interval for a binomial proportion (e.g. TPR, FPR).
+    Prevents degenerate zero-width [100.0, 100.0] or [0.0, 0.0] intervals at boundary rates.
+    """
+    if total <= 0:
+        return BootstrapCI(mean=0.0, ci_lower=0.0, ci_upper=0.0, ci_level=ci)
+
+    # Normal quantile z for common CI levels
+    z = 1.959963984540054 if abs(ci - 0.95) < 1e-3 else (2.5758293035489004 if abs(ci - 0.99) < 1e-3 else 1.6448536269514722)
+    n = float(total)
+    k = float(max(0, min(total, successes)))
+    p_hat = k / n
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p_hat + z2 / (2.0 * n)) / denom
+    radicand = max(0.0, (p_hat * (1.0 - p_hat) / n) + (z2 / (4.0 * n * n)))
+    half_width = (z * float(np.sqrt(radicand))) / denom
+
+    lower = max(0.0, center - half_width)
+    upper = min(1.0, center + half_width)
+    mult = 100.0 if scale_100 else 1.0
+    return BootstrapCI(
+        mean=round(p_hat * mult, 4),
+        ci_lower=round(lower * mult, 4),
+        ci_upper=round(upper * mult, 4),
+        ci_level=ci,
+    )
+
+
 @dataclass(frozen=True)
 class EpisodeDetectionMetrics:
     total_episodes: int
