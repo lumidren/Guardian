@@ -45,7 +45,6 @@ from .metrics import (
     bootstrap_ci,
     check_evaluation_cross_table_consistency,
     compute_binary_metrics,
-    compute_false_alert_rate,
     wilson_score_ci,
 )
 from .runner import EvaluationRunner
@@ -77,90 +76,11 @@ def _evaluate_adversarial_schedule(
     Evaluate hardened adversarial evasion modes (`50+` episodes per mode per seed
     in full mode) across Days 9-14 using the calibrated runner.
     """
-    adv_episodes = runner.scenario_builder.generate_adversarial_schedule(
-        episodes_per_mode=episodes_per_mode
+    return runner.evaluate_adversarial_schedule(
+        episodes_per_mode=episodes_per_mode,
+        pre_buffer_s=pre_buffer_s,
+        post_buffer_s=post_buffer_s,
     )
-    mode_buckets: dict[str, list[dict[str, Any]]] = {m.value: [] for m in EvasionMode}
-    stride = runner.scenario_builder.stride_s
-
-    for ep in adv_episodes:
-        slice_start = max(0.0, float((int((ep.start_time - pre_buffer_s) // stride)) * stride))
-        slice_end = ep.end_time + post_buffer_s
-        rep = runner.evaluate_device_slice(
-            device_id=ep.device_id,
-            start_time=slice_start,
-            end_time=slice_end,
-            episodes=[ep],
-        )
-        detected = rep.detected_episodes > 0
-        ttd = rep.mean_time_to_detect_s if detected and rep.mean_time_to_detect_s > 0.0 else None
-        mode_buckets[ep.evasion_mode.value].append(
-            {
-                "detected": detected,
-                "ttd": ttd,
-                "tp": rep.window_metrics.tp,
-                "fp": rep.window_metrics.fp,
-                "tn": rep.window_metrics.tn,
-                "fn": rep.window_metrics.fn,
-                "duration_s": max(1.0, slice_end - slice_start),
-            }
-        )
-
-    adv_rows: list[dict[str, Any]] = []
-    for em in EvasionMode:
-        recs = mode_buckets[em.value]
-        n_eps = len(recs)
-        det_eps = sum(1 for r in recs if r["detected"])
-        tp_sum = sum(int(r["tp"]) for r in recs)
-        fp_sum = sum(int(r["fp"]) for r in recs)
-        tn_sum = sum(int(r["tn"]) for r in recs)
-        fn_sum = sum(int(r["fn"]) for r in recs)
-        total_dur_days = max(1e-4, sum(float(r["duration_s"]) for r in recs) / 86400.0)
-
-        # Confusion-based F1
-        eff_tp = tp_sum if tp_sum > 0 else det_eps
-        eff_fn = fn_sum if tp_sum > 0 else (n_eps - det_eps)
-        denom = 2 * eff_tp + fp_sum + eff_fn
-        f1_val = round((2.0 * eff_tp) / denom, 4) if denom > 0 else 0.0
-        fpr_pct = round((fp_sum / max(1, fp_sum + tn_sum)) * 100.0, 2)
-        far_val = round(
-            compute_false_alert_rate(
-                num_false_alerts=fp_sum,
-                num_devices=1,
-                days_observed=total_dur_days,
-            ),
-            2,
-        )
-
-        ttds = [float(r["ttd"]) for r in recs if r["ttd"] is not None]
-        mean_ttd = round(float(sum(ttds) / len(ttds)), 2) if ttds else 0.0
-        w_ci = wilson_score_ci(det_eps, n_eps, scale_100=True)
-        ep_tpr_pct = round((det_eps / max(1, n_eps)) * 100.0, 1)
-
-        adv_rows.append(
-            {
-                "evasion_mode": em.value,
-                "total_episodes": n_eps,
-                "detected_episodes": det_eps,
-                "tpr": ep_tpr_pct,
-                "tpr_ci_low": round(w_ci.ci_lower, 1),
-                "tpr_ci_high": round(w_ci.ci_upper, 1),
-                "fpr": fpr_pct,
-                "far_per_day": far_val,
-                "f1": f1_val,
-                "detection_latency_s": mean_ttd,
-                "tp": eff_tp,
-                "fp": fp_sum,
-                "tn": tn_sum,
-                "fn": eff_fn,
-            }
-        )
-
-    return {
-        "episodes_per_mode": episodes_per_mode,
-        "total_episodes": len(adv_episodes),
-        "rows": adv_rows,
-    }
 
 
 def generate_full_evaluation_report(
