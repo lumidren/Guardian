@@ -111,3 +111,52 @@ def test_readme_and_results_md_tables_match() -> None:
                 f"Missing or modified row: {trimmed}"
             )
 
+
+def test_no_cross_table_cell_assignment_or_overwrite() -> None:
+    """
+    Fails if any table row/cell in src/guardian/eval/report.py is assigned or overwritten
+    from another table (e.g., assigning ablation_dict_list[0]['tpr'] = macro_guardian),
+    or if check_evaluation_cross_table_consistency compares a variable against itself.
+    """
+    import ast
+
+    report_py = Path(__file__).resolve().parent.parent.parent / "src" / "guardian" / "eval" / "report.py"
+    source = report_py.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(report_py))
+
+    protected_table_vars = {
+        "ablation_dict_list",
+        "ablation_results",
+        "ablations_data",
+        "detection_rows",
+        "detection_data",
+        "baselines_data",
+        "adv_rows",
+        "adversarial_data",
+        "scalability_data",
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Subscript):
+                    # Unwrap nested subscripts like ablation_dict_list[0]["tpr"]
+                    root = target.value
+                    while isinstance(root, ast.Subscript):
+                        root = root.value
+                    if isinstance(root, ast.Name) and root.id in protected_table_vars:
+                        raise AssertionError(
+                            f"Forbidden post-hoc table cell overwrite detected in report.py at line {node.lineno}: "
+                            f"mutating '{root.id}[...]' after runner computation."
+                        )
+
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id == "check_evaluation_cross_table_consistency":
+                kw_map = {kw.arg: ast.dump(kw.value) for kw in node.keywords if kw.arg}
+                if "main_fpr" in kw_map and "ablation_fpr" in kw_map:
+                    assert kw_map["main_fpr"] != kw_map["ablation_fpr"], (
+                        f"Tautological cross-table consistency check at line {node.lineno}: "
+                        "main_fpr and ablation_fpr pass the exact same expression!"
+                    )
+
+
