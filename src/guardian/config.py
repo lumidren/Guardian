@@ -7,6 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from .features.registry import FEATURE_NAMES
+
 
 class ThreatLevel(StrEnum):
     MONITOR = "MONITOR"       # 0 - 30: Enhanced logging only (minimal impact)
@@ -20,85 +22,6 @@ class SystemPhase(StrEnum):
     STATISTICAL_BASELINE = "STATISTICAL_BASELINE"      # Hour 24-48: Z-Score statistical thresholds
     ACTIVE_PROTECTION = "ACTIVE_PROTECTION"            # Hour 48+: Isolation Forest ML + XAI
 
-
-# Canonical 60-feature specification
-FEATURE_NAMES: list[str] = [
-    # Layer 1: Traffic Volume & Timing (1-18)
-    "pkt_count_10s",
-    "byte_count_10s",
-    "pkt_rate_per_sec",
-    "byte_rate_per_sec",
-    "flow_duration_sec",
-    "iat_mean",
-    "iat_std",
-    "iat_min",
-    "iat_max",
-    "iat_median",
-    "iat_skew",
-    "iat_p90",
-    "burstiness_index",
-    "idle_ratio",
-    "upstream_pkt_ratio",
-    "downstream_pkt_ratio",
-    "upstream_byte_ratio",
-    "downstream_byte_ratio",
-
-    # Layer 1: Packet Size Statistics (19-25)
-    "pkt_len_mean",
-    "pkt_len_std",
-    "pkt_len_min",
-    "pkt_len_max",
-    "pkt_len_median",
-    "pkt_len_entropy",
-    "small_pkt_ratio",     # packets < 100 bytes
-
-    # Layer 1: Protocol Distribution (26-34)
-    "protocol_mqtt_ratio",
-    "protocol_http_ratio",
-    "protocol_https_ratio",
-    "protocol_dns_ratio",
-    "protocol_coap_ratio",
-    "protocol_ntp_ratio",
-    "protocol_tcp_other_ratio",
-    "protocol_udp_other_ratio",
-    "protocol_entropy",
-
-    # Layer 1: Port Dynamics & Entropy (35-41)
-    "src_port_entropy",
-    "dst_port_entropy",
-    "unique_dst_ports",
-    "wellknown_port_ratio",
-    "ephemeral_port_ratio",
-    "std_port_deviation",
-    "high_risk_port_flag",
-
-    # Layer 2: Network Identity & Topology (42-49)
-    "unique_dst_ips",
-    "dst_ip_entropy",
-    "external_ip_ratio",
-    "new_dst_ip_flag",
-    "out_degree_centrality",
-    "cross_subnet_ratio",
-    "dns_query_frequency",
-    "dns_failure_ratio",
-
-    # Layer 1 & 2: Flow State & TCP Flags (50-55)
-    "tcp_syn_ratio",
-    "tcp_ack_ratio",
-    "tcp_psh_ratio",
-    "tcp_rst_ratio",
-    "tcp_fin_ratio",
-    "tcp_win_mean",
-
-    # Layer 3: Protocol, Circadian & Heuristic Signatures (56-58)
-    "ip_ttl_variance",
-    "tcp_clock_skew_est",
-    "ip_id_monotonicity",
-
-    # Circadian & Temporal Consistency (59-60)
-    "hour_sin",
-    "hour_cos",
-]
 
 assert len(FEATURE_NAMES) == 60, f"Expected 60 features, got {len(FEATURE_NAMES)}"
 
