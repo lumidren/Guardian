@@ -4,7 +4,7 @@ Online and batch normalizers for continuous feature streams.
 
 import numpy as np
 
-from ..config import FEATURE_NAMES
+from .registry import FEATURE_NAMES
 
 
 class StreamingNormalizer:
