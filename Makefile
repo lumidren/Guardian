@@ -6,7 +6,7 @@ PYTEST ?= pytest
 RUFF ?= ruff
 MYPY ?= mypy
 
-.PHONY: setup lint type test cov run-sim eval api ui paper-assets check-commits clean export-requirements
+.PHONY: setup lint type test cov run-sim eval demo api ui paper-assets check-commits clean export-requirements
 
 setup:
 	$(PIP) install -e ".[dev]"
@@ -31,6 +31,9 @@ run-sim:
 
 eval:
 	$(PYTHON) -m guardian.eval.report
+
+demo:
+	$(PYTHON) -m guardian.eval.report --quick
 
 api:
 	uvicorn guardian.api.main:app --host 127.0.0.1 --port 8000 --reload
