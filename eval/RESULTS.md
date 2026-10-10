@@ -1,7 +1,7 @@
-# GUARDIAN Empirical Evaluation Results (Run ID: `eval_1791581516_42_6060caa`)
+# GUARDIAN Empirical Evaluation Results (Run ID: `eval_1791615776_42_11270e5`)
 
-- **Timestamp**: 2026-10-09T21:31:58.611838+00:00
-- **Git Commit**: `6060caa`
+- **Timestamp**: 2026-10-10T07:05:23.544586+00:00
+- **Git Commit**: `11270e5`
 - **Random Seed**: 42
 - **Execution Environment**: Software Emulation on Host (Simulated IoT Network Telemetry)
 - **Evaluation Mode**: Full Rigorous Battery
@@ -15,16 +15,16 @@
 
 | Attack Vector | GUARDIAN TPR | Pooled IF | Static Rules | Robust Z-Score | F1 Score | Mean TTD (s) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **DDOS_FLOODING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 2.00 s |
-| **CNC_BEACONING** | **100.0%** | 0.0% | 100.0% | 100.0% | 1.0000 | 1.00 s |
-| **NETWORK_SCANNING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9730 | 1.00 s |
-| **DATA_EXFILTRATION** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9714 | 1.00 s |
-| **CRYPTOMINING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9583 | 1.00 s |
-| **ZERO_DAY_HYBRID** | **100.0%** | 0.0% | 0.0% | 100.0% | 0.9756 | 1.00 s |
-| **Macro Average** | **100.0%** | 0.0% | 83.3% | 100.0% | - | - |
+| **DDOS_FLOODING** | **100.0%** | 0.0% | 91.3% | 100.0% | 0.9995 | 1.01 s |
+| **CNC_BEACONING** | **83.3%** | 0.0% | 66.7% | 99.3% | 0.7569 | 2.85 s |
+| **NETWORK_SCANNING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9999 | 1.00 s |
+| **DATA_EXFILTRATION** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9996 | 1.02 s |
+| **CRYPTOMINING** | **100.0%** | 0.0% | 100.0% | 100.0% | 0.9995 | 1.03 s |
+| **ZERO_DAY_HYBRID** | **90.0%** | 0.0% | 64.7% | 96.7% | 0.7520 | 4.06 s |
+| **Macro Average** | **95.5%** | 0.0% | 87.1% | 99.3% | - | - |
 
 > [!NOTE]
-> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 600.0%, mean = **100.0%**.
+> **Macro Average Verification**: Arithmetic mean across the 6 attack rows: sum = 573.3%, mean = **95.5%**.
 
 ---
 
@@ -32,10 +32,10 @@
 
 | Detection System | True Positive Rate (TPR) | False Positive Rate (FPR) | F1 Score | False Alerts / Dev / Day |
 | :--- | :---: | :---: | :---: | :---: |
-| **GUARDIAN (Multi-Layer Ensemble)** | 100.0% | 9.3% | 0.9750 | 1234.29 |
+| **GUARDIAN (Multi-Layer Ensemble)** | 95.5% | 0.0% | 0.9179 | 0.00 |
 | **Pooled Isolation Forest** | 0.0% | 0.0% | 0.0000 | 0.10 |
-| **Static Threshold Rules** | 83.3% | 0.0% | 0.8333 | 0.10 |
-| **Robust Z-Score Only (L1)** | 100.0% | 9.6% | 0.9756 | 1.15 |
+| **Static Threshold Rules** | 87.1% | 0.0% | 0.0000 | 0.10 |
+| **Robust Z-Score Only (L1)** | 99.3% | 9.7% | 0.0000 | 1.16 |
 
 ---
 
@@ -43,7 +43,7 @@
 
 | Ablation Configuration | TPR (%) | FPR (%) | Precision | Recall | F1 Score | ROC-AUC |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Full GUARDIAN** | 100.0% | 9.3% | 0.0000 | 0.0000 | 0.9750 | 1.0000 |
+| **Full GUARDIAN** | 95.5% | 0.0% | 0.0000 | 0.0000 | 0.9179 | 1.0000 |
 | **Statistical Detector Only (No ML)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
 | **Isolation Forest Only (No Stat)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
 | **No Layer 1 (Volumetric Dynamics)** | 0.0% | 0.0% | 0.0000 | 0.0000 | 0.0000 | 1.0000 |
@@ -58,28 +58,28 @@
 
 | Adversarial Evasion Tactic | TPR (%) | F1 Score | Mean Time-to-Detect (s) |
 | :--- | :---: | :---: | :---: |
-| **NONE** | 100.0% | 0.9333 | 2.00 s |
-| **MIMICRY** | 100.0% | 0.9333 | 2.00 s |
-| **LOW_AND_SLOW** | 100.0% | 0.9333 | 2.00 s |
-| **DELAYED_START** | 100.0% | 0.9474 | 12.00 s |
-| **NO_NEW_DESTINATION** | 100.0% | 0.9333 | 2.00 s |
-| **ADAPTIVE** | 100.0% | 0.9333 | 2.00 s |
+| **NONE** | 100.0% | 1.0000 | 1.63 s |
+| **MIMICRY** | 100.0% | 1.0000 | 1.29 s |
+| **LOW_AND_SLOW** | 100.0% | 1.0000 | 1.31 s |
+| **DELAYED_START** | 100.0% | 1.0000 | 11.21 s |
+| **NO_NEW_DESTINATION** | 100.0% | 1.0000 | 1.48 s |
+| **ADAPTIVE** | 100.0% | 1.0000 | 0.64 s |
 
 ---
 
 ## 5. System Resource Overhead & Latency Disaggregation
 
-- **CPU Usage**: Avg 74.90%, Peak 104.20% (Status: `FAIL`)
-- **Resident Memory**: Avg 45.76 MB, Peak 45.76 MB (Status: `PASS`)
+- **CPU Usage**: Avg 56.78%, Peak 104.20% (Status: `FAIL`)
+- **Resident Memory**: Avg 68.07 MB, Peak 68.07 MB (Status: `PASS`)
 - **Overall Resource Gate**: `FAIL`
 
 ### Distinct Latency Measurements (F12)
 
 | Latency Metric | Mean | 95th Percentile | Max | Operational Target |
 | :--- | :---: | :---: | :---: | :---: |
-| **Compute Latency** (Feature Extraction + Scoring) | 1.223 ms | 1.583 ms | 1.632 ms | $< 50\text{ ms}$ |
-| **Enforcement Latency** (Firewall Rule Application) | 0.008 ms | 0.010 ms | 0.012 ms | $< 300\text{ ms}$ |
-| **Time-to-Detect** (Attack Onset $\to$ Alert) | 2.00 s | - | 2.00 s | $< 60\text{ s}$ |
+| **Compute Latency** (Feature Extraction + Scoring) | 1.407 ms | 2.029 ms | 2.198 ms | $< 50\text{ ms}$ |
+| **Enforcement Latency** (Firewall Rule Application) | 0.009 ms | 0.011 ms | 0.013 ms | $< 300\text{ ms}$ |
+| **Time-to-Detect** (Attack Onset $\to$ Alert) | 1.05 s | - | 1.05 s | $< 60\text{ s}$ |
 
 ---
 
@@ -87,10 +87,10 @@
 
 | Fleet Size | Throughput (Windows/s) | Compute Latency (ms) | CPU (%) | Memory RSS (MB) |
 | :---: | :---: | :---: | :---: | :---: |
-| **8 Devices** | 949.76 | 1.037 ms | 92.8% | 45.8 MB |
-| **12 Devices** | 942.84 | 1.045 ms | 81.8% | 45.8 MB |
-| **16 Devices** | 944.76 | 1.042 ms | 92.3% | 45.8 MB |
-| **20 Devices** | 951.05 | 1.036 ms | 99.1% | 45.8 MB |
+| **8 Devices** | 903.41 | 1.090 ms | 88.2% | 68.1 MB |
+| **12 Devices** | 883.23 | 1.114 ms | 95.8% | 68.1 MB |
+| **16 Devices** | 872.23 | 1.130 ms | 85.2% | 68.1 MB |
+| **20 Devices** | 849.52 | 1.161 ms | 88.5% | 68.1 MB |
 
 ---
 
