@@ -24,7 +24,11 @@ from ..features.extractor import FeatureExtractor
 from ..ml.isolation_forest import IsolationForestDetector
 from ..ml.statistical_baseline import StatisticalBaseline
 from ..ml.threat_scorer import ThreatScorer
-from .baselines import RobustZScoreOnlyBaseline, StaticThresholdBaseline
+from .baselines import (
+    PooledIsolationForestBaseline,
+    RobustZScoreOnlyBaseline,
+    StaticThresholdBaseline,
+)
 from .calibration import Calibrator, OperatingPoint
 from .metrics import (
     BinaryMetrics,
@@ -33,7 +37,7 @@ from .metrics import (
     compute_pr_auc,
     compute_roc_auc,
 )
-from .scenario import GroundTruthEpisode, ScenarioBuilder, StreamWindow
+from .scenario import GroundTruthEpisode, HardNegativeType, ScenarioBuilder, StreamWindow
 
 
 class ArtifactMissingError(Exception):
@@ -134,6 +138,12 @@ class EvaluationRunner:
         # Cache of loaded models and baselines per device
         self._models: dict[str, IsolationForestDetector] = {}
         self._baselines: dict[str, StatisticalBaseline] = {}
+        self._pooled_model: PooledIsolationForestBaseline | None = None
+        self._baseline_thresholds: dict[str, float] = {
+            "static": 60.0,
+            "zscore": 60.0,
+            "pooled": 52.0,
+        }
 
     def load_device_model_or_raise(
         self,
@@ -182,9 +192,13 @@ class EvaluationRunner:
             if m_path.exists():
                 self.load_device_model_or_raise(dev.id, m_path)
             else:
-                # Fast mock model for testing if running without disk checkpoint
-                m = IsolationForestDetector(n_estimators=10)
-                m.is_trained = True
+                # Train a quick per-device model on Day 1 clean traffic if disk artifact missing
+                m = IsolationForestDetector(n_estimators=25, random_seed=self.seed)
+                train_vecs = self._extract_clean_vectors(dev, duration_s=30.0)
+                if len(train_vecs) >= 2:
+                    m.fit(np.asarray(train_vecs, dtype=float), device_id=dev.id)
+                else:
+                    m.is_trained = True
                 self._models[dev.id] = m
 
         if dev.id not in self._baselines:
@@ -196,6 +210,55 @@ class EvaluationRunner:
                 b.is_ready = True
                 self._baselines[dev.id] = b
 
+    def _extract_clean_vectors(
+        self,
+        dev: IoTDeviceSpec,
+        start_time: float = 0.0,
+        duration_s: float = 40.0,
+    ) -> list[np.ndarray]:
+        """Extract clean feature vectors from Days 1-7 training split for a device."""
+        windows = self.scenario_builder.generate_device_stream_windows(
+            device_id=dev.id,
+            start_time=start_time,
+            end_time=start_time + duration_s,
+            episodes=[],
+        )
+        flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+        for dst in dev.normal_destinations:
+            flow_tracker.register_known_destination(dev.ip_address, dst)
+        vecs: list[np.ndarray] = []
+        for w in windows:
+            flow_tracker.device_buffers[dev.ip_address].clear()
+            for p in w.packets:
+                flow_tracker.ingest_packet(p)
+            summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w.end_time)
+            if summary:
+                vecs.append(self.extractor.extract_vector(summary))
+        return vecs
+
+    def _ensure_pooled_model(self) -> PooledIsolationForestBaseline:
+        """
+        Train fleet-wide PooledIsolationForestBaseline on Days 1-7 pooled feature
+        distributions across all devices without per-device separation.
+        """
+        if self._pooled_model is not None and self._pooled_model.is_trained:
+            return self._pooled_model
+
+        pooled_vecs: list[np.ndarray] = []
+        for idx, dev in enumerate(self.devices):
+            dev_vecs = self._extract_clean_vectors(
+                dev,
+                start_time=float(idx * 3600.0),
+                duration_s=40.0,
+            )
+            pooled_vecs.extend(dev_vecs)
+
+        pooled = PooledIsolationForestBaseline(n_estimators=50, seed=self.seed)
+        if len(pooled_vecs) >= 2:
+            pooled.fit([v.tolist() for v in pooled_vecs])
+        self._pooled_model = pooled
+        return pooled
+
     def calibrate_operating_point(
         self,
         target_fpr: float = 0.05,
@@ -203,10 +266,13 @@ class EvaluationRunner:
     ) -> OperatingPoint:
         """
         Calibrate OperatingPoint threshold on Day 8 clean background traffic and freeze it.
+        Also calibrates PooledIsolationForestBaseline threshold on the same Day 8 split.
         Strict time-ordered split: Day 8 (604,800s to 691,200s).
         """
         cal_start = 7.0 * self.scenario_builder.SECONDS_PER_DAY
         calibration_scores: list[float] = []
+        pooled_cal_scores: list[float] = []
+        pooled_model = self._ensure_pooled_model()
 
         for dev in self.devices:
             self._ensure_device_artifacts(dev)
@@ -244,9 +310,17 @@ class EvaluationRunner:
                 )
                 calibration_scores.append(assessment.threat_score)
 
+                p_raw, _ = pooled_model.score_sample(vec)
+                pooled_cal_scores.append(float(p_raw * 100.0))
+
         calibrator = Calibrator(target_fpr=target_fpr)
         chosen_op = calibrator.calibrate_from_scores(calibration_scores)
         self.operating_point = chosen_op
+
+        if pooled_cal_scores:
+            pooled_op = Calibrator(target_fpr=target_fpr).calibrate_from_scores(pooled_cal_scores)
+            self._baseline_thresholds["pooled"] = float(pooled_op.alert_threshold)
+
         return chosen_op
 
     def evaluate_device_slice(
@@ -269,6 +343,7 @@ class EvaluationRunner:
         self._ensure_device_artifacts(dev)
         model = self._models[dev.id]
         baseline = self._baselines[dev.id]
+        pooled_model = self._ensure_pooled_model()
 
         enforcer = EnforcementController()
         flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
@@ -297,10 +372,17 @@ class EvaluationRunner:
         ep_detected: dict[str, bool] = {ep.episode_id: False for ep in episodes}
         ep_first_alert: dict[str, float | None] = {ep.episode_id: None for ep in episodes}
         ep_max_score: dict[str, float] = {ep.episode_id: 0.0 for ep in episodes}
+        ep_max_pooled: dict[str, float] = {ep.episode_id: 0.0 for ep in episodes}
+        ep_max_static: dict[str, float] = {ep.episode_id: 0.0 for ep in episodes}
+        ep_max_zscore: dict[str, float] = {ep.episode_id: 0.0 for ep in episodes}
 
         false_alert_count = 0
         in_false_alarm_streak = False
         window_records: list[dict[str, Any]] = []
+
+        pooled_thresh = self._baseline_thresholds.get("pooled", 52.0)
+        static_thresh = self._baseline_thresholds.get("static", 60.0)
+        zscore_thresh = self._baseline_thresholds.get("zscore", 60.0)
 
         for w in windows:
             # Clear device buffer to ensure window contains precisely the packets in this stream window
@@ -316,10 +398,24 @@ class EvaluationRunner:
             features = self.extractor.extract(summary)
             vec = self.extractor.extract_vector(summary)
 
-            # Detector 1: Isolation Forest
+            # Detector 1: Per-Device Isolation Forest
             ml_score, _ = model.score_sample(vec)
             # Detector 2: Statistical Baseline
             stat_score, _ = baseline.evaluate(features)
+
+            # Fusion through ThreatScorer
+            assessment = self.threat_scorer.assess(
+                ml_score=ml_score,
+                statistical_score=stat_score,
+                features=features,
+            )
+            score = float(assessment.threat_score)
+
+            # Baseline detectors (all scaled to [0.0, 100.0])
+            static_score, _ = static_baseline.score_summary(summary)
+            z_score = zscore_baseline.score_features(features)
+            pooled_raw, _ = pooled_model.score_sample(vec)
+            pooled_score = float(pooled_raw * 100.0)
 
             window_records.append(
                 {
@@ -329,16 +425,12 @@ class EvaluationRunner:
                     "base_features": features,
                     "base_ml_score": ml_score,
                     "base_stat_score": stat_score,
+                    "guardian_score": score,
+                    "pooled_score": pooled_score,
+                    "static_score": float(static_score),
+                    "zscore_score": float(z_score),
                 }
             )
-
-            # Fusion through ThreatScorer
-            assessment = self.threat_scorer.assess(
-                ml_score=ml_score,
-                statistical_score=stat_score,
-                features=features,
-            )
-            score = assessment.threat_score
 
             # Graduated response enforcement
             enf_state = enforcer.enforce(
@@ -356,12 +448,10 @@ class EvaluationRunner:
             y_pred_windows.append(1 if is_alert else 0)
             scores_windows.append(score / 100.0)
 
-            # Record baseline predictions
-            static_score, _ = static_baseline.score_summary(summary)
-            z_score = zscore_baseline.score_features(features)
-            y_pred_static.append(1 if static_score >= 60.0 else 0)
-            y_pred_zscore.append(1 if z_score >= 60.0 else 0)
-            y_pred_pooled.append(1 if ml_score >= 60.0 else 0)
+            # Record baseline predictions using calibrated/scaled [0, 100] thresholds
+            y_pred_static.append(1 if static_score >= static_thresh else 0)
+            y_pred_zscore.append(1 if z_score >= zscore_thresh else 0)
+            y_pred_pooled.append(1 if pooled_score >= pooled_thresh else 0)
 
             # Track episode detection within deadline
             if w.active_episode_ids:
@@ -369,14 +459,19 @@ class EvaluationRunner:
                     ep_obj = next((e for e in episodes if e.episode_id == ep_id), None)
                     if not ep_obj:
                         continue
-                    if score > ep_max_score[ep_id]:
-                        ep_max_score[ep_id] = score
-
-                    # Check if alert opens at RESTRICT or higher within deadline
                     alert_time = w.end_time
                     time_into_episode = alert_time - ep_obj.start_time
-                    if is_alert and (0.0 <= time_into_episode <= self.deadline_seconds):
-                        if not ep_detected[ep_id]:
+                    if 0.0 <= time_into_episode <= self.deadline_seconds:
+                        if score > ep_max_score[ep_id]:
+                            ep_max_score[ep_id] = score
+                        if pooled_score > ep_max_pooled[ep_id]:
+                            ep_max_pooled[ep_id] = pooled_score
+                        if static_score > ep_max_static[ep_id]:
+                            ep_max_static[ep_id] = float(static_score)
+                        if z_score > ep_max_zscore[ep_id]:
+                            ep_max_zscore[ep_id] = float(z_score)
+
+                        if is_alert and not ep_detected[ep_id]:
                             ep_detected[ep_id] = True
                             ep_first_alert[ep_id] = alert_time
             else:
@@ -393,6 +488,12 @@ class EvaluationRunner:
                     in_false_alarm_streak = False
 
         self._last_window_records = window_records
+        self._last_ep_max_scores = {
+            "guardian": ep_max_score,
+            "pooled": ep_max_pooled,
+            "static": ep_max_static,
+            "zscore": ep_max_zscore,
+        }
 
         # Calculate metrics
         binary_metrics = compute_binary_metrics(y_true_windows, y_pred_windows)
@@ -464,6 +565,74 @@ class EvaluationRunner:
             },
         )
 
+    def _evaluate_benign_operational_background(self, num_episodes: int = 90) -> list[dict[str, float]]:
+        """
+        Evaluate benign operational bursts (USER_TOGGLING, DNS_RETRY_STORM,
+        MQTT_RECONNECT_FLOOD, CAMERA_MOTION_BURST, ROUTER_REBOOT, DST_CHANGE)
+        on Days 9-14 across the fleet so false-alarm metrics and operating curves
+        reflect realistic operational IoT traffic.
+        """
+        pooled_model = self._ensure_pooled_model()
+        benign_types = [
+            HardNegativeType.USER_TOGGLING,
+            HardNegativeType.DNS_RETRY_STORM,
+            HardNegativeType.MQTT_RECONNECT_FLOOD,
+            HardNegativeType.CAMERA_MOTION_BURST,
+            HardNegativeType.ROUTER_REBOOT,
+            HardNegativeType.DST_CHANGE,
+        ]
+        repeats = max(1, num_episodes // 90)
+        records: list[dict[str, float]] = []
+        base_t = 9.0 * self.scenario_builder.SECONDS_PER_DAY
+
+        for rep_idx in range(repeats):
+            for d_idx, dev in enumerate(self.devices):
+                self._ensure_device_artifacts(dev)
+                model = self._models[dev.id]
+                baseline = self._baselines[dev.id]
+                static_baseline = StaticThresholdBaseline.from_device_spec(dev)
+                zscore_baseline = RobustZScoreOnlyBaseline(baseline)
+
+                flow_tracker = FlowTracker(window_size_seconds=self.scenario_builder.window_size_s)
+                for dst in dev.normal_destinations:
+                    flow_tracker.register_known_destination(dev.ip_address, dst)
+
+                for h_idx, hn_type in enumerate(benign_types):
+                    w_end = base_t + rep_idx * 7200.0 + d_idx * 600.0 + h_idx * 30.0
+                    pkts = self.scenario_builder.emulator.generate_hard_negative_packets(
+                        device=dev,
+                        negative_type=hn_type,
+                        window_duration=self.scenario_builder.window_size_s,
+                        current_time=w_end,
+                    )
+                    flow_tracker.device_buffers[dev.ip_address].clear()
+                    for p in pkts:
+                        flow_tracker.ingest_packet(p)
+                    summary = flow_tracker.get_window_summary(dev.ip_address, current_timestamp=w_end)
+                    if not summary:
+                        continue
+                    features = self.extractor.extract(summary)
+                    vec = self.extractor.extract_vector(summary)
+                    ml_score, _ = model.score_sample(vec)
+                    stat_score, _ = baseline.evaluate(features)
+                    assessment = self.threat_scorer.assess(
+                        ml_score=ml_score,
+                        statistical_score=stat_score,
+                        features=features,
+                    )
+                    static_score, _ = static_baseline.score_summary(summary)
+                    z_score = zscore_baseline.score_features(features)
+                    pooled_raw, _ = pooled_model.score_sample(vec)
+                    records.append(
+                        {
+                            "guardian_score": float(assessment.threat_score),
+                            "pooled_score": float(pooled_raw * 100.0),
+                            "static_score": float(static_score),
+                            "zscore_score": float(z_score),
+                        }
+                    )
+        return records
+
     def evaluate_ground_truth_schedule(
         self,
         episodes: Sequence[GroundTruthEpisode],
@@ -472,29 +641,41 @@ class EvaluationRunner:
     ) -> dict[str, Any]:
         """
         Evaluates a schedule of ground truth attack episodes over their respective time windows.
-        Aggregates metrics per attack class, per difficulty tier, and across baseline detectors.
+        Aggregates metrics per attack class, per difficulty tier, and across baseline detectors
+        using identical confusion counts, plus equal-FAR comparisons and operating curves.
         """
         for dev in self.devices:
             self._ensure_device_artifacts(dev)
+        self._ensure_pooled_model()
 
         ep_results: list[dict[str, Any]] = []
         precomputed_episode_windows: list[dict[str, Any]] = []
 
-        total_fp = 0
-        total_tn = 0
-        static_fp = 0
-        static_tn = 0
-        static_tp = 0
-        static_fn = 0
-        zscore_fp = 0
-        zscore_tn = 0
-        zscore_tp = 0
-        zscore_fn = 0
-        pooled_fp = 0
-        pooled_tn = 0
-        pooled_tp = 0
-        pooled_fn = 0
+        # Collect window scores for exact confusion counts and operating curves
+        normal_window_scores: dict[str, list[float]] = {
+            "guardian": [],
+            "pooled": [],
+            "static": [],
+            "zscore": [],
+        }
+        attack_window_scores: dict[str, list[float]] = {
+            "guardian": [],
+            "pooled": [],
+            "static": [],
+            "zscore": [],
+        }
+        episode_peak_scores: dict[str, list[float]] = {
+            "guardian": [],
+            "pooled": [],
+            "static": [],
+            "zscore": [],
+        }
+
         total_seconds = 0.0
+        pooled_thresh = self._baseline_thresholds.get("pooled", 52.0)
+        static_thresh = self._baseline_thresholds.get("static", 60.0)
+        zscore_thresh = self._baseline_thresholds.get("zscore", 60.0)
+        guardian_thresh = float(self.operating_point.alert_threshold)
 
         for ep in episodes:
             stride = self.scenario_builder.stride_s
@@ -507,35 +688,34 @@ class EvaluationRunner:
                 end_time=slice_end,
                 episodes=[ep],
             )
+            win_recs = getattr(self, "_last_window_records", [])
+            ep_max_map = getattr(self, "_last_ep_max_scores", {})
             precomputed_episode_windows.append(
                 {
                     "episode_id": ep.episode_id,
-                    "window_records": getattr(self, "_last_window_records", []),
+                    "window_records": win_recs,
                 }
             )
+
+            for wr in win_recs:
+                target_dict = attack_window_scores if wr["has_attack"] else normal_window_scores
+                target_dict["guardian"].append(float(wr["guardian_score"]))
+                target_dict["pooled"].append(float(wr["pooled_score"]))
+                target_dict["static"].append(float(wr["static_score"]))
+                target_dict["zscore"].append(float(wr["zscore_score"]))
+
+            g_peak = float(ep_max_map.get("guardian", {}).get(ep.episode_id, 0.0))
+            p_peak = float(ep_max_map.get("pooled", {}).get(ep.episode_id, 0.0))
+            s_peak = float(ep_max_map.get("static", {}).get(ep.episode_id, 0.0))
+            z_peak = float(ep_max_map.get("zscore", {}).get(ep.episode_id, 0.0))
+
+            episode_peak_scores["guardian"].append(g_peak)
+            episode_peak_scores["pooled"].append(p_peak)
+            episode_peak_scores["static"].append(s_peak)
+            episode_peak_scores["zscore"].append(z_peak)
+
             detected = rep.detected_episodes > 0
             ttd = rep.mean_time_to_detect_s if detected else None
-            static_det = rep.baseline_metrics.get("static")
-            zscore_det = rep.baseline_metrics.get("zscore")
-            pooled_det = rep.baseline_metrics.get("pooled")
-
-            total_fp += rep.window_metrics.fp
-            total_tn += rep.window_metrics.tn
-            if static_det:
-                static_fp += static_det.fp
-                static_tn += static_det.tn
-                static_tp += static_det.tp
-                static_fn += static_det.fn
-            if zscore_det:
-                zscore_fp += zscore_det.fp
-                zscore_tn += zscore_det.tn
-                zscore_tp += zscore_det.tp
-                zscore_fn += zscore_det.fn
-            if pooled_det:
-                pooled_fp += pooled_det.fp
-                pooled_tn += pooled_det.tn
-                pooled_tp += pooled_det.tp
-                pooled_fn += pooled_det.fn
 
             ep_results.append({
                 "episode_id": ep.episode_id,
@@ -546,14 +726,24 @@ class EvaluationRunner:
                 "detected": detected,
                 "ttd": ttd,
                 "guardian_f1": rep.window_metrics.f1,
-                "static_detected": (static_det.tp > 0) if static_det else False,
-                "zscore_detected": (zscore_det.tp > 0) if zscore_det else False,
-                "pooled_detected": (pooled_det.tp > 0) if pooled_det else False,
+                "static_detected": s_peak >= static_thresh,
+                "zscore_detected": z_peak >= zscore_thresh,
+                "pooled_detected": p_peak >= pooled_thresh,
             })
 
-        # Aggregate per attack class
+        # Include benign operational hard-negative windows on Days 9-14
+        benign_ops = self._evaluate_benign_operational_background(len(episodes))
+        total_seconds += len(benign_ops) * self.scenario_builder.window_size_s
+        for br in benign_ops:
+            normal_window_scores["guardian"].append(br["guardian_score"])
+            normal_window_scores["pooled"].append(br["pooled_score"])
+            normal_window_scores["static"].append(br["static_score"])
+            normal_window_scores["zscore"].append(br["zscore_score"])
+
+        # Aggregate per attack class and per (attack, tier) cell
         attack_types = list(AttackType)
         detection_rows: list[dict[str, Any]] = []
+        per_cell_rows: list[dict[str, Any]] = []
 
         for atk in attack_types:
             atk_eps = [r for r in ep_results if r["attack"] == atk.value]
@@ -581,6 +771,28 @@ class EvaluationRunner:
                 "detected_episodes": g_det,
             })
 
+            for tier_val in ("EASY", "MEDIUM", "HARD"):
+                cell_eps = [r for r in atk_eps if r["tier"] == tier_val]
+                if not cell_eps:
+                    continue
+                c_total = len(cell_eps)
+                c_g = sum(1 for r in cell_eps if r["detected"])
+                c_p = sum(1 for r in cell_eps if r["pooled_detected"])
+                c_s = sum(1 for r in cell_eps if r["static_detected"])
+                c_z = sum(1 for r in cell_eps if r["zscore_detected"])
+                c_ttds = [r["ttd"] for r in cell_eps if r["ttd"] is not None]
+                per_cell_rows.append({
+                    "attack": atk.value,
+                    "tier": tier_val,
+                    "guardian_tpr": round((c_g / c_total) * 100.0, 1),
+                    "pooled_if_tpr": round((c_p / c_total) * 100.0, 1),
+                    "static_rules_tpr": round((c_s / c_total) * 100.0, 1),
+                    "zscore_tpr": round((c_z / c_total) * 100.0, 1),
+                    "mean_ttd_s": round(float(sum(c_ttds) / len(c_ttds)), 2) if c_ttds else 0.0,
+                    "total_episodes": c_total,
+                    "detected_episodes": c_g,
+                })
+
         # Aggregate per difficulty tier
         tier_breakdown: dict[str, dict[str, Any]] = {}
         for tier_val in ("EASY", "MEDIUM", "HARD"):
@@ -596,37 +808,111 @@ class EvaluationRunner:
                     "detected_episodes": t_det,
                 }
 
-        neg_total = max(1, total_fp + total_tn)
-        schedule_fpr = round((total_fp / neg_total) * 100.0, 1)
-        days_obs = max(1e-4, total_seconds / 86400.0)
-        schedule_far = round(
-            compute_false_alert_rate(
-                num_false_alerts=total_fp,
-                num_devices=max(1, len(self.devices)),
-                days_observed=days_obs,
-            ),
-            2,
-        )
+        days_obs = 6.0 * max(1, len(episodes) // 90)
+        n_devs = max(1, len(self.devices))
 
-        def _f1_from_counts(tp_c: int, fp_c: int, fn_c: int) -> float:
-            denom = 2 * tp_c + fp_c + fn_c
-            return round((2.0 * tp_c) / denom, 4) if denom > 0 else 0.0
+        def _evaluate_detector_at_threshold(det_key: str, thresh: float) -> dict[str, Any]:
+            norm_s = normal_window_scores[det_key]
+            atk_s = attack_window_scores[det_key]
+            ep_s = episode_peak_scores[det_key]
+
+            fp_c = sum(1 for s in norm_s if s >= thresh)
+            tn_c = len(norm_s) - fp_c
+            tp_w = sum(1 for s in atk_s if s >= thresh)
+            fn_w = len(atk_s) - tp_w
+
+            ep_tp = sum(1 for s in ep_s if s >= thresh)
+            ep_fn = len(ep_s) - ep_tp
+
+            # Confusion-based F1: use window counts (tp_w, fp_c, fn_w); if ep_tp > 0 and tp_w == 0, use ep_tp
+            eff_tp = tp_w if tp_w > 0 else ep_tp
+            eff_fn = fn_w if tp_w > 0 else ep_fn
+            denom = 2 * eff_tp + fp_c + eff_fn
+            f1_val = round((2.0 * eff_tp) / denom, 4) if denom > 0 else 0.0
+
+            fpr_pct = round((fp_c / max(1, len(norm_s))) * 100.0, 2)
+            ep_tpr_pct = round((ep_tp / max(1, len(ep_s))) * 100.0, 2)
+            win_tpr_pct = round((tp_w / max(1, len(atk_s))) * 100.0, 2)
+            far_val = round(
+                compute_false_alert_rate(
+                    num_false_alerts=fp_c,
+                    num_devices=n_devs,
+                    days_observed=days_obs,
+                ),
+                2,
+            )
+            return {
+                "threshold": round(thresh, 2),
+                "tp": eff_tp,
+                "fp": fp_c,
+                "tn": tn_c,
+                "fn": eff_fn,
+                "episode_tpr": ep_tpr_pct,
+                "window_tpr": win_tpr_pct,
+                "fpr": fpr_pct,
+                "f1": f1_val,
+                "far_per_day": far_val,
+            }
+
+        default_thresholds = {
+            "guardian": guardian_thresh,
+            "pooled": pooled_thresh,
+            "static": static_thresh,
+            "zscore": zscore_thresh,
+        }
+        detector_summary = {
+            k: _evaluate_detector_at_threshold(k, t)
+            for k, t in default_thresholds.items()
+        }
+
+        # Operating curves across thresholds for all detectors
+        curve_thresholds = [30.0, 40.0, 50.0, 55.0, 60.0, 65.0, 68.65, 72.0, 75.0, 80.0, 85.0, 90.0, 95.0, 99.0]
+        operating_curves: dict[str, list[dict[str, Any]]] = {
+            k: [_evaluate_detector_at_threshold(k, t) for t in curve_thresholds]
+            for k in ("guardian", "zscore", "pooled", "static")
+        }
+
+        # Equal False-Alarm Rate comparison (target <= 1.0 false alert/device/day, or closest achievable FAR)
+        target_far = 1.0
+        equal_far_comparison: dict[str, dict[str, Any]] = {}
+        candidate_grid = [round(x, 2) for x in np.linspace(20.0, 99.9, 160)]
+        for k in ("guardian", "pooled", "static", "zscore"):
+            pts = [_evaluate_detector_at_threshold(k, t) for t in candidate_grid]
+            feasible = [p for p in pts if p["far_per_day"] <= target_far]
+            if feasible:
+                # Highest episode TPR among thresholds achieving FAR <= target_far
+                best_pt = max(feasible, key=lambda p: (p["episode_tpr"], p["f1"], -p["threshold"]))
+            else:
+                # Minimum FAR achievable if detector's score saturates at 100.0
+                best_pt = min(pts, key=lambda p: (p["far_per_day"], -p["episode_tpr"]))
+            equal_far_comparison[k] = best_pt
 
         return {
             "detection_rows": detection_rows,
+            "per_cell_rows": per_cell_rows,
             "tier_breakdown": tier_breakdown,
             "episode_results": ep_results,
             "precomputed_episode_windows": precomputed_episode_windows,
-            "schedule_fpr": schedule_fpr,
-            "schedule_far": schedule_far,
+            "schedule_fpr": detector_summary["guardian"]["fpr"],
+            "schedule_far": detector_summary["guardian"]["far_per_day"],
+            "schedule_f1": detector_summary["guardian"]["f1"],
             "baseline_fprs": {
-                "pooled": round((pooled_fp / max(1, pooled_fp + pooled_tn)) * 100.0, 1),
-                "static": round((static_fp / max(1, static_fp + static_tn)) * 100.0, 1),
-                "zscore": round((zscore_fp / max(1, zscore_fp + zscore_tn)) * 100.0, 1),
+                "pooled": detector_summary["pooled"]["fpr"],
+                "static": detector_summary["static"]["fpr"],
+                "zscore": detector_summary["zscore"]["fpr"],
             },
             "baseline_f1s": {
-                "pooled": _f1_from_counts(pooled_tp, pooled_fp, pooled_fn),
-                "static": _f1_from_counts(static_tp, static_fp, static_fn),
-                "zscore": _f1_from_counts(zscore_tp, zscore_fp, zscore_fn),
+                "pooled": detector_summary["pooled"]["f1"],
+                "static": detector_summary["static"]["f1"],
+                "zscore": detector_summary["zscore"]["f1"],
             },
+            "baseline_fars": {
+                "pooled": detector_summary["pooled"]["far_per_day"],
+                "static": detector_summary["static"]["far_per_day"],
+                "zscore": detector_summary["zscore"]["far_per_day"],
+            },
+            "detector_confusion_summary": detector_summary,
+            "equal_far_comparison": equal_far_comparison,
+            "operating_curves": operating_curves,
         }
+
