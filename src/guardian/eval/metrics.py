@@ -76,6 +76,18 @@ def compute_binary_metrics(
     )
 
 
+def compute_f1_from_confusion_counts(tp: int, fp: int, tn: int, fn: int) -> float:
+    """
+    Compute F1 score directly from confusion matrix counts (TP, FP, TN, FN).
+    Guarantees F1 > 0 whenever TP > 0 (e.g., TPR > 0 and FPR == 0).
+    """
+    _ = tn
+    denom = 2 * int(tp) + int(fp) + int(fn)
+    if denom <= 0 or tp <= 0:
+        return 0.0
+    return float((2.0 * tp) / denom)
+
+
 def compute_roc_auc(
     y_true: Sequence[int],
     y_scores: Sequence[float],

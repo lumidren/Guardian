@@ -33,6 +33,7 @@ from .calibration import Calibrator, OperatingPoint
 from .metrics import (
     BinaryMetrics,
     compute_binary_metrics,
+    compute_f1_from_confusion_counts,
     compute_false_alert_rate,
     compute_pr_auc,
     compute_roc_auc,
@@ -73,6 +74,7 @@ class EvaluationMetricsReport:
     mean_time_to_detect_s: float
     per_attack_detection_rates: dict[str, float] = field(default_factory=dict)
     baseline_tprs: dict[str, float] = field(default_factory=dict)
+    baseline_f1s: dict[str, float] = field(default_factory=dict)
     baseline_metrics: dict[str, BinaryMetrics] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,6 +106,7 @@ class EvaluationMetricsReport:
                 k: round(v, 4) for k, v in self.per_attack_detection_rates.items()
             },
             "baseline_tprs": {k: round(v, 2) for k, v in self.baseline_tprs.items()},
+            "baseline_f1s": {k: round(v, 4) for k, v in self.baseline_f1s.items()},
         }
 
 
@@ -586,6 +589,17 @@ class EvaluationRunner:
                 "zscore": zscore_bin.tpr * 100.0,
                 "pooled": pooled_bin.tpr * 100.0,
             },
+            baseline_f1s={
+                "static": compute_f1_from_confusion_counts(
+                    static_bin.tp, static_bin.fp, static_bin.tn, static_bin.fn
+                ),
+                "zscore": compute_f1_from_confusion_counts(
+                    zscore_bin.tp, zscore_bin.fp, zscore_bin.tn, zscore_bin.fn
+                ),
+                "pooled": compute_f1_from_confusion_counts(
+                    pooled_bin.tp, pooled_bin.fp, pooled_bin.tn, pooled_bin.fn
+                ),
+            },
             baseline_metrics={
                 "static": static_bin,
                 "zscore": zscore_bin,
@@ -880,8 +894,10 @@ class EvaluationRunner:
             # Confusion-based F1: use window counts (tp_w, fp_c, fn_w); if ep_tp > 0 and tp_w == 0, use ep_tp
             eff_tp = tp_w if tp_w > 0 else ep_tp
             eff_fn = fn_w if tp_w > 0 else ep_fn
-            denom = 2 * eff_tp + fp_c + eff_fn
-            f1_val = round((2.0 * eff_tp) / denom, 4) if denom > 0 else 0.0
+            f1_val = round(
+                compute_f1_from_confusion_counts(eff_tp, fp_c, tn_c, eff_fn),
+                4,
+            )
 
             fpr_pct = round((fp_c / max(1, len(norm_s))) * 100.0, 2)
             ep_tpr_pct = round((ep_tp / max(1, len(ep_s))) * 100.0, 2)
