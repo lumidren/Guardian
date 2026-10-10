@@ -1,14 +1,14 @@
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Configuration} & \textbf{TPR (\%)} & \textbf{FPR (\%)} & \textbf{F1} & \textbf{ROC-AUC} \\
+\textbf{Configuration} & \textbf{Ep TPR (\%)} & \textbf{Win TPR (\%)} & \textbf{FPR (\%)} & \textbf{F1} & \textbf{ROC-AUC} \\
 \midrule
-Full GUARDIAN & 93.8\% & 0.0\% & 0.9019 & 1.0000 \\
-Statistical Detector Only (No ML) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
-Isolation Forest Only (No Stat) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
-No Layer 1 (Volumetric Dynamics) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
-No Layer 2 (Network Graph) & 0.0\% & 0.0\% & 0.0000 & 0.5000 \\
-No Layer 3 (Temporal/App) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
-No Hysteresis (Instantaneous) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
-Uncalibrated (Fixed Threshold) & 0.0\% & 0.0\% & 0.0000 & 1.0000 \\
+Full GUARDIAN & 96.1\% & 86.2\% & 9.3\% & 0.9173 & 0.9319 \\
+Statistical Detector Only (No ML) & 95.5\% & 83.2\% & 9.8\% & 0.8995 & 0.9202 \\
+Isolation Forest Only (No Stat) & 96.2\% & 86.0\% & 9.4\% & 0.9158 & 0.9359 \\
+No Layer 1 (Volumetric Dynamics) & 94.3\% & 81.7\% & 12.7\% & 0.8879 & 0.8831 \\
+No Layer 2 (Network Graph) & 96.8\% & 81.7\% & 16.2\% & 0.8844 & 0.8578 \\
+No Layer 3 (Temporal/App) & 97.1\% & 87.3\% & 9.9\% & 0.9231 & 0.9348 \\
+No Hysteresis (Instantaneous) & 98.0\% & 87.5\% & 11.4\% & 0.9231 & 0.9319 \\
+Uncalibrated (Fixed Threshold) & 97.4\% & 87.4\% & 10.4\% & 0.9229 & 0.9319 \\
 \bottomrule
 \end{tabular}
