@@ -75,3 +75,39 @@ def learn_port_and_protocol_allowlist(
         },
         created_at=time.time() if created_at is None else created_at,
     )
+
+
+def learn_active_hours(
+    device_id: str,
+    observations: Sequence[BaselineWindowObservation],
+    min_bytes_threshold: int = 64,
+    created_at: float | None = None,
+) -> PolicyRule:
+    """
+    Task 59: Learn active circadian hours (0..23 UTC) from unflagged baseline observations.
+    """
+    from datetime import UTC, datetime
+
+    clean = _unflagged(observations)
+    active_hours = sorted(
+        {
+            datetime.fromtimestamp(obs.timestamp, tz=UTC).hour
+            for obs in clean
+            if (obs.upload_bytes + obs.download_bytes) >= min_bytes_threshold
+        }
+    )
+    if not active_hours:
+        active_hours = list(range(24))
+    return PolicyRule(
+        rule_id=f"rule_active_hours_{device_id}",
+        kind=RuleKind.ACTIVE_HOURS,
+        scope=RuleScope.DEVICE,
+        target_id=device_id,
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={
+            "active_hours_utc": active_hours,
+            "min_hour": min(active_hours),
+            "max_hour": max(active_hours),
+        },
+        created_at=time.time() if created_at is None else created_at,
+    )

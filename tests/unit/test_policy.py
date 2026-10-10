@@ -100,3 +100,17 @@ def test_learn_port_and_protocol_allowlist() -> None:
     assert rule.kind == RuleKind.PORT_PROTOCOL_ALLOWLIST
     assert rule.parameters["allowed_ports"] == [53, 123, 1883]
     assert rule.parameters["allowed_protocols"] == ["DNS", "MQTT", "NTP"]
+
+
+def test_learn_active_hours() -> None:
+    """Task 59: Verify learn_active_hours extracts circadian active hours from baseline traffic."""
+    from guardian.policy.learner import BaselineWindowObservation, learn_active_hours
+
+    obs = [
+        BaselineWindowObservation(device_id="dev_cam", timestamp=8 * 3600.0, upload_bytes=500),
+        BaselineWindowObservation(device_id="dev_cam", timestamp=14 * 3600.0, upload_bytes=600),
+        BaselineWindowObservation(device_id="dev_cam", timestamp=2 * 3600.0, upload_bytes=10),  # below threshold
+    ]
+    rule = learn_active_hours("dev_cam", obs, min_bytes_threshold=64, created_at=100.0)
+    assert rule.kind == RuleKind.ACTIVE_HOURS
+    assert rule.parameters["active_hours_utc"] == [8, 14]
