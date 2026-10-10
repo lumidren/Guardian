@@ -65,19 +65,23 @@ def generate_full_evaluation_report(
     t_start = time.time()
     git_sha = _get_git_commit_sha()
     run_id = f"eval_{int(t_start)}_{seed}_{git_sha}"
+    print(f"[{time.strftime('%H:%M:%S')}] Starting evaluation run_id={run_id} (seed={seed}, quick_mode={quick_mode})", flush=True)
 
     # Fleet and episode parameters
     fleet = generate_scaled_fleet(8)
     slice_duration_s = 40.0 if quick_mode else 70.0
 
     # 1. Full Protocol Detection Performance per Attack Class across Tiers
+    print(f"[{time.strftime('%H:%M:%S')}] Step 1/9: Training Days 1-7 baseline models for 8 devices...", flush=True)
     runner = EvaluationRunner(
         seed=seed,
         total_days=14,
         devices=fleet,
     )
     # Day 8: Calibration split (strictly clean traffic)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 2/9: Calibrating operating point on Day 8 clean traffic...", flush=True)
     calibrated_op = runner.calibrate_operating_point(target_fpr=0.05)
+    print(f"[{time.strftime('%H:%M:%S')}] Calibrated alert threshold={calibrated_op.alert_threshold:.2f} (elapsed={time.time() - t_start:.2f}s)", flush=True)
 
     # Days 9-14: Test schedule across all 6 attacks x 3 tiers
     episodes_per_tier = 5 if quick_mode else 50
@@ -86,10 +90,16 @@ def generate_full_evaluation_report(
         tiers=tiers,
         episodes_per_tier=episodes_per_tier,
     )
+    print(f"[{time.strftime('%H:%M:%S')}] Step 3/9: Evaluating Days 9-14 ground-truth schedule ({len(episodes)} episodes: 6 attacks x 3 tiers x {episodes_per_tier} episodes)...", flush=True)
 
     sched_res = runner.evaluate_ground_truth_schedule(episodes)
     detection_rows = sched_res["detection_rows"]
     tier_breakdown = sched_res["tier_breakdown"]
+    for row in detection_rows:
+        print(
+            f"[{time.strftime('%H:%M:%S')}]   -> {row['attack']}: TPR={row['guardian_tpr']:.1f}%, F1={row['f1']:.4f}, TTD={row['mean_ttd_s']:.2f}s",
+            flush=True,
+        )
 
     # EXACT mathematical macro average across all attack rows
     macro_guardian = round(sum(r["guardian_tpr"] for r in detection_rows) / len(detection_rows), 2)
@@ -98,6 +108,7 @@ def generate_full_evaluation_report(
     macro_zscore = round(sum(r["zscore_tpr"] for r in detection_rows) / len(detection_rows), 2)
 
     macro_guardian_f1 = round(sum(r["f1"] for r in detection_rows) / len(detection_rows), 4)
+    print(f"[{time.strftime('%H:%M:%S')}] Macro Average TPR={macro_guardian:.2f}%, F1={macro_guardian_f1:.4f} (elapsed={time.time() - t_start:.2f}s)", flush=True)
 
     # Clean background slice for empirical false alarm metrics
     clean_rep = runner.evaluate_device_slice(
@@ -169,6 +180,7 @@ def generate_full_evaluation_report(
     }
 
     # 3. Ablation Battery
+    print(f"[{time.strftime('%H:%M:%S')}] Step 4/9: Running 8-configuration Ablation Battery...", flush=True)
     ablation_runner = AblationRunner(seed=seed, devices=fleet[:2])
     test_ep = runner.scenario_builder.create_offset_episode(
         episode_id=f"ep_abl_{seed}",
@@ -203,6 +215,7 @@ def generate_full_evaluation_report(
         raise ValueError(f"Cross-table consistency check failed: {msg}")
 
     # 4. Adversarial Evasion Robustness
+    print(f"[{time.strftime('%H:%M:%S')}] Step 5/9: Evaluating 6 Adversarial Evasion Tactics...", flush=True)
     evasion_modes = list(EvasionMode)
     adv_rows: list[dict[str, Any]] = []
     for em in evasion_modes:
@@ -232,6 +245,7 @@ def generate_full_evaluation_report(
     adversarial_data = {"rows": adv_rows}
 
     # 5. System Resources (psutil)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 6/9: Measuring System Resource Overhead (psutil CPU/RAM)...", flush=True)
     res_bench = SystemResourceBenchmark()
     res_report = res_bench.measure_pipeline_run(
         devices=fleet[:4 if quick_mode else 8],
@@ -240,6 +254,7 @@ def generate_full_evaluation_report(
     resources_data = res_report.to_dict()
 
     # 6. Three Distinct Latencies
+    print(f"[{time.strftime('%H:%M:%S')}] Step 7/9: Measuring 3 Distinct Latencies (Compute, Enforcement, TTD)...", flush=True)
     lat_bench = LatencyBenchmark()
     lat_report = lat_bench.measure_latencies(
         devices=fleet[:2],
@@ -251,21 +266,25 @@ def generate_full_evaluation_report(
 
     # 7. Scalability Sweep
     scale_counts = [8, 12] if quick_mode else [8, 12, 16, 20]
+    print(f"[{time.strftime('%H:%M:%S')}] Step 8/9: Running Fleet Scalability Sweep across {scale_counts} devices...", flush=True)
     scale_bench = ScalabilityBenchmark(device_counts=scale_counts)
     scale_report = scale_bench.run_scalability_sweep(duration_per_tier_s=20.0)
     scalability_data = scale_report.to_dict()
 
     # 8. Real-Time Packet Stream & Buffer Drop Counters (Milestone P3-6)
+    print(f"[{time.strftime('%H:%M:%S')}] Step 9/9: Running Real-Time Load & Drop Benchmark...", flush=True)
     load_bench = RealTimeLoadBenchmark(queue_capacity=5000, processing_rate_pps=20000.0)
     load_report = load_bench.run_load_test(devices=fleet[:4], duration_seconds=10.0, burst_factor=1.0)
     load_data = load_report.to_dict()
 
+    runtime_seconds = round(time.time() - t_start, 2)
     report_data = {
         "run_id": run_id,
         "git_sha": git_sha,
         "seed": seed,
         "timestamp": datetime.now(UTC).isoformat(),
         "quick_mode": quick_mode,
+        "runtime_seconds": runtime_seconds,
         "environment": "Software Emulation on Host (Simulated IoT Network Telemetry)",
         "detection": detection_data,
         "baselines": baselines_data,
@@ -283,6 +302,7 @@ def generate_full_evaluation_report(
     report_data["plausibility"] = plausibility_res.to_dict()
     if not plausibility_res.is_plausible:
         raise ValueError(f"Plausibility guard failed: {plausibility_res.violations}")
+    print(f"[{time.strftime('%H:%M:%S')}] Completed evaluation run_id={run_id} in {runtime_seconds:.2f}s (Plausibility Guard: PASS)", flush=True)
 
     return report_data
 
