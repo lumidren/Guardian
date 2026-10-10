@@ -42,12 +42,11 @@ jobs:
       run: |
         make type
 
-    - name: Run Tests (make test & cov)
+    - name: Run Unit Tests with Coverage (make test)
       env:
         PYTHONPATH: src:.
       run: |
-        make test
-        pytest --cov=src/guardian --cov-report=xml tests/
+        pytest --cov=src/guardian --cov-report=xml tests/unit -v
 
     - name: Privileged Linux nftables & Playwright Dashboard E2E Verification
       run: |
