@@ -423,33 +423,40 @@ class AttackSuite:
         bytes_per_hour: float = 360.0,
     ) -> list[ParsedPacket]:
         """
-        Inject low-and-slow stealth exfiltration staying within tight hourly byte budgets.
+        Inject hardened low-and-slow stealth exfiltration staying within tight hourly byte budgets,
+        reusing whitelisted destinations, legitimate protocol ports, and matched byte range.
         """
         now = current_time or time.time()
         start_time = now - window_duration
         packets: list[ParsedPacket] = []
 
+        min_b, max_b = victim_device.normal_byte_range
         expected_bytes = (bytes_per_hour / 3600.0) * window_duration
-        pkt_len = max(54, min(100, int(expected_bytes) + 54))
-        ts = random.uniform(start_time, now)
-        packets.append(ParsedPacket(
-            timestamp=ts,
-            src_ip=victim_device.ip_address,
-            dst_ip="198.51.100.89",
-            src_mac=victim_device.mac_address,
-            dst_mac="B8:27:EB:AA:BB:CC",
-            src_port=random.randint(49152, 65535),
-            dst_port=443,
-            protocol="TCP",
-            app_protocol="HTTPS",
-            length=pkt_len,
-            ttl=64,
-            ip_id=random.randint(1000, 60000),
-            tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
-            tcp_window=64240,
-            tcp_timestamp=int(ts * 1000) % 4294967295,
-            is_outbound=True,
-        ))
+        pkt_len = max(min_b, min(max_b, int(round(min_b + expected_bytes))))
+        dst_ip = victim_device.normal_destinations[0]
+        dst_port = _whitelisted_ports_for_device(victim_device)[0]
+        ts = start_time + 0.5 * window_duration + random.uniform(-0.1, 0.1) * window_duration
+        ts = max(start_time, min(now, ts))
+        packets.append(
+            ParsedPacket(
+                timestamp=ts,
+                src_ip=victim_device.ip_address,
+                dst_ip=dst_ip,
+                src_mac=victim_device.mac_address,
+                dst_mac="B8:27:EB:AA:BB:CC",
+                src_port=random.randint(49152, 65535),
+                dst_port=dst_port,
+                protocol="TCP",
+                app_protocol=victim_device.primary_protocol,
+                length=pkt_len,
+                ttl=64,
+                ip_id=random.randint(1000, 60000),
+                tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                tcp_window=64240,
+                tcp_timestamp=int(ts * 1000) % 4294967295,
+                is_outbound=True,
+            )
+        )
         return packets
 
     def inject_adaptive_attack(
