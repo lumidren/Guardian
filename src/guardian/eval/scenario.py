@@ -168,11 +168,11 @@ class ScenarioBuilder:
         if tiers is not None:
             tier_list = list(tiers)
             target_eps = episodes_per_tier if episodes_per_tier is not None else max(1, episodes_per_attack // len(tier_list))
-            for atk in attacks:
+            for atk_idx, atk in enumerate(attacks):
                 for tier in tier_list:
                     for i in range(target_eps):
                         intensity = intensities[i % len(intensities)]
-                        dev = valid_devs[(i + int(atk.value.__hash__())) % len(valid_devs)]
+                        dev = valid_devs[(i + atk_idx) % len(valid_devs)]
                         evasion = evasion_modes[0]
                         planned_runs.append((atk, intensity, evasion, dev, tier))
         else:
