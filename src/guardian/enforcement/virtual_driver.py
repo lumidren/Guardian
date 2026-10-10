@@ -22,16 +22,32 @@ class DeviceFilterState:
 
 
 class VirtualFirewallDriver:
-    def __init__(self, local_subnet_prefix: str = "192.168.1."):
+    def __init__(
+        self,
+        local_subnet_prefix: str = "192.168.1.",
+        protected_addresses: set[str] | frozenset[str] | None = None,
+    ):
         self.local_subnet_prefix = local_subnet_prefix
+        self.protected_addresses = set(
+            protected_addresses
+            if protected_addresses is not None
+            else {"127.0.0.1", "::1", "192.168.1.1", "192.168.1.2"}
+        )
         self.device_states: dict[str, DeviceFilterState] = {}
+
+    def is_protected(self, ip_address: str) -> bool:
+        return ip_address in self.protected_addresses
 
     def apply_policy(self, ip_address: str, level: ThreatLevel) -> float:
         """
         Apply graduated policy in virtual firewall table.
         Returns execution latency in seconds (<0.001s).
+        Protected addresses are never throttled or blocked.
         """
         start = time.perf_counter()
+        if self.is_protected(ip_address):
+            level = ThreatLevel.MONITOR
+
         state = self.device_states.get(ip_address)
         if not state:
             state = DeviceFilterState(ip_address=ip_address)
@@ -59,6 +75,10 @@ class VirtualFirewallDriver:
 
         latency = time.perf_counter() - start
         return latency
+
+    def revert_policy(self, ip_address: str) -> float:
+        """Revert device policy back to MONITOR."""
+        return self.apply_policy(ip_address, ThreatLevel.MONITOR)
 
     def should_allow_packet(self, src_ip: str, dst_ip: str) -> bool:
         """Evaluate if an outbound packet is allowed under active policy."""
