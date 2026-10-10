@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from ..capture.flow_tracker import FlowSummary
-from ..config import FEATURE_NAMES
+from .registry import FEATURE_NAMES
 
 HIGH_RISK_PORTS = {21, 22, 23, 2323, 3389, 4444, 5555, 6667, 8888, 9999, 1337, 31337}
 
