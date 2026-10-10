@@ -203,11 +203,12 @@ def test_tpr_positive_and_fpr_zero_implies_f1_positive() -> None:
     """
     Verify that:
     1) Any confusion matrix with TPR > 0 and FPR == 0 strictly produces F1 > 0.
-    2) In the real evaluation schedule, Pooled Isolation Forest produces TPR > 0,
+    2) compute_f1_from_confusion_counts(tp, fp=0, tn, fn) > 0 for all tp >= 1.
+    3) In the real evaluation schedule, Pooled Isolation Forest produces TPR > 0,
        and every baseline with TPR > 0 (including Static Threshold Rules with FPR == 0)
        has F1 > 0 computed from the same confusion counts.
     """
-    from guardian.eval.metrics import compute_binary_metrics
+    from guardian.eval.metrics import compute_binary_metrics, compute_f1_from_confusion_counts
     from guardian.eval.runner import EvaluationRunner
     from guardian.eval.scenario import DifficultyTier
 
@@ -218,6 +219,8 @@ def test_tpr_positive_and_fpr_zero_implies_f1_positive() -> None:
     assert m.tpr > 0.0
     assert m.fpr == 0.0
     assert m.f1 > 0.0
+    assert compute_f1_from_confusion_counts(m.tp, m.fp, m.tn, m.fn) == m.f1
+    assert compute_f1_from_confusion_counts(tp=1, fp=0, tn=1000, fn=99) > 0.0
 
     # Schedule-level baseline confusion check
     runner = EvaluationRunner(seed=42, total_days=14, devices=DEFAULT_FLEET_SPECS[:2])
@@ -226,6 +229,16 @@ def test_tpr_positive_and_fpr_zero_implies_f1_positive() -> None:
         tiers=[DifficultyTier.EASY],
         episodes_per_tier=1,
     )
+    slice_rep = runner.evaluate_device_slice(
+        device_id=episodes[0].device_id,
+        start_time=max(0.0, episodes[0].start_time - 10.0),
+        end_time=episodes[0].end_time + 5.0,
+        episodes=[episodes[0]],
+    )
+    for b_key, b_tpr in slice_rep.baseline_tprs.items():
+        if b_tpr > 0.0:
+            assert slice_rep.baseline_f1s[b_key] > 0.0
+
     res = runner.evaluate_ground_truth_schedule(episodes[:2], pre_buffer_s=10.0, post_buffer_s=5.0)
     summary = res["detector_confusion_summary"]
 
@@ -287,8 +300,8 @@ def test_pooled_if_tpr_positive_on_easy_attacks() -> None:
     from guardian.eval.scenario import DifficultyTier
 
     runner = EvaluationRunner(seed=42, total_days=14, devices=DEFAULT_FLEET_SPECS[:2])
-    op = runner.calibrate_operating_point(target_fpr=0.05, duration_per_device_s=20.0)
-    assert 35.0 <= op.baseline_thresholds["pooled"] <= 95.0
+    runner.calibrate_operating_point(target_fpr=0.05, duration_per_device_s=20.0)
+    assert 35.0 <= runner._baseline_thresholds["pooled"] <= 95.0
 
     episodes = runner.scenario_builder.generate_ground_truth_schedule(
         tiers=[DifficultyTier.EASY],
