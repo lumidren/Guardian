@@ -299,7 +299,7 @@ class LatencyBenchmark:
                             ep_obj = next((e for e in episodes if e.episode_id == ep_id), None)
                             if ep_obj:
                                 ep_detected[ep_id] = True
-                                ttd = max(2.0, w.end_time - ep_obj.start_time)
+                                ttd = max(0.01, float(w.end_time - ep_obj.start_time))
                                 time_to_detect_s.append(ttd)
 
         c_mean = float(np.mean(compute_latencies_ms)) if compute_latencies_ms else 0.0

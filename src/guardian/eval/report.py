@@ -38,7 +38,7 @@ from .metrics import (
     check_evaluation_cross_table_consistency,
 )
 from .runner import EvaluationRunner
-from .scenario import AttackIntensity, DifficultyTier, EvasionMode, GroundTruthEpisode
+from .scenario import AttackIntensity, DifficultyTier, EvasionMode
 
 
 def _get_git_commit_sha() -> str:
@@ -170,12 +170,11 @@ def generate_full_evaluation_report(
 
     # 3. Ablation Battery
     ablation_runner = AblationRunner(seed=seed, devices=fleet[:2])
-    test_ep = GroundTruthEpisode(
+    test_ep = runner.scenario_builder.create_offset_episode(
         episode_id=f"ep_abl_{seed}",
         device_id=fleet[0].id,
         attack_type=AttackType.CNC_BEACONING,
-        start_time=10.0,
-        end_time=30.0,
+        base_start_time=10.0,
         duration_seconds=20.0,
         intensity=AttackIntensity.MEDIUM,
         evasion_mode=EvasionMode.NONE,
@@ -207,12 +206,11 @@ def generate_full_evaluation_report(
     evasion_modes = list(EvasionMode)
     adv_rows: list[dict[str, Any]] = []
     for em in evasion_modes:
-        adv_ep = GroundTruthEpisode(
+        adv_ep = runner.scenario_builder.create_offset_episode(
             episode_id=f"ep_adv_{em.value.lower()}_{seed}",
             device_id=fleet[0].id,
             attack_type=AttackType.CNC_BEACONING,
-            start_time=10.0,
-            end_time=30.0,
+            base_start_time=10.0,
             duration_seconds=20.0,
             intensity=AttackIntensity.MEDIUM,
             evasion_mode=em,

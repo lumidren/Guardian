@@ -236,7 +236,8 @@ class ScenarioBuilder:
     ) -> GroundTruthEpisode:
         """Helper to create an episode with a guaranteed sub-window start offset."""
         offset = calculate_sub_window_offset(stride_s=self.stride_s, rng=rng)
-        start_t = round(base_start_time + offset, 3)
+        aligned_base = float(np.floor(base_start_time / self.stride_s) * self.stride_s)
+        start_t = round(aligned_base + offset, 3)
         end_t = round(start_t + duration_seconds, 3)
         return GroundTruthEpisode(
             episode_id=episode_id,
