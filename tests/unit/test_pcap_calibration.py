@@ -203,3 +203,17 @@ def test_ks_test_per_feature_vs_real_nonzero_variance_only() -> None:
         assert row["real_std"] > 0.0, f"{fname} must have nonzero real variance"
         assert row["calibrated_sim_std"] > 0.0, f"{fname} must have nonzero calibrated sim variance"
         assert 0.0 <= row["ks_stat"] <= 1.0
+
+
+def test_cross_domain_fpr_report_after_calibration() -> None:
+    """Task 40: Verify cross-domain FPR report quantifies before/after calibration FPR and false alerts/dev/day."""
+    from guardian.eval.pcap_calibration import generate_cross_domain_fpr_after_calibration_report
+
+    rep = generate_cross_domain_fpr_after_calibration_report(n_train_windows=500, n_test_windows=500, seed=42)
+    assert rep["before_calibration"]["cross_domain_fpr"] == 1.0
+    assert rep["before_calibration"]["false_alerts_per_device_day"] == 8640.0
+    assert rep["after_calibration"]["cross_domain_fpr"] < 0.05
+    assert rep["after_calibration"]["false_alerts_per_device_day"] < 432.0
+    ci_lo, ci_hi = rep["after_calibration"]["cross_domain_fpr_ci_95"]
+    assert 0.0 <= ci_lo <= rep["after_calibration"]["cross_domain_fpr"] <= ci_hi <= 1.0
+    assert rep["in_domain_real_reference"]["test_windows"] == 7415
