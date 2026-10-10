@@ -44,6 +44,7 @@ class LinuxNftablesDriver:
         self.netns = netns
         self.has_nft = (shutil.which("nft") is not None) and _is_privileged_linux()
         self.active_policies: dict[str, ThreatLevel] = {}
+        self.last_error: str = ""
 
     def is_protected(self, ip_address: str) -> bool:
         """Return True if ip_address is in the protected infrastructure set."""
@@ -60,7 +61,7 @@ class LinuxNftablesDriver:
         """
         lines = [
             "table inet guardian_filter",
-            "delete table inet guardian_filter",
+            "flush table inet guardian_filter",
             "table inet guardian_filter {",
             "    chain forward {",
             "        type filter hook forward priority 0; policy accept;",
@@ -132,8 +133,13 @@ class LinuxNftablesDriver:
                 check=True,
                 capture_output=True,
             )
+            self.last_error = ""
             return True
-        except Exception:
+        except subprocess.CalledProcessError as exc:
+            self.last_error = exc.stderr or str(exc)
+            return False
+        except Exception as exc:
+            self.last_error = str(exc)
             return False
 
     def apply_policy(self, ip_address: str, level: ThreatLevel) -> float:
