@@ -659,8 +659,8 @@ class EvaluationRunner:
     def evaluate_ground_truth_schedule(
         self,
         episodes: Sequence[GroundTruthEpisode],
-        pre_buffer_s: float = 10.0,
-        post_buffer_s: float = 4.0,
+        pre_buffer_s: float = 20.0,
+        post_buffer_s: float = 10.0,
     ) -> dict[str, Any]:
         """
         Evaluates a schedule of ground truth attack episodes over their respective time windows.
