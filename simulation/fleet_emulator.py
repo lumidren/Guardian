@@ -297,6 +297,70 @@ class IoTFleetEmulator:
                 pkt.length = max(54, min(74, int(round(random.gauss(ack_mean_bytes, 2.0)))))
         return packets
 
+    def generate_tls_keepalive_burst_packets(
+        self,
+        device: IoTDeviceSpec,
+        window_duration: float = 10.0,
+        current_time: float | None = None,
+        inter_burst_interval_s: float = 1.35,
+        intra_burst_iat_ms: float = 5.0,
+    ) -> list[ParsedPacket]:
+        """Generate calibrated TLS/HTTPS keepalive micro-bursts (PSH-ACK + rapid ACK/response pairs)."""
+        now = current_time or time.time()
+        start_time = now - window_duration
+        peer_ip = device.normal_destinations[-1]
+        client_port = random.randint(49152, 65535)
+        packets: list[ParsedPacket] = []
+
+        cursor = start_time + random.uniform(0.05, 0.25)
+        while cursor < now:
+            # Outbound TLS application/keepalive record (PSH+ACK)
+            packets.append(
+                ParsedPacket(
+                    timestamp=cursor,
+                    src_ip=device.ip_address,
+                    dst_ip=peer_ip,
+                    src_mac=device.mac_address,
+                    dst_mac="B8:27:EB:AA:BB:CC",
+                    src_port=client_port,
+                    dst_port=443,
+                    protocol="TCP",
+                    app_protocol="HTTPS",
+                    length=max(85, int(round(random.gauss(140.5, 12.0)))),
+                    ttl=64,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags={"SYN": False, "ACK": True, "PSH": True, "RST": False, "FIN": False, "URG": False},
+                    tcp_window=37166,
+                    tcp_timestamp=int(cursor * 1000) % 4294967295,
+                    is_outbound=True,
+                )
+            )
+            # Inbound rapid ACK / keepalive response within intra_burst_iat_ms
+            resp_ts = min(now, cursor + max(0.0005, random.gauss(intra_burst_iat_ms, 1.2) / 1000.0))
+            packets.append(
+                ParsedPacket(
+                    timestamp=resp_ts,
+                    src_ip=peer_ip,
+                    dst_ip=device.ip_address,
+                    src_mac="B8:27:EB:AA:BB:CC",
+                    dst_mac=device.mac_address,
+                    src_port=443,
+                    dst_port=client_port,
+                    protocol="TCP",
+                    app_protocol="HTTPS",
+                    length=66,
+                    ttl=171,
+                    ip_id=random.randint(1000, 60000),
+                    tcp_flags={"SYN": False, "ACK": True, "PSH": False, "RST": False, "FIN": False, "URG": False},
+                    tcp_window=37166,
+                    tcp_timestamp=int(resp_ts * 1000) % 4294967295,
+                    is_outbound=False,
+                )
+            )
+            cursor += max(0.3, random.gauss(inter_burst_interval_s, inter_burst_interval_s * 0.25))
+
+        return packets
+
     def generate_hard_negative_packets(
         self,
         device: IoTDeviceSpec,

@@ -123,3 +123,17 @@ def test_ack_psh_packet_patterns() -> None:
     assert len(psh_pkts) > 0 and len(ack_only) > 0
     assert all(p.length >= 72 for p in psh_pkts)
     assert all(54 <= p.length <= 74 for p in ack_only)
+
+
+def test_tls_keepalive_burst_model() -> None:
+    """Task 35: Verify TLS keepalive burst model produces paired HTTPS request+ACK micro-bursts."""
+    from simulation.fleet_emulator import DEFAULT_FLEET_SPECS, IoTFleetEmulator
+
+    emulator = IoTFleetEmulator()
+    device = DEFAULT_FLEET_SPECS[3]
+    pkts = emulator.generate_tls_keepalive_burst_packets(device, current_time=1000.0)
+    assert len(pkts) >= 4
+    assert all(p.app_protocol == "HTTPS" for p in pkts)
+    iats_ms = [(pkts[i].timestamp - pkts[i - 1].timestamp) * 1000.0 for i in range(1, len(pkts))]
+    assert min(iats_ms) < 20.0
+    assert max(iats_ms) > 250.0
