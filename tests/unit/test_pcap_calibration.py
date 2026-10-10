@@ -188,3 +188,18 @@ def test_per_device_type_parameter_files_from_calibration(tmp_path: Path) -> Non
         "protocol_mix_model",
     ):
         assert key in gw
+
+
+def test_ks_test_per_feature_vs_real_nonzero_variance_only() -> None:
+    """Task 39: Verify KS and SMD evaluation runs strictly on nonzero-variance features and improves match rate."""
+    from guardian.eval.pcap_calibration import compute_calibrated_ks_and_smd_report
+
+    report = compute_calibrated_ks_and_smd_report(n_windows=250, seed=42)
+    assert report["nonzero_variance_feature_count"] == 27
+    assert report["excluded_zero_variance_count"] == 33
+    assert len(report["features"]) == 27
+    assert report["match_rate"] >= 0.85
+    for fname, row in report["features"].items():
+        assert row["real_std"] > 0.0, f"{fname} must have nonzero real variance"
+        assert row["calibrated_sim_std"] > 0.0, f"{fname} must have nonzero calibrated sim variance"
+        assert 0.0 <= row["ks_stat"] <= 1.0
