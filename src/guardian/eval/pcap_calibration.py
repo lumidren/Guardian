@@ -160,3 +160,66 @@ def fit_packet_size_mixture_model(
         max_bytes=int(round(max_len)),
     )
 
+
+@dataclass(frozen=True)
+class IATMicroBurstModel:
+    """
+    Task 29: Two-regime inter-arrival time (IAT) micro-burst model fitted from real PCAP stats:
+    - Intra-burst regime (prob p_intra): sub-millisecond/millisecond back-to-back ACK/PSH segments
+    - Inter-burst regime (prob 1 - p_intra): pause between keepalive/polling bursts
+    """
+
+    p_intra_burst: float
+    intra_mean_s: float
+    intra_min_s: float
+    inter_mean_s: float
+    inter_max_s: float
+    burstiness_index: float
+
+    def sample_timestamps(
+        self,
+        pkt_count: int,
+        start_time: float,
+        window_duration: float = 10.0,
+        rng: np.random.Generator | None = None,
+    ) -> list[float]:
+        gen = rng or np.random.default_rng()
+        if pkt_count <= 0:
+            return []
+        end_time = start_time + window_duration
+        t = start_time + float(gen.uniform(0.01, min(0.5, window_duration * 0.1)))
+        out = [t]
+        for _ in range(pkt_count - 1):
+            if float(gen.random()) < self.p_intra_burst:
+                gap = max(self.intra_min_s, float(gen.exponential(self.intra_mean_s)))
+            else:
+                gap = min(self.inter_max_s, float(gen.exponential(self.inter_mean_s)))
+            t = min(end_time - 1e-4, t + gap)
+            out.append(t)
+        return sorted(out)
+
+
+def fit_iat_micro_burst_model(
+    stats: dict[str, FeatureEmpiricalStats] | None = None,
+) -> IATMicroBurstModel:
+    """
+    Fit an inter-arrival micro-burst model from extracted real PCAP IAT statistics.
+    """
+    s = stats or extract_per_feature_pcap_stats()
+    iat_min = max(1e-5, s["iat_min"].mean)
+    iat_med = max(iat_min * 1.5, s["iat_median"].mean)
+    iat_mean = max(iat_med, s["iat_mean"].mean)
+    iat_max = max(iat_mean * 1.5, s["iat_max"].mean)
+    burst_idx = max(0.05, s["burstiness_index"].mean)
+    p_intra = 0.68
+    inter_mean = max(iat_mean * 1.2, (iat_mean - p_intra * iat_med) / (1.0 - p_intra))
+    return IATMicroBurstModel(
+        p_intra_burst=round(p_intra, 4),
+        intra_mean_s=round(iat_med, 6),
+        intra_min_s=round(iat_min, 6),
+        inter_mean_s=round(inter_mean, 6),
+        inter_max_s=round(iat_max, 6),
+        burstiness_index=round(burst_idx, 4),
+    )
+
+

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from guardian.eval.pcap_calibration import (
     extract_per_feature_pcap_stats,
+    fit_iat_micro_burst_model,
     fit_packet_size_mixture_model,
 )
 from guardian.features.registry import FEATURE_NAMES
@@ -34,4 +35,20 @@ def test_fit_packet_size_mixture_model() -> None:
     assert min(samples) >= model.min_bytes
     assert max(samples) <= model.max_bytes
     assert np.std(samples) > 10.0
+
+
+def test_fit_iat_micro_burst_model() -> None:
+    """Task 29: Verify inter-arrival micro-burst model fits intra- and inter-burst regimes."""
+    import numpy as np
+
+    model = fit_iat_micro_burst_model()
+    assert 0.3 <= model.p_intra_burst <= 0.9
+    assert model.intra_mean_s >= model.intra_min_s > 0.0
+    assert model.inter_mean_s > model.intra_mean_s
+    rng = np.random.default_rng(42)
+    ts = model.sample_timestamps(16, start_time=100.0, window_duration=10.0, rng=rng)
+    assert len(ts) == 16
+    assert ts == sorted(ts)
+    assert 100.0 <= ts[0] <= ts[-1] <= 110.0
+
 
