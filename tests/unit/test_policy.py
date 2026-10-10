@@ -23,3 +23,46 @@ def test_policy_rule_data_model_and_expiry() -> None:
     assert d["kind"] == "destination_allowlist"
     assert d["scope"] == "device"
     assert d["source"] == "baseline_learned"
+
+
+def test_db_tables_for_rules_and_decisions() -> None:
+    """Task 56: Verify SQLite DB tables for policy_rules and policy_decisions persist and filter expired rules."""
+    from guardian.policy import DecisionMode, PolicySQLiteStore
+
+    store = PolicySQLiteStore(":memory:")
+    r_active = PolicyRule(
+        rule_id="r_active",
+        kind=RuleKind.DESTINATION_ALLOWLIST,
+        scope=RuleScope.DEVICE,
+        target_id="dev_01_temp",
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={"allowed_ips": ["192.168.1.1"]},
+        created_at=100.0,
+        expires_at=500.0,
+    )
+    r_expired = PolicyRule(
+        rule_id="r_expired",
+        kind=RuleKind.ACTIVE_HOURS,
+        scope=RuleScope.DEVICE,
+        target_id="dev_01_temp",
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={"hours": [6, 22]},
+        created_at=100.0,
+        expires_at=200.0,
+    )
+    store.upsert_rule(r_active)
+    store.upsert_rule(r_expired)
+    active = store.get_active_rules(target_id="dev_01_temp", now=300.0)
+    assert [r.rule_id for r in active] == ["r_active"]
+
+    store.record_decision(
+        decision_id="dec_1",
+        device_id="dev_01_temp",
+        rule_kind=RuleKind.STREAMING_CAPABILITY,
+        subject_key="stream:rtsp",
+        mode=DecisionMode.ALWAYS,
+        created_at=300.0,
+    )
+    decisions = store.get_decisions("dev_01_temp")
+    assert len(decisions) == 1
+    assert decisions[0]["mode"] == "always"
