@@ -372,25 +372,54 @@ def check_evaluation_cross_table_consistency(
     return True, "Evaluation tables consistent and non-identical."
 
 
+def seed_bootstrap_ci(
+    seed_values: Sequence[float],
+    num_bootstraps: int = 1000,
+    ci: float = 0.95,
+    seed: int = 42,
+) -> BootstrapCI:
+    """
+    Compute seed-level non-parametric bootstrap mean and 95% confidence interval
+    over per-seed continuous metrics (e.g., mean TTD, F1, FAR/day, latency).
+    """
+    return bootstrap_ci(
+        data=seed_values,
+        num_bootstraps=num_bootstraps,
+        ci=ci,
+        seed=seed,
+    )
+
+
 def aggregate_multi_seed_results(
     seed_runs: Sequence[dict[str, Any]],
     ci_level: float = 0.95,
 ) -> dict[str, Any]:
     """
-    Aggregate evaluation results across multiple random seeds with 95% bootstrap CIs.
+    Aggregate evaluation results across multiple random seeds with Wilson CIs for rates
+    and seed-level bootstrap CIs for continuous metrics.
     """
     n_seeds = len(seed_runs)
     if n_seeds == 0:
         return {"n_seeds": 0}
 
     total_episodes = sum(int(r.get("total_episodes", 0)) for r in seed_runs)
+    detected_episodes = sum(int(r.get("detected_episodes", 0)) for r in seed_runs)
     det_rates = [float(r.get("detection_rate", 0.0)) for r in seed_runs]
     ttds = [float(r.get("mean_ttd_s", 0.0)) for r in seed_runs]
     fprs = [float(r.get("fpr", 0.0)) for r in seed_runs]
 
-    det_ci = bootstrap_ci(det_rates, num_bootstraps=1000, ci=ci_level, seed=42)
-    ttd_ci = bootstrap_ci(ttds, num_bootstraps=1000, ci=ci_level, seed=42)
-    fpr_ci = bootstrap_ci(fprs, num_bootstraps=1000, ci=ci_level, seed=42)
+    if total_episodes > 0 and detected_episodes > 0:
+        det_ci = wilson_score_ci(
+            successes=detected_episodes,
+            total=total_episodes,
+            ci=ci_level,
+            scale_100=max(det_rates, default=0.0) > 1.0,
+        )
+    else:
+        det_ci = seed_bootstrap_ci(det_rates, num_bootstraps=1000, ci=ci_level, seed=42)
+
+    ttd_ci = seed_bootstrap_ci(ttds, num_bootstraps=1000, ci=ci_level, seed=42)
+    fpr_ci = seed_bootstrap_ci(fprs, num_bootstraps=1000, ci=ci_level, seed=42)
 
     return {
         "n_seeds": n_seeds,
