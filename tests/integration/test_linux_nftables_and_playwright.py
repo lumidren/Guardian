@@ -169,18 +169,22 @@ def test_privileged_linux_nftables_real_traffic_tiers() -> None:
 
         # 1. MONITOR tier: both LAN and WAN reachable
         driver.apply_policy(iot_ip, ThreatLevel.MONITOR)
+        assert driver.last_error == "", f"MONITOR nft error: {driver.last_error}"
         assert can_ping(ns_iot, lan_gw_ip) is True, "MONITOR: LAN should be reachable"
         assert can_ping(ns_iot, wan_ip) is True, "MONITOR: WAN should be reachable"
 
         # 2. RESTRICT tier: rate-limited LAN reachable, uncataloged WAN dropped
         driver.apply_policy(iot_ip, ThreatLevel.RESTRICT)
+        assert driver.last_error == "", f"RESTRICT nft error: {driver.last_error}"
         live_rules_restrict = driver.list_ruleset()
-        assert "limit rate over 500 kbytes/second drop" in live_rules_restrict
+        assert "limit rate over 500 kbytes/second" in live_rules_restrict
+        assert f"guardian_restrict_wan_{iot_ip}" in live_rules_restrict
         assert can_ping(ns_iot, lan_gw_ip) is True, "RESTRICT: LAN should remain reachable"
         assert can_ping(ns_iot, wan_ip) is False, "RESTRICT: WAN must be dropped"
 
         # 3. QUARANTINE tier: WAN dropped, LAN reachable
         driver.apply_policy(iot_ip, ThreatLevel.QUARANTINE)
+        assert driver.last_error == "", f"QUARANTINE nft error: {driver.last_error}"
         live_rules_quar = driver.list_ruleset()
         assert f"guardian_quarantine_wan_{iot_ip}" in live_rules_quar
         assert can_ping(ns_iot, lan_gw_ip) is True, "QUARANTINE: LAN should remain reachable"
@@ -188,6 +192,7 @@ def test_privileged_linux_nftables_real_traffic_tiers() -> None:
 
         # 4. BLOCK tier: both LAN and WAN dropped
         driver.apply_policy(iot_ip, ThreatLevel.BLOCK)
+        assert driver.last_error == "", f"BLOCK nft error: {driver.last_error}"
         live_rules_block = driver.list_ruleset()
         assert f"guardian_block_src_{iot_ip}" in live_rules_block
         assert can_ping(ns_iot, lan_gw_ip) is False, "BLOCK: LAN must be dropped"
@@ -195,6 +200,7 @@ def test_privileged_linux_nftables_real_traffic_tiers() -> None:
 
         # 5. Revert rules: both LAN and WAN immediately reachable again
         assert driver.revert_policy(iot_ip) is True
+        assert driver.last_error == "", f"REVERT nft error: {driver.last_error}"
         assert can_ping(ns_iot, lan_gw_ip) is True, "REVERT: LAN must recover"
         assert can_ping(ns_iot, wan_ip) is True, "REVERT: WAN must recover"
 
