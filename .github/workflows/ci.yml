@@ -50,11 +50,11 @@ jobs:
 
     - name: Privileged Linux nftables Enforcement Verification
       run: |
-        sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "nftables" -v -s
+        sudo env "PATH=$PATH" PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py::test_nftables_atomic_ruleset_tiers_revert_and_protected_addresses tests/integration/test_linux_nftables_and_playwright.py::test_privileged_linux_nftables_real_traffic_tiers -v -s
 
     - name: Playwright Dashboard E2E Verification
       run: |
-        PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py -k "playwright" -v -s
+        PYTHONPATH=src:. pytest tests/integration/test_linux_nftables_and_playwright.py::test_playwright_dashboard_and_attack_injection -v -s
 
     - name: Evaluation Battery Demo (make demo)
       env:
