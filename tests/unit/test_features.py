@@ -126,3 +126,23 @@ def test_single_registry_source_of_truth_invariants() -> None:
     assert len(canonical) == 60
     assert list(canonical.keys()) == FEATURE_NAMES
 
+
+def test_sync_readme_feature_table_from_registry(tmp_path: object) -> None:
+    """Task 48: Verify sync_readme_feature_table regenerates the 60-feature table in README."""
+    from pathlib import Path
+
+    from guardian.features.registry import (
+        render_readme_feature_table,
+        sync_readme_feature_table,
+    )
+
+    sample_readme = Path(str(tmp_path)) / "README.md"
+    sample_readme.write_text(
+        "# Demo\n\n| # | Feature Name | Layer | Description & Formula | Unit | Suspicious Trend |\n| :---: | :--- | :---: | :--- | :---: | :---: |\n| 1 | `old` | 1 | Old row | x | y |\n\n## Footer\n",
+        encoding="utf-8",
+    )
+    changed = sync_readme_feature_table(sample_readme)
+    assert changed is True
+    assert render_readme_feature_table() in sample_readme.read_text(encoding="utf-8")
+    assert sync_readme_feature_table(sample_readme) is False
+

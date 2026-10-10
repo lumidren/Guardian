@@ -219,3 +219,33 @@ def validate_registry_invariants() -> bool:
         if meta.name != fname or meta.index != expected_idx or meta.requires_payload_bytes:
             return False
     return True
+
+
+def sync_readme_feature_table(readme_path: object | None = None) -> bool:
+    """
+    Task 48: Synchronize the 60-feature Markdown table in README.md directly from FEATURE_REGISTRY.
+    Returns True if the file was modified, False if already in sync.
+    """
+    from pathlib import Path
+
+    target = Path(str(readme_path)) if readme_path is not None else (
+        Path(__file__).resolve().parent.parent.parent.parent / "README.md"
+    )
+    content = target.read_text(encoding="utf-8")
+    rendered = render_readme_feature_table()
+    header = "| # | Feature Name | Layer | Description & Formula | Unit | Suspicious Trend |"
+    if header not in content:
+        raise ValueError(f"Feature table header not found in {target}")
+
+    lines = content.splitlines()
+    start_idx = next(i for i, ln in enumerate(lines) if ln.strip() == header)
+    end_idx = start_idx + 1
+    while end_idx < len(lines) and lines[end_idx].strip().startswith("|"):
+        end_idx += 1
+
+    new_lines = lines[:start_idx] + rendered.splitlines() + lines[end_idx:]
+    updated = "\n".join(new_lines) + ("\n" if content.endswith("\n") else "")
+    if updated != content:
+        target.write_text(updated, encoding="utf-8")
+        return True
+    return False
