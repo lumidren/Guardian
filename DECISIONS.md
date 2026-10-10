@@ -200,3 +200,13 @@ This document records architectural, algorithmic, and engineering decisions made
   4. **Degenerate Detector Baselines**: Tested always-alert, never-alert, and shuffled labels against the real evaluation harness, confirming empirical reproduction of Phase 2 artifacts and establishing strict control bounds ($F_1 \le 0.80$ for always-alert, $F_1 = 0.0$ for never-alert, $\text{ROC-AUC} \approx 0.50$ for shuffled).
 - **Rationale**: Replaces heuristic tolerance assumptions with principled non-parametric significance testing, eliminates synthetic leakage, guarantees physically sound non-zero TTD, and provides conclusive empirical explanation for historical Phase 2 anomalies.
 
+### ADR-025: Pure-NumPy Isolation Forest Implementation, Scikit-Learn Dev Dependency Isolation, and Empirical Parity Verification
+- **Problem**: `scikit-learn` and `pandas` were previously listed under core `[project] dependencies` in `pyproject.toml`. However, `scikit-learn` requires compiled C/Cython binary extensions unavailable as pre-built wheels on 32-bit architectures and constrained embedded gateways (causing fresh installs on 32-bit Windows Python to fail attempting source compilation). Furthermore, `sklearn.ensemble.IsolationForest` uses opaque C tree structures that neither expose per-node feature-split weights for GUARDIAN's XAI explainability engine nor support human-readable JSON serialization without unsafe Python `pickle`.
+- **Decision**:
+  1. Standardize on GUARDIAN's native pure-NumPy `IsolationForestDetector` (`src/guardian/ml/isolation_forest.py`) for all runtime anomaly scoring and model persistence.
+  2. Implement canonical binary search tree average path length $c(n) = 2(\ln(n-1) + \gamma) - \frac{2(n-1)}{n}$ and anomaly score $s(x, n) = 2^{-E(h(x))/c(n)}$ per Liu et al. (2008), augmented with per-node path-length attribution (`path_length_with_attribution`) for XAI and JSON tree serialization (`to_dict` / `from_dict`).
+  3. Move `scikit-learn>=1.4.0` and `pandas>=2.2.0` exclusively to `[project.optional-dependencies] dev` in `pyproject.toml`.
+  4. Enforce automated parity verification in `tests/unit/test_isolation_forest_sklearn_parity.py`, validating Spearman rank correlation $\ge 0.95$ (observed $r_s = 0.9947$) and ROC-AUC equivalence ($|\Delta \text{AUC}| \le 0.03$, observed $0.9997$ vs $0.9999$) on identical synthetic benchmark data.
+- **Rationale**: Eliminates binary compilation bottlenecks on edge and 32-bit platforms, ensures pickle-free model storage, powers white-box XAI feature attributions, and empirically proves mathematical parity with the canonical Isolation Forest formulation and `scikit-learn`.
+
+
