@@ -749,6 +749,27 @@ def generate_multi_seed_evaluation_report(
     return base_report
 
 
+def generate_per_cell_headline_markdown_table(
+    per_cell_rows: Sequence[dict[str, Any]],
+) -> list[str]:
+    """
+    Generate the 18-row (6 attacks x 3 difficulty tiers) per-cell headline Markdown table
+    with Wilson 95% CIs, baseline TPRs, Mean TTD, Window FPR, and False Alerts/Device/Day.
+    """
+    table_lines: list[str] = [
+        "| Attack Vector | Difficulty Tier | Episodes ($n$) | Detected | GUARDIAN TPR (%) | 95% Wilson CI | Pooled IF TPR | Static Rules TPR | Robust Z-Score TPR | Mean TTD (s) | Window FPR (%) | False Alerts / Dev / Day |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+    ]
+    for cell in per_cell_rows:
+        table_lines.append(
+            f"| **{cell['attack']}** | `{cell['tier']}` | {cell['total_episodes']} | {cell['detected_episodes']} | "
+            f"**{cell['guardian_tpr']:.1f}%** | `[{cell['tpr_ci_low']:.1f}%, {cell['tpr_ci_high']:.1f}%]` | "
+            f"{cell['pooled_if_tpr']:.1f}% | {cell['static_rules_tpr']:.1f}% | {cell['zscore_tpr']:.1f}% | "
+            f"{cell['mean_ttd_s']:.2f} s | {cell['fpr']:.2f}% | {cell['far_per_day']:.2f} |"
+        )
+    return table_lines
+
+
 def generate_results_markdown(report: dict[str, Any]) -> str:
     """Format full multi-seed evaluation report as academic Markdown for eval/RESULTS.md."""
     ms = report.get("multi_seed_summary")
@@ -810,17 +831,8 @@ def generate_results_markdown(report: dict[str, Any]) -> str:
         "",
         "### 1.1 Headline Per-Cell Breakdown (`6 Attacks x 3 Tiers = 18 Cells`, Wilson 95% CIs)",
         "",
-        "| Attack Vector | Difficulty Tier | Episodes ($n$) | Detected | GUARDIAN TPR (%) | 95% Wilson CI | Pooled IF TPR | Static Rules TPR | Robust Z-Score TPR | Mean TTD (s) | Window FPR (%) | False Alerts / Dev / Day |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
     ])
-
-    for cell in det.get("per_cell_rows", []):
-        lines.append(
-            f"| **{cell['attack']}** | `{cell['tier']}` | {cell['total_episodes']} | {cell['detected_episodes']} | "
-            f"**{cell['guardian_tpr']:.1f}%** | `[{cell['tpr_ci_low']:.1f}%, {cell['tpr_ci_high']:.1f}%]` | "
-            f"{cell['pooled_if_tpr']:.1f}% | {cell['static_rules_tpr']:.1f}% | {cell['zscore_tpr']:.1f}% | "
-            f"{cell['mean_ttd_s']:.2f} s | {cell['fpr']:.2f}% | {cell['far_per_day']:.2f} |"
-        )
+    lines.extend(generate_per_cell_headline_markdown_table(det.get("per_cell_rows", [])))
 
     lines.extend([
         "",
