@@ -328,3 +328,28 @@ def test_budget_breach_triggers_restrict() -> None:
     )
     assert determine_policy_response_action([budget_ev]) == "RESTRICT"
     assert determine_policy_response_action([]) == "MONITOR"
+
+
+def test_first_time_streaming_triggers_a_prompt() -> None:
+    """Task 70: Verify first-time streaming violation generates a UserPromptRequest (once/always/block)."""
+    from guardian.policy.evaluator import (
+        RuleViolationEvent,
+        build_first_time_streaming_prompt,
+        determine_policy_response_action,
+    )
+
+    stream_ev = RuleViolationEvent(
+        event_id="ev_s1",
+        device_id="dev_vacuum",
+        timestamp=500.0,
+        rule_id="r_s1",
+        kind=RuleKind.STREAMING_CAPABILITY,
+        source=RuleSource.BASELINE_LEARNED,
+        severity=40.0,
+        reason="First-time streaming upload (28000 B >= 15000 B)",
+    )
+    assert determine_policy_response_action([stream_ev]) == "PROMPT"
+    prompt = build_first_time_streaming_prompt(stream_ev, dst_ip="198.51.100.42")
+    assert prompt is not None
+    assert prompt.options == ("once", "always", "block")
+    assert prompt.subject_key == "stream:198.51.100.42"

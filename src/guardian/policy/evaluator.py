@@ -171,3 +171,39 @@ def determine_policy_response_action(violations: Sequence[RuleViolationEvent]) -
     if RuleKind.STREAMING_CAPABILITY in kinds:
         return "PROMPT"
     return "ALERT"
+
+
+@dataclass(frozen=True)
+class UserPromptRequest:
+    """Task 70: User-facing confirmation prompt triggered by first-time streaming or sensitive policy violation."""
+
+    prompt_id: str
+    device_id: str
+    timestamp: float
+    rule_kind: RuleKind
+    subject_key: str
+    message: str
+    options: tuple[str, ...] = ("once", "always", "block")
+
+
+def build_first_time_streaming_prompt(
+    violation: RuleViolationEvent,
+    dst_ip: str = "external",
+) -> UserPromptRequest | None:
+    """
+    Task 70: Generate a user decision prompt (`once`, `always`, `block`) when a device
+    that has never streamed media initiates a high-throughput streaming upload.
+    """
+    if violation.kind != RuleKind.STREAMING_CAPABILITY:
+        return None
+    return UserPromptRequest(
+        prompt_id=f"prompt_{violation.device_id}_{int(violation.timestamp)}",
+        device_id=violation.device_id,
+        timestamp=violation.timestamp,
+        rule_kind=RuleKind.STREAMING_CAPABILITY,
+        subject_key=f"stream:{dst_ip}",
+        message=(
+            f"Device {violation.device_id} initiated first-time high-throughput streaming "
+            f"to {dst_ip}: {violation.reason}. Allow once, always allow, or block?"
+        ),
+    )
