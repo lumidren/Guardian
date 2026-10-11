@@ -277,3 +277,33 @@ class PolicyDecisionManager:
         if mode_str == "block":
             return "BLOCK"
         return None
+
+
+class PromptRateLimiter:
+    """
+    Task 72: Enforces a rolling 7-day rate limit on interactive user prompts per device
+    (default `max_prompts_per_device_week = 3`) to prevent alert fatigue.
+    """
+
+    WEEK_SECONDS = 7 * 86400.0
+
+    def __init__(self, max_prompts_per_device_week: int = 3) -> None:
+        self.max_prompts_per_device_week = max_prompts_per_device_week
+        self._history: dict[str, list[float]] = {}
+
+    def can_prompt(self, device_id: str, now: float) -> bool:
+        cutoff = now - self.WEEK_SECONDS
+        recent = [ts for ts in self._history.get(device_id, []) if ts > cutoff]
+        self._history[device_id] = recent
+        return len(recent) < self.max_prompts_per_device_week
+
+    def record_prompt(self, device_id: str, now: float) -> bool:
+        """Record a prompt if under the weekly limit; returns False if rate-limited."""
+        if not self.can_prompt(device_id, now):
+            return False
+        self._history.setdefault(device_id, []).append(now)
+        return True
+
+    def prompts_in_last_week(self, device_id: str, now: float) -> int:
+        cutoff = now - self.WEEK_SECONDS
+        return sum(1 for ts in self._history.get(device_id, []) if ts > cutoff)

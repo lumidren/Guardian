@@ -379,3 +379,16 @@ def test_remember_decisions_once_always_block() -> None:
 
     mgr.apply_user_decision(prompt, DecisionMode.ALWAYS, now=1500.0)
     assert mgr.resolve_decision("dev_01", RuleKind.STREAMING_CAPABILITY, "stream:198.51.100.42", now=99999.0) == "ALLOW"
+
+
+def test_prompt_rate_limit_per_device_per_week() -> None:
+    """Task 72: Verify PromptRateLimiter caps interactive prompts per device per 7-day rolling window."""
+    from guardian.policy.evaluator import PromptRateLimiter
+
+    limiter = PromptRateLimiter(max_prompts_per_device_week=2)
+    assert limiter.record_prompt("dev_01", now=100.0) is True
+    assert limiter.record_prompt("dev_01", now=200.0) is True
+    assert limiter.record_prompt("dev_01", now=300.0) is False
+    assert limiter.prompts_in_last_week("dev_01", now=300.0) == 2
+    # After 7 days + 200s, the first two prompts expire
+    assert limiter.record_prompt("dev_01", now=7 * 86400.0 + 250.0) is True
