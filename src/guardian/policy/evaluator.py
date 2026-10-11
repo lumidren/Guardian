@@ -207,3 +207,73 @@ def build_first_time_streaming_prompt(
             f"to {dst_ip}: {violation.reason}. Allow once, always allow, or block?"
         ),
     )
+
+
+class PolicyDecisionManager:
+    """
+    Task 71: Remembers user prompt decisions (`once` / `always` / `block`) and resolves
+    whether subsequent events for `(device_id, rule_kind, subject_key)` are pre-authorized or blocked.
+    """
+
+    def __init__(self, store: Any, once_ttl_seconds: float = 300.0) -> None:
+        self.store = store
+        self.once_ttl_seconds = once_ttl_seconds
+
+    def apply_user_decision(
+        self,
+        prompt: UserPromptRequest,
+        mode: Any,
+        now: float | None = None,
+    ) -> None:
+        from .models import DecisionMode, RuleScope
+
+        dec_mode = DecisionMode(str(mode))
+        ts = prompt.timestamp if now is None else now
+        expires_at = (ts + self.once_ttl_seconds) if dec_mode == DecisionMode.ONCE else None
+        self.store.record_decision(
+            decision_id=f"dec_{prompt.prompt_id}",
+            device_id=prompt.device_id,
+            rule_kind=prompt.rule_kind,
+            subject_key=prompt.subject_key,
+            mode=dec_mode,
+            created_at=ts,
+            expires_at=expires_at,
+        )
+        if dec_mode == DecisionMode.ALWAYS and prompt.rule_kind == RuleKind.STREAMING_CAPABILITY:
+            self.store.upsert_rule(
+                PolicyRule(
+                    rule_id=f"user_stream_allow_{prompt.device_id}",
+                    kind=RuleKind.STREAMING_CAPABILITY,
+                    scope=RuleScope.DEVICE,
+                    target_id=prompt.device_id,
+                    source=RuleSource.USER_DECISION,
+                    parameters={"ever_streams": True, "subject_key": prompt.subject_key},
+                    created_at=ts,
+                )
+            )
+
+    def resolve_decision(
+        self,
+        device_id: str,
+        rule_kind: RuleKind,
+        subject_key: str,
+        now: float,
+    ) -> str | None:
+        """Return 'ALLOW' (for active ONCE or ALWAYS), 'BLOCK' (for BLOCK), or None if undecided."""
+        rows = self.store.get_decisions(device_id)
+        matched = [
+            r for r in rows
+            if r["rule_kind"] == str(rule_kind) and r["subject_key"] == subject_key
+        ]
+        if not matched:
+            return None
+        latest = matched[-1]
+        exp = latest.get("expires_at")
+        if exp is not None and now >= float(exp):
+            return None
+        mode_str = str(latest["mode"])
+        if mode_str in ("once", "always"):
+            return "ALLOW"
+        if mode_str == "block":
+            return "BLOCK"
+        return None

@@ -353,3 +353,29 @@ def test_first_time_streaming_triggers_a_prompt() -> None:
     assert prompt is not None
     assert prompt.options == ("once", "always", "block")
     assert prompt.subject_key == "stream:198.51.100.42"
+
+
+def test_remember_decisions_once_always_block() -> None:
+    """Task 71: Verify PolicyDecisionManager persists and resolves ONCE (TTL), ALWAYS, and BLOCK decisions."""
+    from guardian.policy import DecisionMode, PolicySQLiteStore
+    from guardian.policy.evaluator import PolicyDecisionManager, UserPromptRequest
+
+    store = PolicySQLiteStore(":memory:")
+    mgr = PolicyDecisionManager(store, once_ttl_seconds=300.0)
+    prompt = UserPromptRequest(
+        prompt_id="p_1",
+        device_id="dev_01",
+        timestamp=1000.0,
+        rule_kind=RuleKind.STREAMING_CAPABILITY,
+        subject_key="stream:198.51.100.42",
+        message="Allow streaming?",
+    )
+    mgr.apply_user_decision(prompt, DecisionMode.ONCE, now=1000.0)
+    assert mgr.resolve_decision("dev_01", RuleKind.STREAMING_CAPABILITY, "stream:198.51.100.42", now=1100.0) == "ALLOW"
+    assert mgr.resolve_decision("dev_01", RuleKind.STREAMING_CAPABILITY, "stream:198.51.100.42", now=1400.0) is None
+
+    mgr.apply_user_decision(prompt, DecisionMode.BLOCK, now=1405.0)
+    assert mgr.resolve_decision("dev_01", RuleKind.STREAMING_CAPABILITY, "stream:198.51.100.42", now=99999.0) == "BLOCK"
+
+    mgr.apply_user_decision(prompt, DecisionMode.ALWAYS, now=1500.0)
+    assert mgr.resolve_decision("dev_01", RuleKind.STREAMING_CAPABILITY, "stream:198.51.100.42", now=99999.0) == "ALLOW"
