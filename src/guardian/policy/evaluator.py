@@ -6,11 +6,26 @@ for GUARDIAN (Phase 4 Section D, Tasks 66-76).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from .learner import BaselineWindowObservation
-from .models import PolicyRule, RuleKind
+from .models import PolicyRule, RuleKind, RuleSource
+
+
+@dataclass(frozen=True)
+class RuleViolationEvent:
+    """Task 67: Structured policy rule violation event emitted by `PolicyRuleEvaluator`."""
+
+    event_id: str
+    device_id: str
+    timestamp: float
+    rule_id: str
+    kind: RuleKind
+    source: RuleSource
+    severity: float
+    reason: str
 
 
 class PolicyRuleEvaluator:
@@ -90,3 +105,37 @@ class PolicyRuleEvaluator:
                 }
             )
         return results
+
+    def extract_violation_events(
+        self,
+        obs: BaselineWindowObservation,
+        evaluation_results: Sequence[dict[str, Any]],
+    ) -> list[RuleViolationEvent]:
+        """Task 67: Convert failed rule evaluation results into structured `RuleViolationEvent` objects."""
+        severity_by_kind: dict[RuleKind, float] = {
+            RuleKind.DESTINATION_ALLOWLIST: 25.0,
+            RuleKind.PORT_PROTOCOL_ALLOWLIST: 20.0,
+            RuleKind.ACTIVE_HOURS: 15.0,
+            RuleKind.DAILY_UPLOAD_BUDGET: 35.0,
+            RuleKind.DAILY_DOWNLOAD_BUDGET: 30.0,
+            RuleKind.STREAMING_CAPABILITY: 40.0,
+        }
+        events: list[RuleViolationEvent] = []
+        for idx, res in enumerate(evaluation_results):
+            if res.get("passed", True):
+                continue
+            kind = RuleKind(str(res["kind"]))
+            src = RuleSource(str(res["source"]))
+            events.append(
+                RuleViolationEvent(
+                    event_id=f"viol_{obs.device_id}_{int(obs.timestamp)}_{idx}",
+                    device_id=obs.device_id,
+                    timestamp=obs.timestamp,
+                    rule_id=str(res["rule_id"]),
+                    kind=kind,
+                    source=src,
+                    severity=severity_by_kind.get(kind, 20.0),
+                    reason=str(res["reason"]),
+                )
+            )
+        return events

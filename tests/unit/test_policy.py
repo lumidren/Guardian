@@ -264,3 +264,25 @@ def test_policy_rule_evaluator() -> None:
     failed_kinds = {r["kind"] for r in res_bad if not r["passed"]}
     assert RuleKind.DESTINATION_ALLOWLIST in failed_kinds
     assert RuleKind.PORT_PROTOCOL_ALLOWLIST in failed_kinds
+
+
+def test_rule_violation_events() -> None:
+    """Task 67: Verify extract_violation_events converts failed rule checks into RuleViolationEvent objects."""
+    from guardian.policy.evaluator import PolicyRuleEvaluator
+    from guardian.policy.learner import BaselineWindowObservation
+    from guardian.policy.templates import build_template_rules_for_device_type
+
+    rules = build_template_rules_for_device_type("dev_01", "Environmental Sensor", created_at=100.0)
+    evaluator = PolicyRuleEvaluator()
+    bad_obs = BaselineWindowObservation(
+        device_id="dev_01",
+        timestamp=12 * 3600.0,
+        dst_ips=("198.51.100.99",),
+        dst_ports=(23,),
+        protocols=("TELNET",),
+        upload_bytes=300,
+    )
+    eval_res = evaluator.evaluate_window(bad_obs, rules)
+    events = evaluator.extract_violation_events(bad_obs, eval_res)
+    assert len(events) == 2
+    assert all(e.severity > 0.0 and e.device_id == "dev_01" for e in events)
