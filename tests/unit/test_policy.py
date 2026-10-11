@@ -114,3 +114,21 @@ def test_learn_active_hours() -> None:
     rule = learn_active_hours("dev_cam", obs, min_bytes_threshold=64, created_at=100.0)
     assert rule.kind == RuleKind.ACTIVE_HOURS
     assert rule.parameters["active_hours_utc"] == [8, 14]
+
+
+def test_learn_daily_upload_budget() -> None:
+    """Task 60: Verify learn_daily_upload_budget computes peak daily upload x margin."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_daily_upload_budget,
+    )
+
+    obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=100.0, upload_bytes=4000),
+        BaselineWindowObservation(device_id="dev_01", timestamp=200.0, upload_bytes=6000),  # day 0 total = 10000
+        BaselineWindowObservation(device_id="dev_01", timestamp=90000.0, upload_bytes=8000),  # day 1 total = 8000
+    ]
+    rule = learn_daily_upload_budget("dev_01", obs, margin=2.5, created_at=100.0)
+    assert rule.kind == RuleKind.DAILY_UPLOAD_BUDGET
+    assert rule.parameters["peak_daily_upload_bytes"] == 10000
+    assert rule.parameters["daily_upload_budget_bytes"] == 25000

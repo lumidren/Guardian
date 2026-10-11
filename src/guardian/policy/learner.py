@@ -111,3 +111,36 @@ def learn_active_hours(
         },
         created_at=time.time() if created_at is None else created_at,
     )
+
+
+def learn_daily_upload_budget(
+    device_id: str,
+    observations: Sequence[BaselineWindowObservation],
+    margin: float = 2.5,
+    created_at: float | None = None,
+) -> PolicyRule:
+    """
+    Task 60: Learn daily upload byte budget as (peak observed daily upload bytes x safety margin)
+    across unflagged baseline days.
+    """
+    clean = _unflagged(observations)
+    by_day: dict[int, int] = {}
+    for obs in clean:
+        day_idx = int(obs.timestamp // 86400.0)
+        by_day[day_idx] = by_day.get(day_idx, 0) + max(0, int(obs.upload_bytes))
+    peak_daily = max(by_day.values()) if by_day else 1024
+    budget_bytes = max(1024, int(round(peak_daily * margin)))
+    return PolicyRule(
+        rule_id=f"rule_upload_budget_{device_id}",
+        kind=RuleKind.DAILY_UPLOAD_BUDGET,
+        scope=RuleScope.DEVICE,
+        target_id=device_id,
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={
+            "peak_daily_upload_bytes": peak_daily,
+            "margin": margin,
+            "daily_upload_budget_bytes": budget_bytes,
+            "days_observed": len(by_day),
+        },
+        created_at=time.time() if created_at is None else created_at,
+    )
