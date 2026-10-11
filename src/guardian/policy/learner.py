@@ -144,3 +144,36 @@ def learn_daily_upload_budget(
         },
         created_at=time.time() if created_at is None else created_at,
     )
+
+
+def learn_daily_download_budget(
+    device_id: str,
+    observations: Sequence[BaselineWindowObservation],
+    margin: float = 3.0,
+    created_at: float | None = None,
+) -> PolicyRule:
+    """
+    Task 61: Learn daily download byte budget as (peak observed daily download bytes x safety margin)
+    across unflagged baseline days.
+    """
+    clean = _unflagged(observations)
+    by_day: dict[int, int] = {}
+    for obs in clean:
+        day_idx = int(obs.timestamp // 86400.0)
+        by_day[day_idx] = by_day.get(day_idx, 0) + max(0, int(obs.download_bytes))
+    peak_daily = max(by_day.values()) if by_day else 2048
+    budget_bytes = max(2048, int(round(peak_daily * margin)))
+    return PolicyRule(
+        rule_id=f"rule_download_budget_{device_id}",
+        kind=RuleKind.DAILY_DOWNLOAD_BUDGET,
+        scope=RuleScope.DEVICE,
+        target_id=device_id,
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={
+            "peak_daily_download_bytes": peak_daily,
+            "margin": margin,
+            "daily_download_budget_bytes": budget_bytes,
+            "days_observed": len(by_day),
+        },
+        created_at=time.time() if created_at is None else created_at,
+    )

@@ -132,3 +132,21 @@ def test_learn_daily_upload_budget() -> None:
     assert rule.kind == RuleKind.DAILY_UPLOAD_BUDGET
     assert rule.parameters["peak_daily_upload_bytes"] == 10000
     assert rule.parameters["daily_upload_budget_bytes"] == 25000
+
+
+def test_learn_daily_download_budget() -> None:
+    """Task 61: Verify learn_daily_download_budget computes peak daily download x margin."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_daily_download_budget,
+    )
+
+    obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=100.0, download_bytes=12000),
+        BaselineWindowObservation(device_id="dev_01", timestamp=200.0, download_bytes=8000),  # day 0 total = 20000
+        BaselineWindowObservation(device_id="dev_01", timestamp=90000.0, download_bytes=5000),
+    ]
+    rule = learn_daily_download_budget("dev_01", obs, margin=3.0, created_at=100.0)
+    assert rule.kind == RuleKind.DAILY_DOWNLOAD_BUDGET
+    assert rule.parameters["peak_daily_download_bytes"] == 20000
+    assert rule.parameters["daily_download_budget_bytes"] == 60000
