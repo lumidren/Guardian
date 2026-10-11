@@ -171,3 +171,24 @@ def test_learn_whether_device_ever_streams() -> None:
     r_cam = learn_streaming_capability("dev_cam", cam_obs, created_at=100.0)
     assert r_sensor.parameters["ever_streams"] is False
     assert r_cam.parameters["ever_streams"] is True
+
+
+def test_device_type_guess_from_traffic() -> None:
+    """Task 63: Verify guess_device_type_from_traffic classifies sensor, camera, plug, and compute archetypes."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        guess_device_type_from_traffic,
+    )
+
+    assert guess_device_type_from_traffic([
+        BaselineWindowObservation(device_id="d1", timestamp=10.0, dst_ips=("192.168.1.1",), dst_ports=(1883,), protocols=("MQTT",), upload_bytes=300)
+    ]) == "Environmental Sensor"
+    assert guess_device_type_from_traffic([
+        BaselineWindowObservation(device_id="d2", timestamp=10.0, dst_ips=("192.168.1.50",), dst_ports=(554,), protocols=("MQTT",), upload_bytes=22000)
+    ]) == "Smart Camera"
+    assert guess_device_type_from_traffic([
+        BaselineWindowObservation(device_id="d3", timestamp=10.0, dst_ips=("192.168.1.1", "54.210.10.45"), dst_ports=(1883,), protocols=("MQTT",), upload_bytes=450)
+    ]) == "Smart Plug"
+    assert guess_device_type_from_traffic([
+        BaselineWindowObservation(device_id="d4", timestamp=10.0, dst_ips=("192.168.1.1",), dst_ports=(80,), protocols=("HTTP",), upload_bytes=1200)
+    ]) == "Edge Compute"

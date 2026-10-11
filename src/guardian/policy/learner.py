@@ -208,3 +208,30 @@ def learn_streaming_capability(
         },
         created_at=time.time() if created_at is None else created_at,
     )
+
+
+def guess_device_type_from_traffic(
+    observations: Sequence[BaselineWindowObservation],
+) -> str:
+    """
+    Task 63: Infer the IoT device archetype from early traffic telemetry (ports, protocols,
+    upload throughput, and destination fan-out) before a full 7-day baseline is complete.
+    """
+    clean = _unflagged(observations)
+    if not clean:
+        return "Environmental Sensor"
+
+    mean_upload = sum(obs.upload_bytes for obs in clean) / float(len(clean))
+    protos = {p.upper() for obs in clean for p in obs.protocols}
+    ports = {int(p) for obs in clean for p in obs.dst_ports}
+    dsts = {ip for obs in clean for ip in obs.dst_ips}
+
+    if mean_upload >= 12000.0 or 554 in ports:
+        return "Smart Camera"
+    if "HTTP" in protos or 80 in ports or 8080 in ports:
+        return "Edge Compute"
+    if "HTTPS" in protos and "MQTT" not in protos and 443 in ports:
+        return "Smart Home Gateway"
+    if len(dsts) >= 2 and any(not ip.startswith("192.168.") for ip in dsts):
+        return "Smart Plug"
+    return "Environmental Sensor"
