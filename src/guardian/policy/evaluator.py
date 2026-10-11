@@ -156,3 +156,18 @@ def fuse_violations_into_threat_score(
         weight = 0.75 if v.source == RuleSource.DEFAULT_TEMPLATE else 1.0
         bonus += v.severity * weight
     return float(min(max_score, max(0.0, base_threat_score + bonus)))
+
+
+def determine_policy_response_action(violations: Sequence[RuleViolationEvent]) -> str:
+    """
+    Task 69: Determine automatic containment/response tier from policy violations.
+    Daily upload or download budget breaches automatically trigger `RESTRICT` (rate-limiting/throttling).
+    """
+    if not violations:
+        return "MONITOR"
+    kinds = {v.kind for v in violations}
+    if RuleKind.DAILY_UPLOAD_BUDGET in kinds or RuleKind.DAILY_DOWNLOAD_BUDGET in kinds:
+        return "RESTRICT"
+    if RuleKind.STREAMING_CAPABILITY in kinds:
+        return "PROMPT"
+    return "ALERT"

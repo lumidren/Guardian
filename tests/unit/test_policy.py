@@ -307,3 +307,24 @@ def test_feed_violations_into_threat_score() -> None:
     )
     assert fuse_violations_into_threat_score(30.0, [ev]) == 55.0
     assert fuse_violations_into_threat_score(90.0, [ev]) == 100.0
+
+
+def test_budget_breach_triggers_restrict() -> None:
+    """Task 69: Verify daily upload/download budget breach triggers RESTRICT response action."""
+    from guardian.policy.evaluator import (
+        RuleViolationEvent,
+        determine_policy_response_action,
+    )
+
+    budget_ev = RuleViolationEvent(
+        event_id="ev_b1",
+        device_id="dev_01",
+        timestamp=100.0,
+        rule_id="r_b1",
+        kind=RuleKind.DAILY_UPLOAD_BUDGET,
+        source=RuleSource.BASELINE_LEARNED,
+        severity=35.0,
+        reason="upload budget exceeded",
+    )
+    assert determine_policy_response_action([budget_ev]) == "RESTRICT"
+    assert determine_policy_response_action([]) == "MONITOR"
