@@ -392,3 +392,50 @@ def test_prompt_rate_limit_per_device_per_week() -> None:
     assert limiter.prompts_in_last_week("dev_01", now=300.0) == 2
     # After 7 days + 200s, the first two prompts expire
     assert limiter.record_prompt("dev_01", now=7 * 86400.0 + 250.0) is True
+
+
+def test_keurig_style_volume_runaway_scenario() -> None:
+    """Task 73: Verify Keurig-style runaway daily upload to a whitelisted cloud endpoint triggers RESTRICT."""
+    from guardian.policy.evaluator import (
+        PolicyRuleEvaluator,
+        determine_policy_response_action,
+        fuse_violations_into_threat_score,
+    )
+    from guardian.policy.learner import BaselineWindowObservation
+    from guardian.policy.templates import resolve_effective_device_rules
+
+    baseline = [
+        BaselineWindowObservation(
+            device_id="dev_coffee_maker",
+            timestamp=float(d * 86400 + i * 600),
+            dst_ips=("54.210.10.45",),
+            dst_ports=(443,),
+            protocols=("HTTPS",),
+            upload_bytes=5000,  # 10 windows/day = 50,000 B/day peak
+            download_bytes=2000,
+        )
+        for d in range(3)
+        for i in range(10)
+    ]
+    rules = resolve_effective_device_rules("dev_coffee_maker", baseline, min_baseline_windows=20, created_at=100.0)
+    evaluator = PolicyRuleEvaluator()
+
+    # Runaway loop to the same whitelisted cloud IP and HTTPS port, breaching the 125,000 B daily upload budget
+    runaway_window = BaselineWindowObservation(
+        device_id="dev_coffee_maker",
+        timestamp=4 * 86400.0 + 3600.0,
+        dst_ips=("54.210.10.45",),
+        dst_ports=(443,),
+        protocols=("HTTPS",),
+        upload_bytes=8000,
+        download_bytes=1000,
+    )
+    checks = evaluator.evaluate_window(
+        runaway_window,
+        rules,
+        cumulative_daily_upload_bytes=450000,
+    )
+    violations = evaluator.extract_violation_events(runaway_window, checks)
+    assert any(v.kind == RuleKind.DAILY_UPLOAD_BUDGET for v in violations)
+    assert determine_policy_response_action(violations) == "RESTRICT"
+    assert fuse_violations_into_threat_score(20.0, violations) >= 55.0
