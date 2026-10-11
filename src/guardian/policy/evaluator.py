@@ -139,3 +139,20 @@ class PolicyRuleEvaluator:
                 )
             )
         return events
+
+
+def fuse_violations_into_threat_score(
+    base_threat_score: float,
+    violations: Sequence[RuleViolationEvent],
+    max_score: float = 100.0,
+) -> float:
+    """
+    Task 68: Feed policy rule violation events into the fused threat score [0, 100].
+    Learned/user-decided rule violations receive full weight (1.0x); cold-start template
+    violations receive 0.75x weight.
+    """
+    bonus = 0.0
+    for v in violations:
+        weight = 0.75 if v.source == RuleSource.DEFAULT_TEMPLATE else 1.0
+        bonus += v.severity * weight
+    return float(min(max_score, max(0.0, base_threat_score + bonus)))

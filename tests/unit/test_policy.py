@@ -286,3 +286,24 @@ def test_rule_violation_events() -> None:
     events = evaluator.extract_violation_events(bad_obs, eval_res)
     assert len(events) == 2
     assert all(e.severity > 0.0 and e.device_id == "dev_01" for e in events)
+
+
+def test_feed_violations_into_threat_score() -> None:
+    """Task 68: Verify policy violations boost fused threat score up to [0, 100]."""
+    from guardian.policy.evaluator import (
+        RuleViolationEvent,
+        fuse_violations_into_threat_score,
+    )
+
+    ev = RuleViolationEvent(
+        event_id="ev_1",
+        device_id="dev_01",
+        timestamp=100.0,
+        rule_id="r_1",
+        kind=RuleKind.DESTINATION_ALLOWLIST,
+        source=RuleSource.BASELINE_LEARNED,
+        severity=25.0,
+        reason="unauthorized dst",
+    )
+    assert fuse_violations_into_threat_score(30.0, [ev]) == 55.0
+    assert fuse_violations_into_threat_score(90.0, [ev]) == 100.0
