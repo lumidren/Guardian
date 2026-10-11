@@ -192,3 +192,19 @@ def test_device_type_guess_from_traffic() -> None:
     assert guess_device_type_from_traffic([
         BaselineWindowObservation(device_id="d4", timestamp=10.0, dst_ips=("192.168.1.1",), dst_ports=(80,), protocols=("HTTP",), upload_bytes=1200)
     ]) == "Edge Compute"
+
+
+def test_device_type_default_templates_yaml() -> None:
+    """Task 64: Verify config/device_type_templates.yaml loads all device archetypes and instantiates 6 rules."""
+    from guardian.policy.templates import (
+        build_template_rules_for_device_type,
+        load_device_type_templates,
+    )
+
+    templates = load_device_type_templates()
+    assert "Environmental Sensor" in templates
+    assert "Smart Camera" in templates
+    rules = build_template_rules_for_device_type("dev_01", "Environmental Sensor", created_at=100.0)
+    assert len(rules) == 6
+    assert all(r.source == RuleSource.DEFAULT_TEMPLATE for r in rules)
+    assert all(r.scope == RuleScope.DEVICE_TYPE for r in rules)
