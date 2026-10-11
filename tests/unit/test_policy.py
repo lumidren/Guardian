@@ -439,3 +439,48 @@ def test_keurig_style_volume_runaway_scenario() -> None:
     assert any(v.kind == RuleKind.DAILY_UPLOAD_BUDGET for v in violations)
     assert determine_policy_response_action(violations) == "RESTRICT"
     assert fuse_violations_into_threat_score(20.0, violations) >= 55.0
+
+
+def test_dji_style_first_time_streaming_scenario() -> None:
+    """Task 74: Verify DJI Romo-style first-time camera/audio streaming over whitelisted MQTT broker triggers a user prompt."""
+    from guardian.policy.evaluator import (
+        PolicyRuleEvaluator,
+        build_first_time_streaming_prompt,
+        determine_policy_response_action,
+    )
+    from guardian.policy.learner import BaselineWindowObservation
+    from guardian.policy.templates import resolve_effective_device_rules
+
+    baseline = [
+        BaselineWindowObservation(
+            device_id="dev_romo_vacuum",
+            timestamp=float(i * 600),
+            dst_ips=("54.210.10.45",),
+            dst_ports=(1883,),
+            protocols=("MQTT",),
+            upload_bytes=1200,  # Normal lightweight status/map telemetry (30 KB/day -> 75 KB daily budget); never streams video
+            download_bytes=300,
+        )
+        for i in range(25)
+    ]
+    rules = resolve_effective_device_rules("dev_romo_vacuum", baseline, min_baseline_windows=20, created_at=100.0)
+    evaluator = PolicyRuleEvaluator()
+
+    # Unauthorized remote camera/audio stream over the same whitelisted cloud broker IP and port (first 10s burst = 25 KB >= 15 KB streaming threshold)
+    stream_window = BaselineWindowObservation(
+        device_id="dev_romo_vacuum",
+        timestamp=20000.0,
+        dst_ips=("54.210.10.45",),
+        dst_ports=(1883,),
+        protocols=("MQTT",),
+        upload_bytes=25000,
+        download_bytes=500,
+    )
+    checks = evaluator.evaluate_window(stream_window, rules)
+    violations = evaluator.extract_violation_events(stream_window, checks)
+    stream_viols = [v for v in violations if v.kind == RuleKind.STREAMING_CAPABILITY]
+    assert len(stream_viols) == 1
+    assert determine_policy_response_action(violations) == "PROMPT"
+    prompt = build_first_time_streaming_prompt(stream_viols[0], dst_ip="54.210.10.45")
+    assert prompt is not None
+    assert "dev_romo_vacuum" in prompt.message
