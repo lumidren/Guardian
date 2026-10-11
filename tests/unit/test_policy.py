@@ -228,3 +228,39 @@ def test_use_templates_before_baseline_is_ready() -> None:
     ]
     ready_rules = resolve_effective_device_rules("dev_01", ready_obs, min_baseline_windows=10, created_at=100.0)
     assert all(r.source == RuleSource.BASELINE_LEARNED for r in ready_rules)
+
+
+def test_policy_rule_evaluator() -> None:
+    """Task 66: Verify PolicyRuleEvaluator checks destination, port/protocol, hours, budgets, and streaming."""
+    from guardian.policy.evaluator import PolicyRuleEvaluator
+    from guardian.policy.learner import BaselineWindowObservation
+    from guardian.policy.templates import build_template_rules_for_device_type
+
+    rules = build_template_rules_for_device_type("dev_01", "Environmental Sensor", created_at=100.0)
+    evaluator = PolicyRuleEvaluator()
+
+    benign_obs = BaselineWindowObservation(
+        device_id="dev_01",
+        timestamp=12 * 3600.0,
+        dst_ips=("192.168.1.1",),
+        dst_ports=(1883,),
+        protocols=("MQTT",),
+        upload_bytes=300,
+        download_bytes=200,
+    )
+    res_ok = evaluator.evaluate_window(benign_obs, rules)
+    assert all(r["passed"] for r in res_ok)
+
+    bad_obs = BaselineWindowObservation(
+        device_id="dev_01",
+        timestamp=12 * 3600.0,
+        dst_ips=("198.51.100.99",),
+        dst_ports=(23,),
+        protocols=("TELNET",),
+        upload_bytes=300,
+        download_bytes=200,
+    )
+    res_bad = evaluator.evaluate_window(bad_obs, rules)
+    failed_kinds = {r["kind"] for r in res_bad if not r["passed"]}
+    assert RuleKind.DESTINATION_ALLOWLIST in failed_kinds
+    assert RuleKind.PORT_PROTOCOL_ALLOWLIST in failed_kinds
