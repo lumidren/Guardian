@@ -208,3 +208,23 @@ def test_device_type_default_templates_yaml() -> None:
     assert len(rules) == 6
     assert all(r.source == RuleSource.DEFAULT_TEMPLATE for r in rules)
     assert all(r.scope == RuleScope.DEVICE_TYPE for r in rules)
+
+
+def test_use_templates_before_baseline_is_ready() -> None:
+    """Task 65: Verify templates are used before min_baseline_windows and replaced by learned rules once ready."""
+    from guardian.policy.learner import BaselineWindowObservation
+    from guardian.policy.templates import resolve_effective_device_rules
+
+    early_obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=10.0 * i, dst_ips=("192.168.1.1",), dst_ports=(1883,), protocols=("MQTT",), upload_bytes=200)
+        for i in range(5)
+    ]
+    early_rules = resolve_effective_device_rules("dev_01", early_obs, min_baseline_windows=10, created_at=100.0)
+    assert all(r.source == RuleSource.DEFAULT_TEMPLATE for r in early_rules)
+
+    ready_obs = [
+        BaselineWindowObservation(device_id="dev_01", timestamp=10.0 * i, dst_ips=("192.168.1.1",), dst_ports=(1883,), protocols=("MQTT",), upload_bytes=200)
+        for i in range(12)
+    ]
+    ready_rules = resolve_effective_device_rules("dev_01", ready_obs, min_baseline_windows=10, created_at=100.0)
+    assert all(r.source == RuleSource.BASELINE_LEARNED for r in ready_rules)

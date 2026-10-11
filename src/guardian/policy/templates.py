@@ -107,3 +107,43 @@ def build_template_rules_for_device_type(
             created_at=ts,
         ),
     ]
+
+
+def resolve_effective_device_rules(
+    device_id: str,
+    observations: list[Any],
+    min_baseline_windows: int = 50,
+    created_at: float | None = None,
+) -> list[PolicyRule]:
+    """
+    Task 65: Return device-type default template rules while the device's baseline
+    has fewer than `min_baseline_windows` unflagged windows; once ready, return
+    the learned per-device baseline rules.
+    """
+    from .learner import (
+        guess_device_type_from_traffic,
+        learn_active_hours,
+        learn_daily_download_budget,
+        learn_daily_upload_budget,
+        learn_destination_allowlist,
+        learn_port_and_protocol_allowlist,
+        learn_streaming_capability,
+    )
+
+    unflagged = [o for o in observations if not o.is_flagged]
+    if len(unflagged) < min_baseline_windows:
+        guessed_type = guess_device_type_from_traffic(unflagged)
+        return build_template_rules_for_device_type(
+            device_id=device_id,
+            device_type=guessed_type,
+            created_at=created_at,
+        )
+
+    return [
+        learn_destination_allowlist(device_id, unflagged, created_at=created_at),
+        learn_port_and_protocol_allowlist(device_id, unflagged, created_at=created_at),
+        learn_active_hours(device_id, unflagged, created_at=created_at),
+        learn_daily_upload_budget(device_id, unflagged, created_at=created_at),
+        learn_daily_download_budget(device_id, unflagged, created_at=created_at),
+        learn_streaming_capability(device_id, unflagged, created_at=created_at),
+    ]
