@@ -484,3 +484,63 @@ def test_dji_style_first_time_streaming_scenario() -> None:
     prompt = build_first_time_streaming_prompt(stream_viols[0], dst_ip="54.210.10.45")
     assert prompt is not None
     assert "dev_romo_vacuum" in prompt.message
+
+
+def test_flagged_windows_never_become_learned_rules() -> None:
+    """Task 75: Verify flagged anomalous windows (is_flagged=True) are strictly excluded from all learned rules."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_active_hours,
+        learn_daily_download_budget,
+        learn_daily_upload_budget,
+        learn_destination_allowlist,
+        learn_port_and_protocol_allowlist,
+        learn_streaming_capability,
+    )
+
+    obs = [
+        BaselineWindowObservation(
+            device_id="dev_01",
+            timestamp=10 * 3600.0,
+            dst_ips=("192.168.1.1",),
+            dst_ports=(1883,),
+            protocols=("MQTT",),
+            upload_bytes=500,
+            download_bytes=400,
+            is_flagged=False,
+        ),
+        BaselineWindowObservation(
+            device_id="dev_01",
+            timestamp=3 * 3600.0,
+            dst_ips=("198.51.100.66",),
+            dst_ports=(23, 4444),
+            protocols=("TELNET",),
+            upload_bytes=900000,
+            download_bytes=800000,
+            is_flagged=True,
+        ),
+        BaselineWindowObservation(
+            device_id="dev_01",
+            timestamp=3 * 3600.0 + 10.0,
+            dst_ips=("198.51.100.66",),
+            dst_ports=(23, 4444),
+            protocols=("TELNET",),
+            upload_bytes=900000,
+            download_bytes=800000,
+            is_flagged=True,
+        ),
+    ]
+    r_dst = learn_destination_allowlist("dev_01", obs, created_at=100.0)
+    r_port = learn_port_and_protocol_allowlist("dev_01", obs, created_at=100.0)
+    r_hrs = learn_active_hours("dev_01", obs, created_at=100.0)
+    r_up = learn_daily_upload_budget("dev_01", obs, margin=2.0, created_at=100.0)
+    r_down = learn_daily_download_budget("dev_01", obs, margin=2.0, created_at=100.0)
+    r_stream = learn_streaming_capability("dev_01", obs, created_at=100.0)
+
+    assert "198.51.100.66" not in r_dst.parameters["allowed_ips"]
+    assert 23 not in r_port.parameters["allowed_ports"] and 4444 not in r_port.parameters["allowed_ports"]
+    assert "TELNET" not in r_port.parameters["allowed_protocols"]
+    assert 3 not in r_hrs.parameters["active_hours_utc"]
+    assert r_up.parameters["peak_daily_upload_bytes"] == 500
+    assert r_down.parameters["peak_daily_download_bytes"] == 400
+    assert r_stream.parameters["ever_streams"] is False
