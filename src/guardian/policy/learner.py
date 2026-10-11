@@ -177,3 +177,34 @@ def learn_daily_download_budget(
         },
         created_at=time.time() if created_at is None else created_at,
     )
+
+
+def learn_streaming_capability(
+    device_id: str,
+    observations: Sequence[BaselineWindowObservation],
+    streaming_window_bytes_threshold: int = 15000,
+    min_streaming_windows: int = 2,
+    created_at: float | None = None,
+) -> PolicyRule:
+    """
+    Task 62: Learn whether the device ever streams media (sustained high-throughput upload)
+    during unflagged baseline operation.
+    """
+    clean = _unflagged(observations)
+    streaming_windows = sum(
+        1 for obs in clean if int(obs.upload_bytes) >= streaming_window_bytes_threshold
+    )
+    ever_streams = streaming_windows >= min_streaming_windows
+    return PolicyRule(
+        rule_id=f"rule_streaming_cap_{device_id}",
+        kind=RuleKind.STREAMING_CAPABILITY,
+        scope=RuleScope.DEVICE,
+        target_id=device_id,
+        source=RuleSource.BASELINE_LEARNED,
+        parameters={
+            "ever_streams": ever_streams,
+            "streaming_windows_observed": streaming_windows,
+            "streaming_window_bytes_threshold": streaming_window_bytes_threshold,
+        },
+        created_at=time.time() if created_at is None else created_at,
+    )

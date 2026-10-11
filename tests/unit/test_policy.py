@@ -150,3 +150,24 @@ def test_learn_daily_download_budget() -> None:
     assert rule.kind == RuleKind.DAILY_DOWNLOAD_BUDGET
     assert rule.parameters["peak_daily_download_bytes"] == 20000
     assert rule.parameters["daily_download_budget_bytes"] == 60000
+
+
+def test_learn_whether_device_ever_streams() -> None:
+    """Task 62: Verify learn_streaming_capability distinguishes non-streaming sensors from streaming cameras."""
+    from guardian.policy.learner import (
+        BaselineWindowObservation,
+        learn_streaming_capability,
+    )
+
+    sensor_obs = [
+        BaselineWindowObservation(device_id="dev_sensor", timestamp=10.0, upload_bytes=400),
+        BaselineWindowObservation(device_id="dev_sensor", timestamp=20.0, upload_bytes=550),
+    ]
+    cam_obs = [
+        BaselineWindowObservation(device_id="dev_cam", timestamp=10.0, upload_bytes=25000),
+        BaselineWindowObservation(device_id="dev_cam", timestamp=20.0, upload_bytes=32000),
+    ]
+    r_sensor = learn_streaming_capability("dev_sensor", sensor_obs, created_at=100.0)
+    r_cam = learn_streaming_capability("dev_cam", cam_obs, created_at=100.0)
+    assert r_sensor.parameters["ever_streams"] is False
+    assert r_cam.parameters["ever_streams"] is True
